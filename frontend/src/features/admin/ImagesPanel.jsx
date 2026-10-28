@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
+import Avatar from "@mui/material/Avatar";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
@@ -11,6 +12,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import ImageIcon from "@mui/icons-material/Image";
 import { api, ApiError } from "../../api/client";
 
 const STATE_LABEL = { pulling: "Baixando", ready: "Pronta", failed: "Falhou" };
@@ -33,6 +35,8 @@ export default function ImagesPanel() {
   const [repository, setRepository] = useState("lscr.io/linuxserver/webtop");
   const [tag, setTag] = useState("latest");
   const [error, setError] = useState("");
+  const fileInputRef = useRef(null);
+  const uploadTargetId = useRef(null);
 
   function reload() {
     api.adminListImages().then(setImages).catch(() => {});
@@ -66,8 +70,36 @@ export default function ImagesPanel() {
     reload();
   }
 
+  function handleUploadIconClick(imageId) {
+    uploadTargetId.current = imageId;
+    fileInputRef.current?.click();
+  }
+
+  async function handleIconFileSelected(event) {
+    const file = event.target.files[0];
+    const imageId = uploadTargetId.current;
+    event.target.value = "";
+    if (!file || !imageId) return;
+
+    setError("");
+    try {
+      await api.adminUploadImageIcon(imageId, file);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Não foi possível enviar a imagem de capa.");
+    }
+  }
+
   return (
     <Stack spacing={3}>
+      <input
+        type="file"
+        accept="image/*"
+        ref={fileInputRef}
+        onChange={handleIconFileSelected}
+        style={{ display: "none" }}
+        data-testid="icon-file-input"
+      />
       <Box component="form" onSubmit={handleCreate}>
         <Typography variant="h6" gutterBottom>
           Registrar imagem
@@ -98,6 +130,7 @@ export default function ImagesPanel() {
       <Table size="small">
         <TableHead>
           <TableRow>
+            <TableCell>Capa</TableCell>
             <TableCell>Imagem</TableCell>
             <TableCell>Referência</TableCell>
             <TableCell>Estado</TableCell>
@@ -107,6 +140,11 @@ export default function ImagesPanel() {
         <TableBody>
           {images.map((image) => (
             <TableRow key={image.id}>
+              <TableCell>
+                <Avatar src={image.icon_url ?? undefined} variant="rounded">
+                  {!image.icon_url && <ImageIcon fontSize="small" />}
+                </Avatar>
+              </TableCell>
               <TableCell>{image.display_name}</TableCell>
               <TableCell>
                 {image.repository}:{image.tag}
@@ -127,6 +165,9 @@ export default function ImagesPanel() {
                 )}
               </TableCell>
               <TableCell align="right">
+                <Button size="small" onClick={() => handleUploadIconClick(image.id)}>
+                  Enviar capa
+                </Button>
                 {image.pull_state === "failed" && (
                   <Button size="small" onClick={() => handleRetry(image.id)}>
                     Tentar de novo

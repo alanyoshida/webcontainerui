@@ -44,8 +44,8 @@ export default function InstanceCard({ instance, idleTimeoutMinutes, onStart, on
   }
 
   return (
-    <Card variant="outlined" sx={{ mb: 2 }}>
-      <CardContent>
+    <Card variant="outlined" sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <CardContent sx={{ flexGrow: 1 }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             {instance.image_display_name}

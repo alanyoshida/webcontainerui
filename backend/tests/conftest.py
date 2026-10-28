@@ -71,7 +71,7 @@ def grant_image_to_group(conn: sqlite3.Connection, group_id: int, image_id: int)
 
 @pytest.fixture
 def app_settings(tmp_path):
-    return Settings(db_path=tmp_path / "test.db")
+    return Settings(db_path=tmp_path / "test.db", uploads_dir=tmp_path / "uploads")
 
 
 @pytest.fixture

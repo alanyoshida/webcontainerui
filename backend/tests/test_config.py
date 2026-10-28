@@ -14,6 +14,8 @@ def test_valores_omitidos_usam_o_padrao():
     assert s.puid == 1000
     assert s.timezone == "Etc/UTC"
     assert s.bootstrap_admin is False
+    assert str(s.uploads_dir) == "/data/uploads/images"
+    assert s.max_icon_upload_mb == 5
 
 
 def test_ambiente_sobrepoe_o_padrao(monkeypatch):
@@ -42,6 +44,7 @@ def test_ambiente_sobrepoe_o_padrao(monkeypatch):
         ("WCUI_DEFAULT_CPU_LIMIT", "0"),
         ("WCUI_DOCKER_NETWORK", ""),
         ("WCUI_PUID", "-1"),
+        ("WCUI_MAX_ICON_UPLOAD_MB", "0"),
     ],
 )
 def test_valor_invalido_falha_na_inicializacao(monkeypatch, var, valor):

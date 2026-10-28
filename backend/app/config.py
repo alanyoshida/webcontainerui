@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     default_mem_limit_mb: int = Field(default=2048, gt=0)
     default_cpu_limit: float = Field(default=2.0, gt=0)
 
+    # Diretório onde as imagens de capa enviadas pelo administrador são
+    # armazenadas. Fica sob o mesmo volume de /data usado pelo SQLite, para
+    # não exigir um volume novo no deploy.
+    uploads_dir: Path = Path("/data/uploads/images")
+    max_icon_upload_mb: int = Field(default=5, gt=0)
+
     puid: int = Field(default=1000, ge=0)
     pgid: int = Field(default=1000, ge=0)
     timezone: str = Field(default="Etc/UTC", min_length=1)

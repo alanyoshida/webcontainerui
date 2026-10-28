@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
+import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 import { api } from "../../api/client";
 import InstanceCard from "./InstanceCard";
@@ -28,16 +29,19 @@ export default function InstancesSection({ instances, loading, error, onStart, o
         <Alert severity="info">Nenhuma instância ainda. Escolha uma imagem no catálogo para começar.</Alert>
       )}
 
-      {instances.map((instance) => (
-        <InstanceCard
-          key={instance.id}
-          instance={instance}
-          idleTimeoutMinutes={idleTimeoutMinutes}
-          onStart={onStart}
-          onStop={onStop}
-          onDelete={onDelete}
-        />
-      ))}
+      <Grid container spacing={2}>
+        {instances.map((instance) => (
+          <Grid item xs={12} sm={6} md={4} key={instance.id}>
+            <InstanceCard
+              instance={instance}
+              idleTimeoutMinutes={idleTimeoutMinutes}
+              onStart={onStart}
+              onStop={onStop}
+              onDelete={onDelete}
+            />
+          </Grid>
+        ))}
+      </Grid>
     </section>
   );
 }

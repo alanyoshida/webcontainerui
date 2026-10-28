@@ -1,7 +1,27 @@
 import sqlite3
+import uuid
 
 from app.config import Settings
-from app.services.errors import ConflictError, NotFoundError
+from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
+
+# Assinaturas (magic bytes) dos formatos de imagem aceitos como capa.
+# Checagem por conteúdo, não pela extensão do nome enviado pelo cliente —
+# um nome ".png" não garante que o conteúdo seja realmente um PNG.
+_IMAGE_SIGNATURES: dict[bytes, str] = {
+    b"\x89PNG\r\n\x1a\n": ".png",
+    b"\xff\xd8\xff": ".jpg",
+    b"GIF87a": ".gif",
+    b"GIF89a": ".gif",
+}
+
+
+def _sniff_image_extension(content: bytes) -> str | None:
+    for signature, extension in _IMAGE_SIGNATURES.items():
+        if content.startswith(signature):
+            return extension
+    if content[:4] == b"RIFF" and content[8:12] == b"WEBP":
+        return ".webp"
+    return None
 
 
 def create_image(
@@ -81,6 +101,49 @@ def retry_pull(conn: sqlite3.Connection, image_id: int) -> None:
 
 def disable_image(conn: sqlite3.Connection, image_id: int) -> None:
     conn.execute("UPDATE images SET enabled = 0 WHERE id = ?", (image_id,))
+
+
+def set_image_icon(
+    conn: sqlite3.Connection,
+    image_id: int,
+    content: bytes,
+    *,
+    settings: Settings,
+) -> None:
+    """Valida, grava e associa a imagem de capa enviada, substituindo a anterior.
+
+    A entrada permanece com a imagem de capa anterior (se havia) quando a
+    validação de tipo ou tamanho recusa o upload — nada é escrito nesse caso.
+    """
+    max_bytes = settings.max_icon_upload_mb * 1024 * 1024
+    if len(content) > max_bytes:
+        raise ValidationFailedError(
+            f"imagem de capa maior que o limite de {settings.max_icon_upload_mb}MB"
+        )
+
+    extension = _sniff_image_extension(content)
+    if extension is None:
+        raise ValidationFailedError("arquivo enviado não é uma imagem reconhecida")
+
+    row = get_image(conn, image_id)
+    previous_icon_path = row["icon_path"]
+
+    settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+    new_filename = f"{image_id}-{uuid.uuid4().hex}{extension}"
+    (settings.uploads_dir / new_filename).write_bytes(content)
+
+    conn.execute("UPDATE images SET icon_path = ? WHERE id = ?", (new_filename, image_id))
+
+    if previous_icon_path:
+        _delete_icon_file(settings, previous_icon_path)
+
+
+def _delete_icon_file(settings: Settings, icon_path: str) -> None:
+    file_path = settings.uploads_dir / icon_path
+    try:
+        file_path.unlink()
+    except FileNotFoundError:
+        pass
 
 
 def list_catalog_for_admin(conn: sqlite3.Connection) -> list[sqlite3.Row]:

@@ -1,8 +1,19 @@
 import time
 
+import pytest
+
+from app.config import Settings
 from app.db import connect
+from app.services.errors import ValidationFailedError
+from app.services.images import set_image_icon
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image, insert_user
+
+_PNG_1X1 = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"
+    b"\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00"
+    b"\x00IEND\xaeB`\x82"
+)
 
 
 def _login_admin(client, seed_user, email="admin@exemplo.test", password="senha-admin-123"):
@@ -165,6 +176,117 @@ def test_imagem_permitida_mas_em_download_nao_aparece_no_catalogo_do_usuario(db_
     grant_image_to_group(db_conn, group_id, image_id)
 
     assert list_catalog_for_user(db_conn, user_id) == []
+
+
+def test_upload_de_capa_valido_grava_arquivo_e_associa_a_entrada(db_conn, tmp_path):
+    settings = Settings(uploads_dir=tmp_path / "uploads")
+    image_id = insert_image(db_conn)
+
+    set_image_icon(db_conn, image_id, _PNG_1X1, settings=settings)
+
+    row = db_conn.execute("SELECT icon_path FROM images WHERE id = ?", (image_id,)).fetchone()
+    assert row["icon_path"] is not None
+    assert (settings.uploads_dir / row["icon_path"]).read_bytes() == _PNG_1X1
+
+
+def test_upload_de_capa_substitui_e_remove_arquivo_anterior(db_conn, tmp_path):
+    settings = Settings(uploads_dir=tmp_path / "uploads")
+    image_id = insert_image(db_conn)
+
+    set_image_icon(db_conn, image_id, _PNG_1X1, settings=settings)
+    primeiro_path = db_conn.execute(
+        "SELECT icon_path FROM images WHERE id = ?", (image_id,)
+    ).fetchone()["icon_path"]
+    arquivo_antigo = settings.uploads_dir / primeiro_path
+    assert arquivo_antigo.exists()
+
+    set_image_icon(db_conn, image_id, _PNG_1X1, settings=settings)
+    segundo_path = db_conn.execute(
+        "SELECT icon_path FROM images WHERE id = ?", (image_id,)
+    ).fetchone()["icon_path"]
+
+    assert segundo_path != primeiro_path
+    assert not arquivo_antigo.exists()
+    assert (settings.uploads_dir / segundo_path).exists()
+
+
+def test_upload_de_capa_com_tipo_invalido_e_recusado_e_entrada_fica_intacta(db_conn, tmp_path):
+    settings = Settings(uploads_dir=tmp_path / "uploads")
+    image_id = insert_image(db_conn)
+
+    with pytest.raises(ValidationFailedError):
+        set_image_icon(db_conn, image_id, b"nao e uma imagem", settings=settings)
+
+    row = db_conn.execute("SELECT icon_path FROM images WHERE id = ?", (image_id,)).fetchone()
+    assert row["icon_path"] is None
+
+
+def test_upload_de_capa_maior_que_o_limite_e_recusado(db_conn, tmp_path):
+    settings = Settings(uploads_dir=tmp_path / "uploads", max_icon_upload_mb=1)
+    image_id = insert_image(db_conn)
+    conteudo_grande = _PNG_1X1 + b"\x00" * (2 * 1024 * 1024)
+
+    with pytest.raises(ValidationFailedError):
+        set_image_icon(db_conn, image_id, conteudo_grande, settings=settings)
+
+    row = db_conn.execute("SELECT icon_path FROM images WHERE id = ?", (image_id,)).fetchone()
+    assert row["icon_path"] is None
+
+
+def test_upload_de_icone_via_endpoint_retorna_icon_url(client, seed_user):
+    _login_admin(client, seed_user)
+    criada = client.post(
+        "/api/admin/images",
+        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+    ).json()
+    assert criada["icon_url"] is None
+
+    resp = client.post(
+        f"/api/admin/images/{criada['id']}/icon",
+        files={"file": ("capa.png", _PNG_1X1, "image/png")},
+    )
+
+    assert resp.status_code == 200
+    assert resp.json()["icon_url"] is not None
+    assert resp.json()["icon_url"].startswith("/uploads/")
+
+
+def test_upload_de_icone_com_tipo_invalido_retorna_400(client, seed_user):
+    _login_admin(client, seed_user)
+    criada = client.post(
+        "/api/admin/images",
+        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+    ).json()
+
+    resp = client.post(
+        f"/api/admin/images/{criada['id']}/icon",
+        files={"file": ("capa.txt", b"nao e imagem", "text/plain")},
+    )
+
+    assert resp.status_code == 400
+
+
+def test_upload_de_icone_sobre_imagem_inexistente_retorna_404(client, seed_user):
+    _login_admin(client, seed_user)
+
+    resp = client.post(
+        "/api/admin/images/999999/icon",
+        files={"file": ("capa.png", _PNG_1X1, "image/png")},
+    )
+
+    assert resp.status_code == 404
+
+
+def test_usuario_comum_nao_envia_icone(client, seed_user):
+    seed_user("comum2@exemplo.test", "senha-comum-123")
+    client.post("/api/auth/login", json={"email": "comum2@exemplo.test", "password": "senha-comum-123"})
+
+    resp = client.post(
+        "/api/admin/images/1/icon",
+        files={"file": ("capa.png", _PNG_1X1, "image/png")},
+    )
+
+    assert resp.status_code == 403
 
 
 def test_imagem_desabilitada_sai_do_catalogo_do_usuario(client, seed_user, app_settings):

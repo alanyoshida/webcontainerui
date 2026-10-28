@@ -25,6 +25,7 @@ _IMAGE_TAG = "latest"  # XFCE sobre Alpine — a variante padrão documentada
 def e2e_app_settings(tmp_path):
     return Settings(
         db_path=tmp_path / "e2e.db",
+        uploads_dir=tmp_path / "uploads",
         docker_network="bridge",  # sem rede dedicada criada neste teste isolado
     )
 

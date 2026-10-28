@@ -1,6 +1,9 @@
 import uuid
+from pathlib import Path
 
 import pytest
+
+from app.db import connect, init_db
 
 from .conftest import insert_image, insert_user
 
@@ -74,3 +77,43 @@ def test_fixture_de_banco_nao_compartilha_estado_entre_testes_b(db_conn):
     total = db_conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     assert total == 0
     assert insert_user(db_conn, "b@exemplo.test") == 1
+
+
+def test_init_db_adiciona_icon_path_a_banco_sem_a_coluna(tmp_path):
+    db_path = tmp_path / "legado.db"
+    conn = connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                display_name TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                shm_size_mb INTEGER NOT NULL,
+                mem_limit_mb INTEGER NOT NULL,
+                cpu_limit REAL NOT NULL,
+                harden_desktop INTEGER NOT NULL DEFAULT 0,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                pull_state TEXT NOT NULL DEFAULT 'pulling',
+                pull_progress TEXT,
+                pull_error TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE (repository, tag)
+            );
+            """
+        )
+        conn.execute(
+            """INSERT INTO images
+                   (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit)
+               VALUES ('Webtop', 'lscr.io/linuxserver/webtop', 'latest', 1024, 2048, 2.0)"""
+        )
+
+        init_db(conn)
+
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+        assert "icon_path" in columns
+        row = conn.execute("SELECT icon_path FROM images").fetchone()
+        assert row["icon_path"] is None
+    finally:
+        conn.close()

@@ -25,6 +25,25 @@ async function request(method, path, body) {
   return data;
 }
 
+async function requestMultipart(method, path, formData) {
+  // Sem Content-Type explícito: o browser define multipart/form-data com o
+  // boundary correto a partir do FormData, diferente de `request`, que
+  // sempre envia JSON.
+  const resp = await fetch(`/api${path}`, {
+    method,
+    credentials: "include",
+    body: formData,
+  });
+
+  const isJson = resp.headers.get("content-type")?.includes("application/json");
+  const data = isJson ? await resp.json() : null;
+
+  if (!resp.ok) {
+    throw new ApiError(resp.status, data?.detail);
+  }
+  return data;
+}
+
 export const api = {
   login: (email, password) => request("POST", "/auth/login", { email, password }),
   logout: () => request("POST", "/auth/logout"),
@@ -58,6 +77,11 @@ export const api = {
   adminCreateImage: (payload) => request("POST", "/admin/images", payload),
   adminRetryPull: (imageId) => request("POST", `/admin/images/${imageId}/retry-pull`),
   adminDisableImage: (imageId) => request("POST", `/admin/images/${imageId}/disable`),
+  adminUploadImageIcon: (imageId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return requestMultipart("POST", `/admin/images/${imageId}/icon`, formData);
+  },
 
   adminGrantImage: (groupId, imageId) =>
     request("POST", `/admin/groups/${groupId}/images`, { image_id: imageId }),

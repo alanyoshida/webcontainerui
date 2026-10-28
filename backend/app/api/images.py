@@ -1,11 +1,11 @@
 import sqlite3
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 
 from app.deps import get_current_user, get_db, require_admin
 from app.services.background import spawn
-from app.services.errors import ConflictError, NotFoundError
+from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 from app.services.image_pull import run_pull
 from app.services.images import (
     create_image,
@@ -14,6 +14,7 @@ from app.services.images import (
     list_catalog_for_admin,
     list_catalog_for_user,
     retry_pull,
+    set_image_icon,
 )
 from app.services.sessions import AuthenticatedUser
 
@@ -44,10 +45,12 @@ class ImageResponse(BaseModel):
     pull_state: str
     pull_progress: str | None
     pull_error: str | None
+    icon_url: str | None
     created_at: str
 
 
 def _to_response(row: sqlite3.Row) -> ImageResponse:
+    icon_path = row["icon_path"]
     return ImageResponse(
         id=row["id"],
         display_name=row["display_name"],
@@ -61,6 +64,7 @@ def _to_response(row: sqlite3.Row) -> ImageResponse:
         pull_state=row["pull_state"],
         pull_progress=row["pull_progress"],
         pull_error=row["pull_error"],
+        icon_url=f"/uploads/{icon_path}" if icon_path else None,
         created_at=row["created_at"],
     )
 
@@ -113,6 +117,25 @@ async def retry_pull_endpoint(
     )
 
     return _to_response(row)
+
+
+@admin_router.post("/images/{image_id}/icon", response_model=ImageResponse)
+async def upload_image_icon_endpoint(
+    image_id: int,
+    request: Request,
+    file: UploadFile,
+    db: sqlite3.Connection = Depends(get_db),
+) -> ImageResponse:
+    settings = request.app.state.settings
+    content = await file.read()
+    try:
+        set_image_icon(db, image_id, content, settings=settings)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationFailedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    return _to_response(get_image(db, image_id))
 
 
 @admin_router.post("/images/{image_id}/disable", status_code=status.HTTP_204_NO_CONTENT)

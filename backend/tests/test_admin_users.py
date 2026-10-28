@@ -153,6 +153,7 @@ def test_bootstrap_primeiro_administrador(tmp_path):
 
     settings = Settings(
         db_path=tmp_path / "bootstrap.db",
+        uploads_dir=tmp_path / "uploads",
         admin_email="root@exemplo.test",
         admin_password="senha-root-bem-longa",
     )
@@ -172,6 +173,7 @@ def test_segunda_inicializacao_nao_cria_nem_sobrescreve(tmp_path):
 
     settings = Settings(
         db_path=tmp_path / "bootstrap.db",
+        uploads_dir=tmp_path / "uploads",
         admin_email="root@exemplo.test",
         admin_password="senha-root-bem-longa",
     )

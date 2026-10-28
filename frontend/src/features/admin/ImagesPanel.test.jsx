@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
-import { api } from "../../api/client";
+import { api, ApiError } from "../../api/client";
 import ImagesPanel from "./ImagesPanel";
 
 vi.mock("../../api/client", () => ({
@@ -9,9 +10,32 @@ vi.mock("../../api/client", () => ({
     adminCreateImage: vi.fn(),
     adminRetryPull: vi.fn(),
     adminDisableImage: vi.fn(),
+    adminUploadImageIcon: vi.fn(),
   },
-  ApiError: class ApiError extends Error {},
+  ApiError: class ApiError extends Error {
+    constructor(status, detail) {
+      super(detail);
+      this.status = status;
+      this.detail = detail;
+    }
+  },
 }));
+
+function imagemBase(overrides = {}) {
+  return {
+    id: 1,
+    display_name: "Webtop",
+    repository: "lscr.io/linuxserver/webtop",
+    tag: "latest",
+    enabled: true,
+    pull_state: "ready",
+    pull_progress: null,
+    pull_error: null,
+    icon_url: null,
+    created_at: "2024-01-01 00:00:00",
+    ...overrides,
+  };
+}
 
 test("imagem em download mostra há quanto tempo começou e o progresso bruto, não só 'Baixando' parado", async () => {
   const dezMinutosAtras = new Date(Date.now() - 10 * 60 * 1000).toISOString().replace("T", " ").slice(0, 19);
@@ -75,4 +99,41 @@ test("imagem em falha mostra a mensagem de erro", async () => {
   render(<ImagesPanel />);
 
   expect(await screen.findByText("registro indisponível")).toBeInTheDocument();
+});
+
+test("envio de capa bem-sucedido recarrega a lista", async () => {
+  const user = userEvent.setup();
+  api.adminListImages.mockResolvedValue([imagemBase()]);
+  api.adminUploadImageIcon.mockResolvedValue(imagemBase({ icon_url: "/uploads/1-abc.png" }));
+
+  render(<ImagesPanel />);
+  await screen.findByText("Webtop");
+  const chamadasAntes = api.adminListImages.mock.calls.length;
+
+  await user.click(screen.getByRole("button", { name: "Enviar capa" }));
+  const arquivo = new File(["conteudo"], "capa.png", { type: "image/png" });
+  await user.upload(screen.getByTestId("icon-file-input"), arquivo);
+
+  expect(api.adminUploadImageIcon).toHaveBeenCalledWith(1, arquivo);
+  await waitFor(() => {
+    expect(api.adminListImages.mock.calls.length).toBeGreaterThan(chamadasAntes);
+  });
+});
+
+test("erro no envio de capa é exibido ao administrador", async () => {
+  // applyAccept: false — o backend é quem decide o que é uma imagem válida
+  // (por assinatura de arquivo); este teste simula um arquivo que passou
+  // pela seleção do usuário mas foi recusado pela validação do servidor.
+  const user = userEvent.setup({ applyAccept: false });
+  api.adminListImages.mockResolvedValue([imagemBase()]);
+  api.adminUploadImageIcon.mockRejectedValue(new ApiError(400, "arquivo enviado não é uma imagem reconhecida"));
+
+  render(<ImagesPanel />);
+  await screen.findByText("Webtop");
+
+  await user.click(screen.getByRole("button", { name: "Enviar capa" }));
+  const arquivo = new File(["conteudo"], "capa.txt", { type: "text/plain" });
+  await user.upload(screen.getByTestId("icon-file-input"), arquivo);
+
+  expect(await screen.findByText("arquivo enviado não é uma imagem reconhecida")).toBeInTheDocument();
 });

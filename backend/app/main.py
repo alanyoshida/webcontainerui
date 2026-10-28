@@ -54,6 +54,8 @@ def create_app(
         if backend_resolver is not None:
             app.state.backend_resolver = backend_resolver
 
+        resolved_settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+
         conn = connect(resolved_settings.db_path)
         init_db(conn)
         ensure_admin(conn, resolved_settings)
@@ -99,6 +101,18 @@ def create_app(
     app.include_router(public_config_router, prefix="/api", tags=["config"])
     app.include_router(health_router, tags=["health"])
     app.include_router(session_proxy_router, tags=["session-proxy"])
+
+    # Imagens de capa enviadas pelo administrador (fora do bundle do
+    # front-end, por isso um mount próprio em vez de reaproveitar /assets).
+    # `check_dir=False`: a montagem das rotas é síncrona e roda antes do
+    # lifespan, que é quem cria o diretório (mesmo padrão de `connect`
+    # criando o diretório de `db_path`) — exigir que já exista aqui
+    # quebraria a própria inicialização.
+    app.mount(
+        "/uploads",
+        StaticFiles(directory=resolved_settings.uploads_dir, check_dir=False),
+        name="uploads",
+    )
 
     # Serve o build do front-end em "/", registrado por último para que
     # /api/* e /i/* (já registrados acima) tenham prioridade — a ordem de

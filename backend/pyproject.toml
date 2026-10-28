@@ -12,6 +12,7 @@ dependencies = [
     "httpx>=0.28",
     "websockets>=13.1",
     "itsdangerous>=2.2",
+    "python-multipart>=0.0.12",
 ]
 
 [project.optional-dependencies]

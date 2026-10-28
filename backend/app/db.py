@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS images (
     pull_state TEXT NOT NULL DEFAULT 'pulling',
     pull_progress TEXT,
     pull_error TEXT,
+    icon_path TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (repository, tag)
 );
@@ -103,3 +104,16 @@ def connect(db_path: Path) -> sqlite3.Connection:
 
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
+    _migrate_add_icon_path(conn)
+
+
+def _migrate_add_icon_path(conn: sqlite3.Connection) -> None:
+    """Adiciona a coluna icon_path a bancos criados antes dela existir.
+
+    CREATE TABLE IF NOT EXISTS não altera uma tabela já existente, então um
+    banco criado por uma versão anterior do schema precisa desse ALTER
+    idempotente para ganhar a coluna nova.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+    if "icon_path" not in columns:
+        conn.execute("ALTER TABLE images ADD COLUMN icon_path TEXT")
