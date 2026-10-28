@@ -1,0 +1,105 @@
+import sqlite3
+from pathlib import Path
+
+SCHEMA_SQL = """
+CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    email TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    is_admin INTEGER NOT NULL DEFAULT 0,
+    disabled_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sessions (
+    token_hash TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    expires_at TEXT NOT NULL,
+    revoked_at TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON sessions(user_id);
+
+CREATE TABLE IF NOT EXISTS groups (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS user_groups (
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    group_id INTEGER NOT NULL REFERENCES groups(id),
+    UNIQUE (user_id, group_id)
+);
+
+CREATE TABLE IF NOT EXISTS images (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    display_name TEXT NOT NULL,
+    repository TEXT NOT NULL,
+    tag TEXT NOT NULL,
+    shm_size_mb INTEGER NOT NULL,
+    mem_limit_mb INTEGER NOT NULL,
+    cpu_limit REAL NOT NULL,
+    harden_desktop INTEGER NOT NULL DEFAULT 0,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    pull_state TEXT NOT NULL DEFAULT 'pulling',
+    pull_progress TEXT,
+    pull_error TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE (repository, tag)
+);
+
+CREATE TABLE IF NOT EXISTS group_images (
+    group_id INTEGER NOT NULL REFERENCES groups(id),
+    image_id INTEGER NOT NULL REFERENCES images(id),
+    UNIQUE (group_id, image_id)
+);
+
+CREATE TABLE IF NOT EXISTS instances (
+    id TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    image_id INTEGER NOT NULL REFERENCES images(id),
+    container_id TEXT,
+    container_name TEXT,
+    volume_name TEXT NOT NULL,
+    inner_user TEXT NOT NULL,
+    inner_password TEXT NOT NULL,
+    state TEXT NOT NULL DEFAULT 'starting',
+    error_message TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    last_seen_at TEXT,
+    deleted_at TEXT
+);
+
+-- Garante uma unica instancia viva por par (usuario, imagem); exclusoes
+-- (deleted_at preenchido) ficam fora do indice e nao bloqueiam uma nova.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_instances_user_image_live
+    ON instances(user_id, image_id)
+    WHERE deleted_at IS NULL;
+
+CREATE INDEX IF NOT EXISTS idx_instances_user_id ON instances(user_id);
+"""
+
+
+def connect(db_path: Path) -> sqlite3.Connection:
+    """Abre a conexão em modo WAL, com busy_timeout e foreign_keys ligados.
+
+    `check_same_thread=False` porque o FastAPI pode resolver a dependência
+    que abre a conexão numa thread do seu pool e executar o corpo do
+    endpoint na thread do event loop (ou vice-versa), dependendo de o
+    endpoint ser `def` ou `async def`. O uso da conexão dentro de uma
+    requisição é sempre sequencial — nunca duas threads ao mesmo tempo —
+    então relaxar essa trava é seguro aqui.
+    """
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = sqlite3.connect(db_path, isolation_level=None, check_same_thread=False)
+    conn.row_factory = sqlite3.Row
+    conn.execute("PRAGMA journal_mode = WAL")
+    conn.execute("PRAGMA busy_timeout = 5000")
+    conn.execute("PRAGMA foreign_keys = ON")
+    return conn
+
+
+def init_db(conn: sqlite3.Connection) -> None:
+    conn.executescript(SCHEMA_SQL)

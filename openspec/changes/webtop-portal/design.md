@@ -306,6 +306,28 @@ precisa estar alcançável nela.
 Mitigação: medir throughput e latência no marco de testes, e manter o caminho de
 crescimento da D1 (proxy externo com forward-auth) registrado.
 
+Medido (tarefa 13.2): 30 clientes WebSocket reais concorrentes, cada um
+fazendo ida-e-volta contínua pelo encaminhamento real (`session_proxy.py`)
+contra um backend de eco real, sem Docker — exatamente o caminho de código
+de produção, só com o container substituído. Resultado, numa máquina
+compartilhada e sem otimização alguma:
+
+| sessões | throughput | latência média | p95 | máxima |
+|---|---|---|---|---|
+| 10 | ~1230 msg/s | 6.5ms | 8.6ms | 20ms |
+| 30 (alvo) | ~956 msg/s | 26ms | 35ms | 54ms |
+| 60 (2x o alvo) | ~997 msg/s | 51ms | 58ms | 149ms |
+
+A latência cresce de forma linear e suave com o número de sessões, sem
+colapso nem platô abrupto — o sinal que D3 queria evitar (uma chamada
+bloqueante travando o loop) não aparece. Em 30 sessões, a latência de
+ida-e-volta fica bem abaixo do que um usuário notaria numa sessão de
+desktop. Isto não mede banda de vídeo real (o teste é ping-pong, não
+streaming de frames), mas mede exatamente o que D3 se preocupava em
+proteger: o tempo que o event loop leva para processar uma mensagem sob
+concorrência — e esse tempo se mantém baixo e previsível até o dobro do
+alvo de escala.
+
 **Um worker é ponto único de falha** → Uma exceção não tratada no loop derruba
 todas as sessões. Mitigação: `restart: unless-stopped` na composição, tarefas de
 fundo com tratamento de exceção que não deixa a task morrer silenciosamente, e

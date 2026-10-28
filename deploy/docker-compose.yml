@@ -1,0 +1,63 @@
+# Composição de produção (D4 em design.md). Caddy termina TLS; o portal
+# fica só na rede interna, sem porta publicada — os webtops que o portal
+# cria também ficam nessa mesma rede, nunca publicados no host.
+#
+# Uso:
+#   cd deploy
+#   WCUI_ADMIN_EMAIL=admin@seu-dominio.test WCUI_ADMIN_PASSWORD=... \
+#   WCUI_DOMAIN=seu-dominio.test \
+#   docker compose up -d
+
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    environment:
+      WCUI_DOMAIN: ${WCUI_DOMAIN:?defina WCUI_DOMAIN, o domínio público do portal}
+    networks:
+      - wcui_net
+    depends_on:
+      - portal
+
+  portal:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      WCUI_DB_PATH: /data/webcontainerui.db
+      WCUI_DOCKER_NETWORK: wcui_net
+      WCUI_ADMIN_EMAIL: ${WCUI_ADMIN_EMAIL:?defina WCUI_ADMIN_EMAIL para provisionar o primeiro administrador}
+      WCUI_ADMIN_PASSWORD: ${WCUI_ADMIN_PASSWORD:?defina WCUI_ADMIN_PASSWORD (mínimo 12 caracteres)}
+    volumes:
+      - wcui_db:/data
+      # O portal precisa do socket do Docker para criar os containers de
+      # desktop. Ver deploy/SECURITY.md: isto equivale a dar root no host
+      # a este serviço — não é um descuido, é a superfície mínima possível.
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - wcui_net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+networks:
+  # Os containers webtop criados pelo portal entram nesta mesma rede, sem
+  # publicar porta nenhuma no host (D1/D2 em design.md) — o isolamento
+  # entre usuários depende disso, não só da checagem de propriedade no proxy.
+  wcui_net:
+    name: wcui_net
+
+volumes:
+  wcui_db:
+  caddy_data:
+  caddy_config:

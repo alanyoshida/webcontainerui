@@ -1,0 +1,18 @@
+# Caddy só termina TLS e repassa para o portal — nenhuma lógica de
+# instância ou autorização mora aqui, isso é tudo do FastAPI (D4 em
+# design.md). Certificado via Let's Encrypt, automático.
+#
+# WebSocket não precisa de diretiva especial: o reverse_proxy do Caddy
+# repassa upgrades de conexão por padrão, diferente do Nginx.
+
+{$WCUI_DOMAIN} {
+	reverse_proxy portal:8000 {
+		# Sessões de desktop são conexões longas (D1); sem isto, o padrão
+		# do Caddy cortaria uma sessão ociosa bem antes dos 3600s que o
+		# próprio container do webtop já usa internamente.
+		transport http {
+			read_timeout 3600s
+			write_timeout 3600s
+		}
+	}
+}

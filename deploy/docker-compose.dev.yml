@@ -1,0 +1,36 @@
+# Composição de desenvolvimento: sem Caddy. `http://localhost` já é um
+# secure context (o Selkies exige isso para WebCodecs), então TLS não faz
+# falta aqui — ver README.md, seção "Desenvolvimento".
+#
+# O front-end roda fora desta composição, via `npm run dev` (Vite), que
+# faz o papel de origem única em dev através do proxy configurado em
+# frontend/vite.config.js. Esta composição só sobe o portal.
+#
+# Uso:
+#   cd deploy
+#   docker compose -f docker-compose.dev.yml up --build
+
+services:
+  portal:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    ports:
+      - "127.0.0.1:8000:8000" # só localhost: nunca exposto à LAN em dev
+    environment:
+      WCUI_DB_PATH: /data/webcontainerui.db
+      WCUI_DOCKER_NETWORK: wcui_net_dev
+      WCUI_ADMIN_EMAIL: admin@local.test
+      WCUI_ADMIN_PASSWORD: senha-admin-dev-123456
+    volumes:
+      - wcui_db_dev:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - wcui_net_dev
+
+networks:
+  wcui_net_dev:
+    name: wcui_net_dev
+
+volumes:
+  wcui_db_dev:

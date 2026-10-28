@@ -1,0 +1,48 @@
+# Segredos e configuração local
+.env
+.env.*
+!.env.example
+
+# Banco SQLite local (WAL cria os arquivos -wal e -shm)
+*.db
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.venv/
+venv/
+*.egg-info/
+
+# Ferramentas de teste e análise Python
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Saída de build
+dist/
+build/
+.vite/
+
+# Sobreposição local da composição Docker
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Editor e sistema operacional
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
