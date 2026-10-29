@@ -127,7 +127,12 @@ async def upload_image_icon_endpoint(
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageResponse:
     settings = request.app.state.settings
-    content = await file.read()
+    # Lê no máximo um byte além do limite configurado: o corpo da
+    # requisição nunca é materializado inteiro na memória antes da
+    # validação de tamanho em `set_image_icon`, mesmo que o cliente envie
+    # um arquivo arbitrariamente grande.
+    max_bytes = settings.max_icon_upload_mb * 1024 * 1024
+    content = await file.read(max_bytes + 1)
     try:
         set_image_icon(db, image_id, content, settings=settings)
     except NotFoundError as exc:

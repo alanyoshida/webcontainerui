@@ -266,6 +266,48 @@ def test_upload_de_icone_com_tipo_invalido_retorna_400(client, seed_user):
     assert resp.status_code == 400
 
 
+def test_upload_de_icone_maior_que_o_limite_retorna_400(app_settings, fake_runtime):
+    """O endpoint limita a leitura a max_icon_upload_mb + 1 byte (ver
+    comentário em `upload_image_icon_endpoint`): mesmo que o cliente mande
+    um corpo bem maior, o servidor nunca materializa o excedente inteiro
+    na memória antes de recusar o upload."""
+    from fastapi.testclient import TestClient
+
+    from app.main import create_app
+    from app.services.passwords import hash_password
+
+    settings = Settings(
+        db_path=app_settings.db_path, uploads_dir=app_settings.uploads_dir, max_icon_upload_mb=1
+    )
+    app = create_app(settings, runtime=fake_runtime)
+    with TestClient(app) as c:
+        conn = connect(settings.db_path)
+        conn.execute(
+            "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
+            ("admin@exemplo.test", hash_password("senha-admin-123")),
+        )
+        conn.close()
+
+        login = c.post(
+            "/api/auth/login", json={"email": "admin@exemplo.test", "password": "senha-admin-123"}
+        )
+        assert login.status_code == 200
+
+        criada = c.post(
+            "/api/admin/images",
+            json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        ).json()
+
+        corpo_grande = b"\xff\xd8\xff" + b"\x00" * (3 * 1024 * 1024)  # 3MB, limite é 1MB
+        resp = c.post(
+            f"/api/admin/images/{criada['id']}/icon",
+            files={"file": ("grande.jpg", corpo_grande, "image/jpeg")},
+        )
+
+        assert resp.status_code == 400
+        assert "limite" in resp.json()["detail"]
+
+
 def test_upload_de_icone_sobre_imagem_inexistente_retorna_404(client, seed_user):
     _login_admin(client, seed_user)
 
