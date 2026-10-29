@@ -12,13 +12,7 @@ export default function InstanceSession({ instanceId }) {
       component="iframe"
       title={`Sessão da instância ${instanceId}`}
       src={`/i/${instanceId}/`}
-      sx={{
-        width: "100%",
-        height: "70vh",
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 1,
-      }}
+      sx={{ width: "100%", height: "100%", border: 0, display: "block" }}
     />
   );
 }

@@ -71,3 +71,66 @@ test("sessão embutida aberta ocupa a largura total do card, mesmo em listagem d
   const sessao = screen.getByTitle("Sessão da instância inst-1");
   expect(sessao).toHaveStyle({ width: "100%" });
 });
+
+test("abrir a sessão amplia o card para 80% da tela; os demais mantêm o tamanho normal", async () => {
+  const user = userEvent.setup();
+  const instances = [
+    instance({ id: "inst-1", image_display_name: "Webtop" }),
+    instance({ id: "inst-2", image_display_name: "Ubuntu KDE" }),
+  ];
+
+  render(
+    <InstancesSection
+      instances={instances}
+      loading={false}
+      error=""
+      onStart={vi.fn()}
+      onStop={vi.fn()}
+      onDelete={vi.fn()}
+    />
+  );
+  await screen.findByText("Webtop");
+
+  const gridItemWebtop = screen.getByText("Webtop").closest(".MuiGrid-item");
+  const gridItemUbuntu = screen.getByText("Ubuntu KDE").closest(".MuiGrid-item");
+  expect(gridItemWebtop).not.toHaveStyle({ width: "80%" });
+
+  const [abrirSessaoWebtop] = screen.getAllByRole("button", { name: /abrir sessão/i });
+  await user.click(abrirSessaoWebtop);
+
+  expect(gridItemWebtop).toHaveStyle({ width: "80%" });
+  expect(gridItemUbuntu).not.toHaveStyle({ width: "80%" });
+});
+
+test("parar a instância com a sessão aberta devolve o card ao tamanho normal", async () => {
+  const user = userEvent.setup();
+  const onStop = vi.fn();
+  const { rerender } = render(
+    <InstancesSection
+      instances={[instance({ id: "inst-1", image_display_name: "Webtop" })]}
+      loading={false}
+      error=""
+      onStart={vi.fn()}
+      onStop={onStop}
+      onDelete={vi.fn()}
+    />
+  );
+  await screen.findByText("Webtop");
+
+  await user.click(screen.getByRole("button", { name: /abrir sessão/i }));
+  const gridItem = screen.getByText("Webtop").closest(".MuiGrid-item");
+  expect(gridItem).toHaveStyle({ width: "80%" });
+
+  rerender(
+    <InstancesSection
+      instances={[instance({ id: "inst-1", image_display_name: "Webtop", state: "stopped" })]}
+      loading={false}
+      error=""
+      onStart={vi.fn()}
+      onStop={onStop}
+      onDelete={vi.fn()}
+    />
+  );
+
+  expect(screen.getByText("Webtop").closest(".MuiGrid-item")).not.toHaveStyle({ width: "80%" });
+});

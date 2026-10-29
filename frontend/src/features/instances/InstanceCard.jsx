@@ -13,6 +13,7 @@ import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import ComputerIcon from "@mui/icons-material/Computer";
 import InstanceSession from "./InstanceSession";
 
 const STATE_LABEL = {
@@ -29,8 +30,15 @@ const STATE_COLOR = {
   error: "error",
 };
 
-export default function InstanceCard({ instance, idleTimeoutMinutes, onStart, onStop, onDelete }) {
-  const [sessionOpen, setSessionOpen] = useState(false);
+export default function InstanceCard({
+  instance,
+  idleTimeoutMinutes,
+  sessionOpen,
+  onToggleSession,
+  onStart,
+  onStop,
+  onDelete,
+}) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -43,8 +51,28 @@ export default function InstanceCard({ instance, idleTimeoutMinutes, onStart, on
     }
   }
 
+  const showSession = sessionOpen && instance.state === "running";
+
   return (
     <Card variant="outlined" sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+      <Box
+        sx={{
+          aspectRatio: "16 / 9",
+          width: "100%",
+          bgcolor: "action.hover",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          overflow: "hidden",
+        }}
+      >
+        {showSession ? (
+          <InstanceSession instanceId={instance.id} />
+        ) : (
+          <ComputerIcon color="disabled" sx={{ fontSize: 48 }} />
+        )}
+      </Box>
+
       <CardContent sx={{ flexGrow: 1 }}>
         <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 1 }}>
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
@@ -68,18 +96,12 @@ export default function InstanceCard({ instance, idleTimeoutMinutes, onStart, on
             continuam salvos; iniciar de novo retoma de onde você deixou.
           </Alert>
         )}
-
-        {sessionOpen && instance.state === "running" && (
-          <Box sx={{ mt: 2 }}>
-            <InstanceSession instanceId={instance.id} />
-          </Box>
-        )}
       </CardContent>
 
       <CardActions>
         {instance.state === "running" && (
           <>
-            <Button size="small" onClick={() => setSessionOpen((v) => !v)}>
+            <Button size="small" onClick={onToggleSession}>
               {sessionOpen ? "Ocultar sessão" : "Abrir sessão"}
             </Button>
             <Button size="small" disabled={busy} onClick={() => run(() => onStop(instance.id))}>

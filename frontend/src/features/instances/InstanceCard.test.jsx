@@ -60,6 +60,43 @@ test("instância parada mostra o limite de inatividade configurado", () => {
   expect(screen.getByText(/45 minutos/)).toBeInTheDocument();
 });
 
+test("clicar em abrir/ocultar sessão chama onToggleSession, controlado pelo pai", async () => {
+  const onToggleSession = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <InstanceCard
+      instance={instance()}
+      idleTimeoutMinutes={30}
+      sessionOpen={false}
+      onToggleSession={onToggleSession}
+      onStart={vi.fn()}
+      onStop={vi.fn()}
+      onDelete={vi.fn()}
+    />
+  );
+
+  await user.click(screen.getByRole("button", { name: "Abrir sessão" }));
+
+  expect(onToggleSession).toHaveBeenCalledTimes(1);
+});
+
+test("sessionOpen=true exibe a sessão embutida quando a instância está em execução", () => {
+  render(
+    <InstanceCard
+      instance={instance()}
+      idleTimeoutMinutes={30}
+      sessionOpen={true}
+      onToggleSession={vi.fn()}
+      onStart={vi.fn()}
+      onStop={vi.fn()}
+      onDelete={vi.fn()}
+    />
+  );
+
+  expect(screen.getByTitle(/Sessão da instância inst-1/)).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Ocultar sessão" })).toBeInTheDocument();
+});
+
 test("instância em erro mostra a mensagem de erro", () => {
   render(
     <InstanceCard
