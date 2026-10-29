@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import { api } from "../../api/client";
 
+// O reaper de ociosidade e a reconciliação de estado rodam no backend sem
+// avisar o front-end (nenhum canal de push existe para isso); sem um poll
+// aqui, uma instância que o backend já marcou como parada continuaria
+// aparecendo "em execução" na tela até a próxima ação manual do usuário.
+const POLL_INTERVAL_MS = 5000;
+
 export function useInstances() {
   const [instances, setInstances] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -19,6 +25,8 @@ export function useInstances() {
 
   useEffect(() => {
     reload();
+    const interval = setInterval(reload, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
   }, [reload]);
 
   const create = useCallback(
