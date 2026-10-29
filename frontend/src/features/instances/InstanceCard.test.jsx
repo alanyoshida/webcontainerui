@@ -1,7 +1,14 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { vi } from "vitest";
+import { beforeEach, vi } from "vitest";
 import InstanceCard from "./InstanceCard";
+
+beforeEach(() => {
+  // InstanceSession checa a disponibilidade da sessão via fetch antes de
+  // montar o iframe; os testes que a exercitam não se importam com essa
+  // checagem em si, só respondem OK para o iframe aparecer.
+  global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+});
 
 function instance(overrides = {}) {
   return {
@@ -80,7 +87,7 @@ test("clicar em abrir/ocultar sessão chama onToggleSession, controlado pelo pai
   expect(onToggleSession).toHaveBeenCalledTimes(1);
 });
 
-test("sessionOpen=true exibe a sessão embutida quando a instância está em execução", () => {
+test("sessionOpen=true exibe a sessão embutida quando a instância está em execução", async () => {
   render(
     <InstanceCard
       instance={instance()}
@@ -93,7 +100,7 @@ test("sessionOpen=true exibe a sessão embutida quando a instância está em exe
     />
   );
 
-  expect(screen.getByTitle(/Sessão da instância inst-1/)).toBeInTheDocument();
+  expect(await screen.findByTitle(/Sessão da instância inst-1/)).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Ocultar sessão" })).toBeInTheDocument();
 });
 

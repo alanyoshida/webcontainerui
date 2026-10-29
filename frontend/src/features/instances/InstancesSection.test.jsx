@@ -21,6 +21,9 @@ function instance(overrides = {}) {
 
 beforeEach(() => {
   api.getPublicConfig.mockResolvedValue({ idle_timeout_minutes: 30 });
+  // InstanceSession checa a disponibilidade da sessão via fetch antes de
+  // montar o iframe; aqui só interessa que ela resolva OK.
+  global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
 });
 
 test("listagem em grade renderiza todas as instâncias do usuário", async () => {
@@ -68,7 +71,7 @@ test("sessão embutida aberta ocupa a largura total do card, mesmo em listagem d
   const [abrirSessaoWebtop] = screen.getAllByRole("button", { name: /abrir sessão/i });
   await user.click(abrirSessaoWebtop);
 
-  const sessao = screen.getByTitle("Sessão da instância inst-1");
+  const sessao = await screen.findByTitle("Sessão da instância inst-1");
   expect(sessao).toHaveStyle({ width: "100%" });
 });
 
