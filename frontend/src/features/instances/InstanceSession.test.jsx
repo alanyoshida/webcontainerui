@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 import InstanceSession from "./InstanceSession";
 
@@ -8,6 +8,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.restoreAllMocks();
+  vi.useRealTimers();
 });
 
 test("o endereço usado é relativo à própria origem, não um host de container", async () => {
@@ -51,4 +52,54 @@ test("resposta de erro sem corpo JSON cai na mensagem genérica", async () => {
   render(<InstanceSession instanceId="abc-123" />);
 
   expect(await screen.findByText("Não foi possível conectar a esta sessão agora.")).toBeInTheDocument();
+});
+
+test("indisponível no início mas pronta pouco depois: tenta de novo sozinho e mostra o iframe", async () => {
+  vi.useFakeTimers();
+  global.fetch
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ detail: "instância indisponível" }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      })
+    )
+    .mockResolvedValueOnce(new Response(null, { status: 200 }));
+
+  render(<InstanceSession instanceId="abc-123" />);
+
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(screen.getByText("instância indisponível")).toBeInTheDocument();
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000);
+  });
+
+  expect(screen.getByTitle(/Sessão da instância abc-123/)).toBeInTheDocument();
+  expect(global.fetch).toHaveBeenCalledTimes(2);
+});
+
+test("para de tentar depois do limite de tentativas, sem loop infinito", async () => {
+  vi.useFakeTimers();
+  // mockImplementation (não mockResolvedValue): o corpo de uma Response só
+  // pode ser lido uma vez, e aqui o fetch é chamado várias vezes — cada
+  // chamada precisa da sua própria instância, senão o .json() das tentativas
+  // seguintes falha por corpo já consumido.
+  global.fetch.mockImplementation(
+    () =>
+      new Response(JSON.stringify({ detail: "instância indisponível" }), {
+        status: 502,
+        headers: { "Content-Type": "application/json" },
+      })
+  );
+
+  render(<InstanceSession instanceId="abc-123" />);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(3000 * 25); // bem além do limite de tentativas
+  });
+
+  expect(screen.getByText("instância indisponível")).toBeInTheDocument();
+  expect(global.fetch).toHaveBeenCalledTimes(20);
 });

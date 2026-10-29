@@ -4,6 +4,8 @@ import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
 
 const GENERIC_UNAVAILABLE_MESSAGE = "Não foi possível conectar a esta sessão agora.";
+const RETRY_INTERVAL_MS = 3000;
+const MAX_RETRIES = 20; // ~1 minuto tentando, mesma ordem de grandeza do ciclo do reaper
 
 /**
  * Embute a sessão de desktop num iframe same-origin. O caminho é relativo
@@ -16,6 +18,11 @@ const GENERIC_UNAVAILABLE_MESSAGE = "Não foi possível conectar a esta sessão 
  * resposta é um JSON de erro — carregá-lo direto como documento do iframe
  * mostraria esse JSON cru na tela. Em vez disso, essa checagem intercepta o
  * erro e mostra um aviso formatado no lugar do iframe.
+ *
+ * A checagem se repete enquanto não disponível: o container entra em
+ * "em execução" assim que o processo começa, bem antes do servidor interno
+ * (Selkies) aceitar conexões — sem repetir, o usuário ficaria preso num
+ * aviso de erro que se resolveria sozinho poucos segundos depois.
  */
 export default function InstanceSession({ instanceId }) {
   const [status, setStatus] = useState("checking"); // checking | ready | unavailable
@@ -23,13 +30,17 @@ export default function InstanceSession({ instanceId }) {
 
   useEffect(() => {
     let cancelled = false;
-    setStatus("checking");
+    let timeoutId;
+    let attempt = 0;
 
-    fetch(`/i/${instanceId}/`, { credentials: "include" })
-      .then(async (resp) => {
+    async function check() {
+      let ready = false;
+      try {
+        const resp = await fetch(`/i/${instanceId}/`, { credentials: "include" });
         if (cancelled) return;
         if (resp.ok) {
           setStatus("ready");
+          ready = true;
           return;
         }
         let detail = GENERIC_UNAVAILABLE_MESSAGE;
@@ -41,16 +52,25 @@ export default function InstanceSession({ instanceId }) {
         }
         setMessage(detail);
         setStatus("unavailable");
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) {
           setMessage(GENERIC_UNAVAILABLE_MESSAGE);
           setStatus("unavailable");
         }
-      });
+      } finally {
+        attempt += 1;
+        if (!cancelled && !ready && attempt < MAX_RETRIES) {
+          timeoutId = setTimeout(check, RETRY_INTERVAL_MS);
+        }
+      }
+    }
+
+    setStatus("checking");
+    check();
 
     return () => {
       cancelled = true;
+      clearTimeout(timeoutId);
     };
   }, [instanceId]);
 
