@@ -66,15 +66,24 @@ async def reconcile_instance_states(conn: sqlite3.Connection, runtime: Container
 
 
 async def run_reaper(db_path: Path, runtime: ContainerRuntime, idle_timeout_minutes: int, interval_seconds: int) -> None:
-    """Loop periódico de ociosidade. Uma falha numa iteração não encerra
-    o loop (D-risco "um worker é ponto único de falha", design.md) — a
-    próxima iteração tenta de novo."""
+    """Loop periódico de ociosidade e reconciliação de estado. Uma falha
+    numa iteração não encerra o loop (D-risco "um worker é ponto único de
+    falha", design.md) — a próxima iteração tenta de novo.
+
+    Reconcilia antes de reaper: um container encerrado por fora (sem
+    passar por `stop_instance`) precisa virar "stopped" no registro antes
+    da checagem de ociosidade rodar sobre ele, senão a instância seria
+    tratada como candidata a "parar por ociosidade" quando na verdade já
+    parou por outro motivo — `reap_idle_instances` só considera
+    `state = 'running'`, então a ordem é o que garante isso.
+    """
     logger = logging.getLogger(__name__)
     while True:
         await asyncio.sleep(interval_seconds)
         try:
             conn = connect(db_path)
             try:
+                await reconcile_instance_states(conn, runtime)
                 await reap_idle_instances(conn, runtime, idle_timeout_minutes)
             finally:
                 conn.close()
