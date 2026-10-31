@@ -9,9 +9,10 @@ export default defineConfig({
   server: {
     proxy: {
       // Em dev, o Vite faz o papel da origem única que em produção é o
-      // FastAPI: tudo sob /api e /i precisa parecer same-origin (D1).
+      // FastAPI: tudo sob /api, /i e /uploads precisa parecer same-origin (D1).
       "/api": { target: BACKEND_URL, changeOrigin: true },
       "/i": { target: BACKEND_URL, changeOrigin: true, ws: true },
+      "/uploads": { target: BACKEND_URL, changeOrigin: true },
     },
   },
   test: {
