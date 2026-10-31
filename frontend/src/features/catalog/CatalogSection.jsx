@@ -62,7 +62,7 @@ export default function CatalogSection({ onStart }) {
                   component="img"
                   src={image.icon_url}
                   alt={image.display_name}
-                  sx={{ height: COVER_HEIGHT, objectFit: "cover" }}
+                  sx={{ height: COVER_HEIGHT, objectFit: "contain" }}
                 />
               ) : (
                 <Box
