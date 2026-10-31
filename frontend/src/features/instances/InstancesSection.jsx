@@ -1,18 +1,24 @@
 import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import CircularProgress from "@mui/material/CircularProgress";
-import Grid from "@mui/material/Grid";
+import Table from "@mui/material/Table";
+import TableBody from "@mui/material/TableBody";
+import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
+import TableHead from "@mui/material/TableHead";
+import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { api } from "../../api/client";
-import InstanceCard from "./InstanceCard";
+import InstanceTableRow from "./InstanceTableRow";
 
-export default function InstancesSection({ instances, loading, error, onStart, onStop, onDelete }) {
+/**
+ * Lista "Minhas instâncias" como tabela. Não controla mais qual sessão está
+ * aberta — isso virou uma troca de visão de página inteira, decidida por
+ * quem usa este componente (ver HomePage.jsx), por isso só repassa
+ * onOpenSession para cada linha em vez de guardar esse estado aqui.
+ */
+export default function InstancesSection({ instances, loading, error, onOpenSession, onStart, onStop, onDelete }) {
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(null);
-  // Estado do grid, não do card: o tamanho de cada item (80% da tela quando
-  // a sessão está aberta, tamanho normal quando fechada) é decisão do
-  // layout, então sobe para quem desenha o Grid em vez de ficar isolado
-  // dentro de cada InstanceCard.
-  const [openSessionIds, setOpenSessionIds] = useState(() => new Set());
 
   useEffect(() => {
     api
@@ -20,18 +26,6 @@ export default function InstancesSection({ instances, loading, error, onStart, o
       .then((config) => setIdleTimeoutMinutes(config.idle_timeout_minutes))
       .catch(() => setIdleTimeoutMinutes(null));
   }, []);
-
-  function toggleSession(instanceId) {
-    setOpenSessionIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(instanceId)) {
-        next.delete(instanceId);
-      } else {
-        next.add(instanceId);
-      }
-      return next;
-    });
-  }
 
   return (
     <section aria-label="Suas instâncias">
@@ -46,34 +40,33 @@ export default function InstancesSection({ instances, loading, error, onStart, o
         <Alert severity="info">Nenhuma instância ainda. Escolha uma imagem no catálogo para começar.</Alert>
       )}
 
-      <Grid container spacing={2}>
-        {instances.map((instance) => {
-          // Só conta como "aberta" (e ganha os 80%) se a instância também
-          // estiver em execução — parar a instância com a sessão marcada
-          // como aberta não deve deixar o card grande e vazio.
-          const sessionOpen = openSessionIds.has(instance.id) && instance.state === "running";
-          return (
-            <Grid
-              item
-              key={instance.id}
-              xs={12}
-              sm={sessionOpen ? 12 : 6}
-              md={sessionOpen ? 12 : 4}
-              sx={sessionOpen ? { width: "80%", flexBasis: "80%", maxWidth: "80%", mx: "auto" } : undefined}
-            >
-              <InstanceCard
-                instance={instance}
-                idleTimeoutMinutes={idleTimeoutMinutes}
-                sessionOpen={sessionOpen}
-                onToggleSession={() => toggleSession(instance.id)}
-                onStart={onStart}
-                onStop={onStop}
-                onDelete={onDelete}
-              />
-            </Grid>
-          );
-        })}
-      </Grid>
+      {!loading && !error && instances.length > 0 && (
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Imagem</TableCell>
+                <TableCell>Referência</TableCell>
+                <TableCell>Estado</TableCell>
+                <TableCell align="right">Ações</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {instances.map((instance) => (
+                <InstanceTableRow
+                  key={instance.id}
+                  instance={instance}
+                  idleTimeoutMinutes={idleTimeoutMinutes}
+                  onOpenSession={onOpenSession}
+                  onStart={onStart}
+                  onStop={onStop}
+                  onDelete={onDelete}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
+      )}
     </section>
   );
 }
