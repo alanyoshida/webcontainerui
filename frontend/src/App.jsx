@@ -7,6 +7,7 @@ import TopBar from "./components/TopBar";
 import AdminPage from "./pages/AdminPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
+import SshIdentityPage from "./pages/SshIdentityPage";
 import theme from "./theme";
 
 function AppLayout({ children }) {
@@ -32,6 +33,14 @@ export default function App() {
                 element={
                   <AppLayout>
                     <HomePage />
+                  </AppLayout>
+                }
+              />
+              <Route
+                path="/ssh-identity"
+                element={
+                  <AppLayout>
+                    <SshIdentityPage />
                   </AppLayout>
                 }
               />

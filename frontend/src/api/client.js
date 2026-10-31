@@ -52,6 +52,9 @@ export const api = {
   getCatalog: () => request("GET", "/catalog"),
   getPublicConfig: () => request("GET", "/config"),
 
+  getSshIdentity: () => request("GET", "/me/ssh-identity"),
+  regenerateSshIdentity: () => request("POST", "/me/ssh-identity/regenerate"),
+
   listInstances: () => request("GET", "/instances"),
   createInstance: (imageId) => request("POST", "/instances", { image_id: imageId }),
   stopInstance: (id) => request("POST", `/instances/${id}/stop`),

@@ -36,6 +36,9 @@ services:
       WCUI_DOCKER_NETWORK: wcui_net
       WCUI_ADMIN_EMAIL: ${WCUI_ADMIN_EMAIL:?defina WCUI_ADMIN_EMAIL para provisionar o primeiro administrador}
       WCUI_ADMIN_PASSWORD: ${WCUI_ADMIN_PASSWORD:?defina WCUI_ADMIN_PASSWORD (mínimo 12 caracteres)}
+      # Cifra as chaves SSH dos usuários em repouso (ssh-identity). Gere com:
+      # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+      WCUI_SSH_KEY_ENCRYPTION_KEY: ${WCUI_SSH_KEY_ENCRYPTION_KEY:?defina WCUI_SSH_KEY_ENCRYPTION_KEY (gere com Fernet.generate_key())}
     volumes:
       - wcui_db:/data
       # O portal precisa do socket do Docker para criar os containers de

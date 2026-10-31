@@ -1,8 +1,18 @@
+import os
 import sqlite3
 import tempfile
 from pathlib import Path
 
 import pytest
+from cryptography.fernet import Fernet
+
+# `app.main` cria um `app = create_app()` em nível de módulo (para
+# `uvicorn app.main:app`), o que chama `Settings()` assim que este
+# conftest importa `app.main` abaixo — antes de qualquer fixture rodar.
+# `ssh_key_encryption_key` é obrigatória (sem padrão, ver config.py), então
+# precisa de um valor já presente no ambiente nesse momento da coleta.
+os.environ.setdefault("WCUI_SSH_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
+
 from fastapi.testclient import TestClient
 
 from app.config import Settings
@@ -10,6 +20,15 @@ from app.db import connect, init_db
 from app.main import create_app
 from app.runtime.fake import FakeContainerRuntime
 from app.services.passwords import hash_password
+
+
+@pytest.fixture(autouse=True)
+def _ssh_key_encryption_key_env(monkeypatch):
+    """`Settings.ssh_key_encryption_key` é obrigatória (sem padrão, ver
+    config.py) — dá a todo teste uma chave Fernet válida por padrão, para
+    que só os testes que verificam a própria validação precisem mexer
+    nessa variável (com `monkeypatch.delenv`/`setenv`)."""
+    monkeypatch.setenv("WCUI_SSH_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
 
 
 @pytest.fixture

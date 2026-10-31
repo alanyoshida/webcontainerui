@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from cryptography.fernet import Fernet
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -46,6 +47,24 @@ class Settings(BaseSettings):
     puid: int = Field(default=1000, ge=0)
     pgid: int = Field(default=1000, ge=0)
     timezone: str = Field(default="Etc/UTC", min_length=1)
+
+    # Chave mestra usada para cifrar a chave privada SSH de cada usuário em
+    # repouso (ver services/ssh_identity.py). Sem valor padrão: um deploy
+    # sem essa variável não deve subir silenciosamente guardando segredo
+    # sem cifragem real.
+    ssh_key_encryption_key: str
+
+    @model_validator(mode="after")
+    def _ssh_key_encryption_key_is_valid_fernet_key(self) -> "Settings":
+        try:
+            Fernet(self.ssh_key_encryption_key.encode())
+        except Exception as exc:
+            raise ValueError(
+                "WCUI_SSH_KEY_ENCRYPTION_KEY deve ser uma chave Fernet válida "
+                "(32 bytes em base64 urlsafe, gerada por exemplo com "
+                "Fernet.generate_key())"
+            ) from exc
+        return self
 
     @model_validator(mode="after")
     def _admin_pair_is_complete(self) -> "Settings":

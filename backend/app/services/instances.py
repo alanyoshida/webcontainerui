@@ -5,6 +5,7 @@ import uuid
 from app.config import Settings
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime, ContainerSpec
+from app.services import ssh_identity
 from app.services.access_control import is_permitted
 from app.services.errors import NotFoundError, PermissionDeniedError, ValidationFailedError
 from app.services.images import get_image
@@ -125,6 +126,66 @@ def _build_spec(
     )
 
 
+def _ssh_owner_uid_gid(settings: Settings, image: sqlite3.Row) -> tuple[int, int]:
+    """Dono dos arquivos da identidade SSH injetada (design.md D3): root
+    para imagens de agente (`provision_kind == "build"`, rodam como root),
+    PUID/PGID para imagens webtop (`"pull"`, rodam como o usuário que o
+    LinuxServer ajusta para esse uid/gid)."""
+    if image["provision_kind"] == "build":
+        return 0, 0
+    return settings.puid, settings.pgid
+
+
+async def _inject_ssh_identity(
+    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, image: sqlite3.Row,
+    container_id: str, user_id: int,
+) -> None:
+    """Disponibiliza a identidade SSH do dono no container recém-criado
+    (spec ssh-identity: "Toda instância criada recebe a identidade SSH do
+    dono"). Best-effort: uma falha aqui não impede a instância de ficar
+    pronta — ela só fica sem SSH funcionando, igual a uma instância criada
+    antes desta funcionalidade existir."""
+    identity = ssh_identity.get_or_create_identity(conn, settings, user_id)
+    private_key = ssh_identity.decrypt_private_key(settings, identity)
+    uid, gid = _ssh_owner_uid_gid(settings, image)
+    tar_bytes = ssh_identity.build_ssh_archive(private_key, identity["public_key"], uid=uid, gid=gid)
+    try:
+        await runtime.put_archive(container_id, _VOLUME_MOUNT_PATH, tar_bytes)
+    except (ContainerNotFoundError, RuntimeOperationError):
+        pass
+
+
+async def propagate_ssh_identity_to_live_instances(
+    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, user_id: int
+) -> list[dict]:
+    """Reaplica a identidade SSH atual do usuário em todas as instâncias
+    vivas dele — em execução ou paradas, qualquer uma com container já
+    criado —, isolando falha por instância (design.md D4, spec
+    ssh-identity: "Regeneração propaga para instâncias existentes").
+    Retorna as falhas (instance_id + motivo), se houver, para quem chamou
+    reportar ao usuário; nunca levanta por uma falha individual."""
+    identity = ssh_identity.get_or_create_identity(conn, settings, user_id)
+    private_key = ssh_identity.decrypt_private_key(settings, identity)
+
+    rows = conn.execute(
+        """SELECT i.id AS instance_id, i.container_id, img.provision_kind
+           FROM instances i JOIN images img ON img.id = i.image_id
+           WHERE i.user_id = ? AND i.deleted_at IS NULL AND i.container_id IS NOT NULL""",
+        (user_id,),
+    ).fetchall()
+
+    failures: list[dict] = []
+    for row in rows:
+        uid, gid = _ssh_owner_uid_gid(settings, row)
+        tar_bytes = ssh_identity.build_ssh_archive(private_key, identity["public_key"], uid=uid, gid=gid)
+        try:
+            await runtime.put_archive(row["container_id"], _VOLUME_MOUNT_PATH, tar_bytes)
+        except (ContainerNotFoundError, RuntimeOperationError) as exc:
+            failures.append({"instance_id": row["instance_id"], "error": str(exc)})
+
+    return failures
+
+
 async def _provision_and_start(
     conn: sqlite3.Connection,
     runtime: ContainerRuntime,
@@ -148,6 +209,8 @@ async def _provision_and_start(
             "UPDATE instances SET state = 'error', error_message = ? WHERE id = ?", (str(exc), row["id"])
         )
         return _get_by_id(conn, row["id"])
+
+    await _inject_ssh_identity(conn, runtime, settings, image, container_id, row["user_id"])
 
     try:
         await runtime.start_container(container_id)

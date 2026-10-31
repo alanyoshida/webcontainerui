@@ -26,6 +26,7 @@ class FakeContainerRuntime:
         self._build_progress: list[PullProgress] | None = None
         self.build_calls: list[dict] = []
         self.pull_calls: list[dict] = []
+        self.put_archive_calls: list[dict] = []
 
     def set_delay(self, operation: str, seconds: float) -> None:
         self._delays[operation] = seconds
@@ -72,6 +73,13 @@ class FakeContainerRuntime:
             return
         for progress in self._build_progress:
             yield progress
+
+    async def put_archive(self, container_id: str, destination_path: str, tar_bytes: bytes) -> None:
+        self._require(container_id)
+        await self._simulate("put_archive")
+        self.put_archive_calls.append(
+            {"container_id": container_id, "destination_path": destination_path, "tar_bytes": tar_bytes}
+        )
 
     async def create_container(self, spec: ContainerSpec) -> str:
         await self._simulate("create_container")

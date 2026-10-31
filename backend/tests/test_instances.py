@@ -1,7 +1,15 @@
+import io
+import tarfile
+
 from app.db import connect
 from app.runtime.errors import RuntimeOperationError
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
+
+
+def _tar_content(tar_bytes: bytes, name: str) -> bytes:
+    with tarfile.open(fileobj=io.BytesIO(tar_bytes), mode="r") as tar:
+        return tar.extractfile(name).read()
 
 
 def _login_admin(client, seed_user, email="admin@exemplo.test", password="senha-admin-123"):
@@ -63,6 +71,137 @@ def test_container_criado_sem_porta_publicada_na_rede_interna_com_sharing_deslig
     assert spec.env["SELKIES_ENABLE_SHARED"] == "false"
     assert spec.env["SUBFOLDER"] == f"/i/{instance_id}/"
     assert "SELKIES_ENABLE_WEBRTC" not in spec.env  # WebRTC nunca é habilitado
+
+
+def test_criacao_injeta_a_identidade_ssh_do_dono_no_destino_config(
+    client, seed_user, app_settings, fake_runtime
+):
+    from app.db import init_db
+    from app.services.ssh_identity import get_or_create_identity
+
+    user_id = _login_as(client, seed_user, "ssh@exemplo.test")
+    conn = connect(app_settings.db_path)
+    init_db(conn)
+    image_id = insert_image(conn)  # provision_kind='pull' (webtop) por padrão
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    identity = get_or_create_identity(conn, app_settings, user_id)
+    conn.close()
+
+    resp = client.post("/api/instances", json={"image_id": image_id})
+    assert resp.status_code == 201
+
+    assert len(fake_runtime.put_archive_calls) == 1
+    call = fake_runtime.put_archive_calls[0]
+    assert call["destination_path"] == "/config"
+    assert _tar_content(call["tar_bytes"], ".ssh/id_ed25519.pub").decode() == identity["public_key"] + "\n"
+
+
+def test_criacao_fixa_o_dono_dos_arquivos_conforme_provision_kind(
+    client, seed_user, app_settings, fake_runtime
+):
+    from app.db import init_db
+
+    user_id = _login_as(client, seed_user, "dono-ssh@exemplo.test")
+    conn = connect(app_settings.db_path)
+    init_db(conn)
+    image_webtop = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
+    image_agente = insert_image(
+        conn, repository="wcui-agent-teste", tag="latest", provision_kind="build"
+    )
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_webtop)
+    grant_image_to_group(conn, group_id, image_agente)
+    conn.close()
+
+    client.post("/api/instances", json={"image_id": image_webtop})
+    client.post("/api/instances", json={"image_id": image_agente})
+
+    assert len(fake_runtime.put_archive_calls) == 2
+    webtop_tar = fake_runtime.put_archive_calls[0]["tar_bytes"]
+    agente_tar = fake_runtime.put_archive_calls[1]["tar_bytes"]
+    with tarfile.open(fileobj=io.BytesIO(webtop_tar), mode="r") as tar:
+        member = tar.getmember(".ssh")
+        assert (member.uid, member.gid) == (app_settings.puid, app_settings.pgid)
+    with tarfile.open(fileobj=io.BytesIO(agente_tar), mode="r") as tar:
+        member = tar.getmember(".ssh")
+        assert (member.uid, member.gid) == (0, 0)
+
+
+async def test_propagacao_atualiza_instancias_em_execucao_e_paradas(
+    client, seed_user, app_settings, fake_runtime
+):
+    from app.db import init_db
+    from app.services.instances import propagate_ssh_identity_to_live_instances
+    from app.services.ssh_identity import get_or_create_identity
+
+    user_id = _login_as(client, seed_user, "propaga@exemplo.test")
+    conn = connect(app_settings.db_path)
+    init_db(conn)
+    image_a = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
+    image_b = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="ubuntu-kde")
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_a)
+    grant_image_to_group(conn, group_id, image_b)
+    get_or_create_identity(conn, app_settings, user_id)
+    conn.close()
+
+    resp_a = client.post("/api/instances", json={"image_id": image_a})
+    resp_b = client.post("/api/instances", json={"image_id": image_b})
+    instance_a = resp_a.json()["id"]
+    instance_b = resp_b.json()["id"]
+    client.post(f"/api/instances/{instance_b}/stop")
+
+    fake_runtime.put_archive_calls.clear()  # ignora as chamadas da própria criação
+    conn = connect(app_settings.db_path)
+    failures = await propagate_ssh_identity_to_live_instances(conn, fake_runtime, app_settings, user_id)
+    conn.close()
+
+    assert failures == []
+    atualizadas = {call["container_id"] for call in fake_runtime.put_archive_calls}
+    conn = connect(app_settings.db_path)
+    container_a = conn.execute(
+        "SELECT container_id FROM instances WHERE id = ?", (instance_a,)
+    ).fetchone()["container_id"]
+    container_b = conn.execute(
+        "SELECT container_id FROM instances WHERE id = ?", (instance_b,)
+    ).fetchone()["container_id"]
+    conn.close()
+    assert atualizadas == {container_a, container_b}
+
+
+async def test_propagacao_isola_falha_por_instancia(client, seed_user, app_settings, fake_runtime):
+    from app.db import init_db
+    from app.services.instances import propagate_ssh_identity_to_live_instances
+    from app.services.ssh_identity import get_or_create_identity
+
+    user_id = _login_as(client, seed_user, "propaga-falha@exemplo.test")
+    conn = connect(app_settings.db_path)
+    init_db(conn)
+    image_a = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
+    image_b = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="ubuntu-kde")
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_a)
+    grant_image_to_group(conn, group_id, image_b)
+    get_or_create_identity(conn, app_settings, user_id)
+    conn.close()
+
+    client.post("/api/instances", json={"image_id": image_a})
+    client.post("/api/instances", json={"image_id": image_b})
+
+    fake_runtime.put_archive_calls.clear()
+    fake_runtime.fail_next("put_archive", RuntimeOperationError("docker indisponível"))
+
+    conn = connect(app_settings.db_path)
+    failures = await propagate_ssh_identity_to_live_instances(conn, fake_runtime, app_settings, user_id)
+    conn.close()
+
+    assert len(failures) == 1
+    assert len(fake_runtime.put_archive_calls) == 1  # a segunda instância ainda foi tentada e teve sucesso
 
 
 def test_segunda_instancia_da_mesma_imagem_devolve_a_existente(client, seed_user, app_settings):

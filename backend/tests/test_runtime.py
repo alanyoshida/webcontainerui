@@ -156,3 +156,21 @@ async def test_fake_build_image_propaga_falha_configurada():
     with pytest.raises(RuntimeOperationError, match="Dockerfile inválido"):
         async for _ in runtime.build_image("/ctx", "wcui-agent-teste", "latest"):
             pass
+
+
+async def test_fake_put_archive_registra_container_destino_e_conteudo():
+    runtime = FakeContainerRuntime()
+    container_id = await runtime.create_container(_spec())
+
+    await runtime.put_archive(container_id, "/config", b"tar-bytes-de-teste")
+
+    assert runtime.put_archive_calls == [
+        {"container_id": container_id, "destination_path": "/config", "tar_bytes": b"tar-bytes-de-teste"}
+    ]
+
+
+async def test_fake_put_archive_em_container_inexistente_falha():
+    runtime = FakeContainerRuntime()
+
+    with pytest.raises(ContainerNotFoundError):
+        await runtime.put_archive("nao-existe", "/config", b"tar-bytes")

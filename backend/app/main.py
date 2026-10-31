@@ -14,6 +14,7 @@ from app.api.images import catalog_router
 from app.api.instances import router as instances_router
 from app.api.public_config import router as public_config_router
 from app.api.session_proxy import router as session_proxy_router
+from app.api.ssh_identity import router as ssh_identity_router
 from app.api.usage_metrics import router as usage_metrics_router
 from app.bootstrap import ensure_admin
 from app.config import Settings, get_settings
@@ -111,6 +112,7 @@ def create_app(
     app.include_router(access_control_router, prefix="/api/admin", tags=["admin", "access-control"])
     app.include_router(usage_metrics_router, prefix="/api/admin", tags=["admin", "usage-metrics"])
     app.include_router(instances_router, prefix="/api", tags=["instances"])
+    app.include_router(ssh_identity_router, prefix="/api", tags=["ssh-identity"])
     app.include_router(public_config_router, prefix="/api", tags=["config"])
     app.include_router(health_router, tags=["health"])
     app.include_router(session_proxy_router, tags=["session-proxy"])

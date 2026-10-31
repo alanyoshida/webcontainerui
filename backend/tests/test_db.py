@@ -84,6 +84,46 @@ def test_instance_runs_existe_apos_init_db(db_conn):
     assert columns == {"id", "instance_id", "user_id", "image_id", "started_at", "ended_at", "ended_reason"}
 
 
+def test_ssh_identities_existe_apos_init_db(db_conn):
+    columns = {row["name"] for row in db_conn.execute("PRAGMA table_info(ssh_identities)")}
+    assert columns == {"user_id", "public_key", "private_key_encrypted", "created_at"}
+
+
+def test_ssh_identities_uma_linha_por_usuario(db_conn):
+    user_id = insert_user(db_conn)
+    db_conn.execute(
+        "INSERT INTO ssh_identities (user_id, public_key, private_key_encrypted) VALUES (?, ?, ?)",
+        (user_id, "ssh-ed25519 AAAA...", b"cifrado"),
+    )
+
+    with pytest.raises(Exception):
+        db_conn.execute(
+            "INSERT INTO ssh_identities (user_id, public_key, private_key_encrypted) VALUES (?, ?, ?)",
+            (user_id, "ssh-ed25519 BBBB...", b"outro"),
+        )
+
+
+def test_init_db_e_idempotente_com_ssh_identities_ja_presente(tmp_path):
+    db_path = tmp_path / "ja-com-ssh-identities.db"
+    conn = connect(db_path)
+    try:
+        init_db(conn)
+        user_id = insert_user(conn)
+        conn.execute(
+            "INSERT INTO ssh_identities (user_id, public_key, private_key_encrypted) VALUES (?, ?, ?)",
+            (user_id, "ssh-ed25519 AAAA...", b"cifrado"),
+        )
+
+        init_db(conn)  # roda de novo, como num restart do backend
+
+        row = conn.execute(
+            "SELECT public_key FROM ssh_identities WHERE user_id = ?", (user_id,)
+        ).fetchone()
+        assert row["public_key"] == "ssh-ed25519 AAAA..."
+    finally:
+        conn.close()
+
+
 def test_init_db_normaliza_last_seen_at_no_formato_antigo(tmp_path):
     db_path = tmp_path / "formato-antigo.db"
     conn = connect(db_path)

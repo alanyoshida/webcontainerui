@@ -102,6 +102,15 @@ CREATE INDEX IF NOT EXISTS idx_instance_runs_open
     ON instance_runs(instance_id) WHERE ended_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_instance_runs_started_at ON instance_runs(started_at);
 CREATE INDEX IF NOT EXISTS idx_instance_runs_user_id ON instance_runs(user_id);
+
+-- Identidade SSH por usuário (ver services/ssh_identity.py). Uma linha por
+-- usuário: regenerar substitui a linha, não acumula histórico.
+CREATE TABLE IF NOT EXISTS ssh_identities (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id),
+    public_key TEXT NOT NULL,
+    private_key_encrypted BLOB NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 

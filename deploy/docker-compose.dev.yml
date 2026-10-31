@@ -22,6 +22,10 @@ services:
       WCUI_DOCKER_NETWORK: wcui_net_dev
       WCUI_ADMIN_EMAIL: admin@local.test
       WCUI_ADMIN_PASSWORD: senha-admin-dev-123456
+      # Chave fixa só para dev (cifra as chaves SSH dos usuários em
+      # repouso); gerada com Fernet.generate_key(). Em produção cada deploy
+      # define a sua própria, nunca esta.
+      WCUI_SSH_KEY_ENCRYPTION_KEY: t4mYe5XoHfy1V4ecB-h_xK-fW33T7_5OFhLtckL4kHQ=
     volumes:
       - wcui_db_dev:/data
       - /var/run/docker.sock:/var/run/docker.sock

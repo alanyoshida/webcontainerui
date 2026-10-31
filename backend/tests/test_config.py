@@ -1,4 +1,5 @@
 import pytest
+from cryptography.fernet import Fernet
 from pydantic import ValidationError
 
 from app.config import Settings
@@ -84,3 +85,25 @@ def test_credencial_de_admin_completa_ativa_provisionamento(monkeypatch):
 
     assert s.bootstrap_admin is True
     assert s.admin_email == "admin@exemplo.test"
+
+
+def test_chave_de_criptografia_ssh_ausente_falha(monkeypatch):
+    monkeypatch.delenv("WCUI_SSH_KEY_ENCRYPTION_KEY", raising=False)
+
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_chave_de_criptografia_ssh_invalida_falha(monkeypatch):
+    monkeypatch.setenv("WCUI_SSH_KEY_ENCRYPTION_KEY", "nao-e-uma-chave-fernet-valida")
+
+    with pytest.raises(ValidationError):
+        Settings()
+
+
+def test_chave_de_criptografia_ssh_valida_e_aceita(monkeypatch):
+    monkeypatch.setenv("WCUI_SSH_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
+
+    s = Settings()
+
+    assert s.ssh_key_encryption_key

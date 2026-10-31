@@ -103,6 +103,13 @@ class AioDockerContainerRuntime:
             raise RuntimeOperationError(str(exc)) from exc
         yield PullProgress(status="pronta", completed=True)
 
+    async def put_archive(self, container_id: str, destination_path: str, tar_bytes: bytes) -> None:
+        container = await self._get_container(container_id)
+        try:
+            await container.put_archive(destination_path, tar_bytes)
+        except DockerError as exc:
+            raise RuntimeOperationError(str(exc)) from exc
+
     async def create_container(self, spec: ContainerSpec) -> str:
         config = {
             "Image": f"{spec.repository}:{spec.tag}",
