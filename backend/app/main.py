@@ -14,6 +14,7 @@ from app.api.images import catalog_router
 from app.api.instances import router as instances_router
 from app.api.public_config import router as public_config_router
 from app.api.session_proxy import router as session_proxy_router
+from app.api.usage_metrics import router as usage_metrics_router
 from app.bootstrap import ensure_admin
 from app.config import Settings, get_settings
 from app.db import connect, init_db
@@ -22,6 +23,7 @@ from app.runtime.protocol import ContainerRuntime
 from app.services.activity import ActivityTracker
 from app.services.activity_flusher import run_activity_flusher
 from app.services.background import cancel_all, spawn
+from app.services.instances import backfill_open_runs
 from app.services.reaper import reconcile_instance_states, run_reaper
 
 
@@ -64,6 +66,11 @@ def create_app(
         # reinício do processo, caso containers tenham sido encerrados
         # por fora enquanto não havia ninguém observando.
         await reconcile_instance_states(conn, resolved_runtime)
+        # Depois da reconciliação: uma instância que parecia "running" mas
+        # já estava morta por fora já foi corrigida para "stopped" acima,
+        # então só abre run retroativo para quem de fato segue em execução
+        # (métricas de uso, D3/design.md).
+        backfill_open_runs(conn)
         conn.close()
 
         spawn(
@@ -97,6 +104,7 @@ def create_app(
     app.include_router(images_admin_router, prefix="/api/admin", tags=["admin", "images"])
     app.include_router(catalog_router, prefix="/api", tags=["catalog"])
     app.include_router(access_control_router, prefix="/api/admin", tags=["admin", "access-control"])
+    app.include_router(usage_metrics_router, prefix="/api/admin", tags=["admin", "usage-metrics"])
     app.include_router(instances_router, prefix="/api", tags=["instances"])
     app.include_router(public_config_router, prefix="/api", tags=["config"])
     app.include_router(health_router, tags=["health"])

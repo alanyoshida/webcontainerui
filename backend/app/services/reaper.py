@@ -7,7 +7,7 @@ from pathlib import Path
 from app.db import connect
 from app.runtime.errors import ContainerNotFoundError
 from app.runtime.protocol import ContainerRuntime, ContainerState
-from app.services.instances import stop_instance
+from app.services.instances import _close_run, stop_instance
 
 
 def _cutoff_iso(idle_timeout_minutes: int) -> str:
@@ -36,7 +36,7 @@ async def reap_idle_instances(
     (`stop_instance` nunca toca em volume)."""
     rows = find_idle_running_instances(conn, idle_timeout_minutes)
     for row in rows:
-        await stop_instance(conn, runtime, row["id"], row["user_id"])
+        await stop_instance(conn, runtime, row["id"], row["user_id"], reason="idle_timeout")
     return [row["id"] for row in rows]
 
 
@@ -60,6 +60,7 @@ async def reconcile_instance_states(conn: sqlite3.Connection, runtime: Container
         except ContainerNotFoundError:
             state = None
         if state != ContainerState.RUNNING:
+            _close_run(conn, row["id"], "reconciled")
             conn.execute("UPDATE instances SET state = 'stopped' WHERE id = ?", (row["id"],))
             reconciled.append(row["id"])
     return reconciled

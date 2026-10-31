@@ -6,6 +6,7 @@ import Typography from "@mui/material/Typography";
 import AccessPanel from "../features/admin/AccessPanel";
 import GroupsPanel from "../features/admin/GroupsPanel";
 import ImagesPanel from "../features/admin/ImagesPanel";
+import UsageMetricsPanel from "../features/admin/UsageMetricsPanel";
 import UsersPanel from "../features/admin/UsersPanel";
 
 const TABS = [
@@ -13,6 +14,7 @@ const TABS = [
   { label: "Grupos", Panel: GroupsPanel },
   { label: "Catálogo", Panel: ImagesPanel },
   { label: "Acessos", Panel: AccessPanel },
+  { label: "Métricas de uso", Panel: UsageMetricsPanel },
 ];
 
 export default function AdminPage() {

@@ -80,6 +80,25 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_instances_user_image_live
     WHERE deleted_at IS NULL;
 
 CREATE INDEX IF NOT EXISTS idx_instances_user_id ON instances(user_id);
+
+-- Histórico de execuções (start->stop) de instâncias, para métricas de uso
+-- administrativas. Aditivo: instances.state continua sendo a fonte da
+-- verdade do estado atual; esta tabela só registra quando cada ciclo
+-- começou/terminou e por quê.
+CREATE TABLE IF NOT EXISTS instance_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    instance_id TEXT NOT NULL REFERENCES instances(id),
+    user_id INTEGER NOT NULL REFERENCES users(id),
+    image_id INTEGER NOT NULL REFERENCES images(id),
+    started_at TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at TEXT,
+    ended_reason TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_instance_runs_open
+    ON instance_runs(instance_id) WHERE ended_at IS NULL;
+CREATE INDEX IF NOT EXISTS idx_instance_runs_started_at ON instance_runs(started_at);
+CREATE INDEX IF NOT EXISTS idx_instance_runs_user_id ON instance_runs(user_id);
 """
 
 

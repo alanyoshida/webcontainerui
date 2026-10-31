@@ -79,6 +79,11 @@ def test_fixture_de_banco_nao_compartilha_estado_entre_testes_b(db_conn):
     assert insert_user(db_conn, "b@exemplo.test") == 1
 
 
+def test_instance_runs_existe_apos_init_db(db_conn):
+    columns = {row["name"] for row in db_conn.execute("PRAGMA table_info(instance_runs)")}
+    assert columns == {"id", "instance_id", "user_id", "image_id", "started_at", "ended_at", "ended_reason"}
+
+
 def test_init_db_adiciona_icon_path_a_banco_sem_a_coluna(tmp_path):
     db_path = tmp_path / "legado.db"
     conn = connect(db_path)

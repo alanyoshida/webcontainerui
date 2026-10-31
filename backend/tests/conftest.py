@@ -56,6 +56,43 @@ def insert_image(
     return cur.lastrowid
 
 
+def insert_instance(
+    conn: sqlite3.Connection,
+    user_id: int,
+    image_id: int,
+    *,
+    instance_id: str | None = None,
+    state: str = "running",
+) -> str:
+    import uuid
+
+    instance_id = instance_id or str(uuid.uuid4())
+    conn.execute(
+        """INSERT INTO instances
+               (id, user_id, image_id, volume_name, inner_user, inner_password, state)
+           VALUES (?, ?, ?, 'vol-1', 'u', 'p', ?)""",
+        (instance_id, user_id, image_id, state),
+    )
+    return instance_id
+
+
+def insert_run(
+    conn: sqlite3.Connection,
+    instance_id: str,
+    user_id: int,
+    image_id: int,
+    started_at: str,
+    ended_at: str | None = None,
+    ended_reason: str | None = None,
+) -> int:
+    cur = conn.execute(
+        """INSERT INTO instance_runs (instance_id, user_id, image_id, started_at, ended_at, ended_reason)
+           VALUES (?, ?, ?, ?, ?, ?)""",
+        (instance_id, user_id, image_id, started_at, ended_at, ended_reason),
+    )
+    return cur.lastrowid
+
+
 def insert_group(conn: sqlite3.Connection, name: str = "grupo") -> int:
     cur = conn.execute("INSERT INTO groups (name) VALUES (?)", (name,))
     return cur.lastrowid

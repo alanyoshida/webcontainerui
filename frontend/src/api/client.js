@@ -89,4 +89,8 @@ export const api = {
     request("GET", `/admin/groups/${groupId}/images/${imageId}/revoke-preview`),
   adminRevokeImage: (groupId, imageId, confirm) =>
     request("DELETE", `/admin/groups/${groupId}/images/${imageId}?confirm=${confirm}`),
+
+  adminUsageLive: () => request("GET", "/admin/usage/live"),
+  adminUsageRuns: (limit, offset) => request("GET", `/admin/usage/runs?limit=${limit}&offset=${offset}`),
+  adminUsageSummary: () => request("GET", "/admin/usage/summary"),
 };

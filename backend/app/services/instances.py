@@ -54,6 +54,38 @@ def list_instances_for_user(conn: sqlite3.Connection, user_id: int) -> list[sqli
     ).fetchall()
 
 
+def _open_run(conn: sqlite3.Connection, instance_id: str, user_id: int, image_id: int) -> None:
+    """Abre um registro de execução para métricas de uso (D1/design.md).
+
+    O `WHERE NOT EXISTS` torna a chamada idempotente: chamar de novo para
+    uma instância que já tem run aberto não duplica a linha. Necessário
+    porque os pontos que religam uma instância (`_resume_existing`) podem,
+    em tese, ser alcançados mais de uma vez sem que o run anterior tenha
+    sido fechado.
+    """
+    conn.execute(
+        """INSERT INTO instance_runs (instance_id, user_id, image_id)
+           SELECT ?, ?, ? WHERE NOT EXISTS (
+               SELECT 1 FROM instance_runs WHERE instance_id = ? AND ended_at IS NULL
+           )""",
+        (instance_id, user_id, image_id, instance_id),
+    )
+
+
+def _close_run(conn: sqlite3.Connection, instance_id: str, reason: str) -> None:
+    """Fecha o registro de execução aberto da instância, se houver.
+
+    `WHERE ended_at IS NULL` torna a chamada idempotente: fechar de novo
+    uma instância sem run aberto (ex.: `stop_instance` chamado numa
+    instância já parada) não altera nenhuma linha.
+    """
+    conn.execute(
+        """UPDATE instance_runs SET ended_at = datetime('now'), ended_reason = ?
+           WHERE instance_id = ? AND ended_at IS NULL""",
+        (reason, instance_id),
+    )
+
+
 def _build_spec(
     settings: Settings,
     image: sqlite3.Row,
@@ -130,6 +162,7 @@ async def _provision_and_start(
         "UPDATE instances SET state = 'running', error_message = NULL, container_id = ?, container_name = ? WHERE id = ?",
         (container_id, container_name, row["id"]),
     )
+    _open_run(conn, row["id"], row["user_id"], row["image_id"])
     return _get_by_id(conn, row["id"])
 
 
@@ -158,6 +191,7 @@ async def _resume_existing(
             conn.execute(
                 "UPDATE instances SET state = 'running', error_message = NULL WHERE id = ?", (row["id"],)
             )
+            _open_run(conn, row["id"], row["user_id"], row["image_id"])
             return _get_by_id(conn, row["id"])
 
     container_name = f"{settings.container_prefix}-{row['id']}"
@@ -204,17 +238,27 @@ async def create_instance(
 
 
 async def stop_instance(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, instance_id: str, user_id: int
+    conn: sqlite3.Connection,
+    runtime: ContainerRuntime,
+    instance_id: str,
+    user_id: int,
+    reason: str = "user_stop",
 ) -> None:
     """Para o container preservando o volume. Idempotente: parar uma
     instância já parada, ou cujo container já não existe no runtime, não é
-    erro."""
+    erro.
+
+    `reason` identifica, para as métricas de uso, por que a execução
+    terminou — "user_stop" por padrão (parada pela rota HTTP do usuário);
+    `reap_idle_instances` chama com "idle_timeout".
+    """
     row = get_owned_instance(conn, instance_id, user_id)
     if row["container_id"] is not None:
         try:
             await runtime.stop_container(row["container_id"])
         except ContainerNotFoundError:
             pass
+    _close_run(conn, instance_id, reason)
     conn.execute("UPDATE instances SET state = 'stopped' WHERE id = ?", (instance_id,))
 
 
@@ -236,7 +280,36 @@ async def delete_instance(
         except ContainerNotFoundError:
             pass
     await runtime.remove_volume(row["volume_name"])
+    _close_run(conn, instance_id, "deleted")
     conn.execute("UPDATE instances SET deleted_at = datetime('now') WHERE id = ?", (instance_id,))
+
+
+def backfill_open_runs(conn: sqlite3.Connection) -> None:
+    """Abre um run para toda instância já 'running' sem run aberto (D3/design.md).
+
+    Cobre instâncias que já estavam em execução antes desta funcionalidade
+    existir — sem isso, elas nunca apareceriam na visão "rodando agora" até
+    a próxima parada/início. `started_at` usa a melhor aproximação
+    disponível (`last_seen_at`, ou `created_at` na ausência dele), já que o
+    instante real de início não foi registrado. Chamada no `lifespan` após
+    `reconcile_instance_states`, para que uma instância marcada "running"
+    mas na verdade morta já tenha sido corrigida antes deste passo rodar —
+    senão abriria (e a reconciliação teria que fechar) um run para algo que
+    não estava de fato em execução. Idempotente, como `_open_run`: rodar de
+    novo em reinícios futuros não duplica nada.
+    """
+    rows = conn.execute(
+        """SELECT id, user_id, image_id, COALESCE(last_seen_at, created_at) AS approx_started_at
+           FROM instances WHERE state = 'running' AND deleted_at IS NULL"""
+    ).fetchall()
+    for row in rows:
+        conn.execute(
+            """INSERT INTO instance_runs (instance_id, user_id, image_id, started_at)
+               SELECT ?, ?, ?, ? WHERE NOT EXISTS (
+                   SELECT 1 FROM instance_runs WHERE instance_id = ? AND ended_at IS NULL
+               )""",
+            (row["id"], row["user_id"], row["image_id"], row["approx_started_at"], row["id"]),
+        )
 
 
 async def stop_all_running_for_user(conn: sqlite3.Connection, runtime: ContainerRuntime, user_id: int) -> None:
