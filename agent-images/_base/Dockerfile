@@ -61,6 +61,12 @@ RUN mkdir -p /config \
     && sed -i 's#^root:x:0:0:root:/root:#root:x:0:0:root:/config:#' /etc/passwd
 ENV HOME=/config
 
+# Sem WORKDIR o processo do container nasce em `/` (padrão do Docker), não
+# em HOME — e é em `/config` que o AGENTS.md é injetado (ver
+# `agents_md.py`). Fixar o cwd aqui garante que a CLI do agente (CMD de
+# cada imagem derivada) já inicie em `/config` e enxergue o arquivo.
+WORKDIR $HOME
+
 # O portal sobrescreve PORT com a porta da entrada do catálogo.
 ENV PORT=3000
 EXPOSE 3000
