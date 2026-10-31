@@ -1,5 +1,6 @@
 from app.services.usage_metrics import (
     daily_series,
+    duration_seconds,
     hours_by_group,
     hours_by_user,
     image_ranking,
@@ -163,3 +164,27 @@ def test_pico_de_simultaneidade_runs_sequenciais_sem_sobreposicao_e_um(db_conn):
     insert_run(db_conn, inst_2, user_b, image_id, "2024-06-10 12:00:00", "2024-06-10 13:00:00", "user_stop")
 
     assert peak_concurrency(db_conn, PERIOD_SINCE, PERIOD_UNTIL) == 1
+
+
+def test_duration_seconds_aceita_started_at_com_offset_de_fuso():
+    # Formato antigo de last_seen_at (pré-correção), que backfill_open_runs
+    # pode copiar para instance_runs.started_at.
+    seconds = duration_seconds("2024-06-10 10:00:00+00:00", "2024-06-10 11:30:00+00:00")
+    assert seconds == 5400
+
+
+def test_live_runs_com_started_at_de_fuso_nao_quebra_ao_calcular_duracao(db_conn):
+    # Reproduz o bug real: uma instância já 'running' no boot, sem
+    # last_seen_at nunca normalizado, tem seu run retroativo aberto por
+    # backfill_open_runs com started_at no formato antigo (o que a API
+    # admin faz ao montar a resposta de /usage/live, via duration_seconds).
+    user_id = insert_user(db_conn)
+    image_id = insert_image(db_conn)
+    instance_id = insert_instance(db_conn, user_id, image_id)
+    insert_run(db_conn, instance_id, user_id, image_id, "2024-06-10 10:00:00+00:00")
+
+    live = list_live_runs(db_conn)
+
+    assert len(live) == 1
+    assert live[0]["instance_id"] == instance_id
+    assert duration_seconds(live[0]["started_at"], None) >= 0  # não levanta ValueError

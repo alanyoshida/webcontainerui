@@ -84,6 +84,57 @@ def test_instance_runs_existe_apos_init_db(db_conn):
     assert columns == {"id", "instance_id", "user_id", "image_id", "started_at", "ended_at", "ended_reason"}
 
 
+def test_init_db_normaliza_last_seen_at_no_formato_antigo(tmp_path):
+    db_path = tmp_path / "formato-antigo.db"
+    conn = connect(db_path)
+    try:
+        init_db(conn)
+        user_id = insert_user(conn)
+        image_id = insert_image(conn)
+        instance_id = _novo_id()
+        conn.execute(
+            """INSERT INTO instances
+                   (id, user_id, image_id, volume_name, inner_user, inner_password, last_seen_at)
+               VALUES (?, ?, ?, 'vol-1', 'u', 'p', '2026-10-29 11:49:40+00:00')""",
+            (instance_id, user_id, image_id),
+        )
+
+        init_db(conn)  # roda de novo a migração, como num restart do backend
+
+        last_seen_at = conn.execute(
+            "SELECT last_seen_at FROM instances WHERE id = ?", (instance_id,)
+        ).fetchone()["last_seen_at"]
+        assert last_seen_at == "2026-10-29 11:49:40"
+    finally:
+        conn.close()
+
+
+def test_init_db_normalizacao_e_idempotente_e_nao_mexe_em_valores_ja_corretos(tmp_path):
+    db_path = tmp_path / "ja-normalizado.db"
+    conn = connect(db_path)
+    try:
+        init_db(conn)
+        user_id = insert_user(conn)
+        image_id = insert_image(conn)
+        instance_id = _novo_id()
+        conn.execute(
+            """INSERT INTO instances
+                   (id, user_id, image_id, volume_name, inner_user, inner_password, last_seen_at)
+               VALUES (?, ?, ?, 'vol-1', 'u', 'p', '2026-10-29 11:49:40')""",
+            (instance_id, user_id, image_id),
+        )
+
+        init_db(conn)
+        init_db(conn)  # duas vezes: nada deve mudar nem falhar
+
+        last_seen_at = conn.execute(
+            "SELECT last_seen_at FROM instances WHERE id = ?", (instance_id,)
+        ).fetchone()["last_seen_at"]
+        assert last_seen_at == "2026-10-29 11:49:40"
+    finally:
+        conn.close()
+
+
 def test_init_db_adiciona_icon_path_a_banco_sem_a_coluna(tmp_path):
     db_path = tmp_path / "legado.db"
     conn = connect(db_path)

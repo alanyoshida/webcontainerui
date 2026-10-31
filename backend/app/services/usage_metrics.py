@@ -30,7 +30,17 @@ def _now_naive() -> datetime:
 
 
 def _parse(ts: str) -> datetime:
-    return datetime.strptime(ts, _TS_FORMAT)
+    # `datetime('now')` do SQLite grava sem offset de fuso — o caminho
+    # comum, que `strptime` resolve direto. O fallback cobre timestamps
+    # com offset (ex.: `last_seen_at` gravado no formato antigo, antes da
+    # correção em `activity.py`, que `backfill_open_runs` pode copiar para
+    # `instance_runs.started_at`) — a migração em `db.py` normaliza dados
+    # novos, mas isto evita que uma linha que escape dela derrube as
+    # agregações.
+    try:
+        return datetime.strptime(ts, _TS_FORMAT)
+    except ValueError:
+        return datetime.fromisoformat(ts).replace(tzinfo=None)
 
 
 def default_period(days: int = 30) -> tuple[str, str]:

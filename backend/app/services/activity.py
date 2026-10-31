@@ -3,7 +3,11 @@ from datetime import datetime, timezone
 
 
 def _now_iso() -> str:
-    return datetime.now(timezone.utc).isoformat(sep=" ", timespec="seconds")
+    # Sem offset explícito: mesma convenção de `datetime('now')` do SQLite,
+    # usada por toda outra coluna de timestamp do banco (created_at,
+    # started_at, ended_at, deleted_at) — isoformat() num datetime "aware"
+    # incluiria "+00:00" e quebraria o parsing que assume esse formato.
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
 class ActivityTracker:

@@ -11,8 +11,10 @@ from app.services.instances import _close_run, stop_instance
 
 
 def _cutoff_iso(idle_timeout_minutes: int) -> str:
+    # Sem offset explícito: mesma convenção usada em `activity._now_iso` e
+    # em toda coluna de timestamp gravada via `datetime('now')` do SQLite.
     cutoff = datetime.now(timezone.utc) - timedelta(minutes=idle_timeout_minutes)
-    return cutoff.isoformat(sep=" ", timespec="seconds")
+    return cutoff.strftime("%Y-%m-%d %H:%M:%S")
 
 
 def find_idle_running_instances(conn: sqlite3.Connection, idle_timeout_minutes: int) -> list[sqlite3.Row]:

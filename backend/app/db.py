@@ -124,6 +124,7 @@ def connect(db_path: Path) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     _migrate_add_icon_path(conn)
+    _migrate_normalize_last_seen_at(conn)
 
 
 def _migrate_add_icon_path(conn: sqlite3.Connection) -> None:
@@ -136,3 +137,20 @@ def _migrate_add_icon_path(conn: sqlite3.Connection) -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
     if "icon_path" not in columns:
         conn.execute("ALTER TABLE images ADD COLUMN icon_path TEXT")
+
+
+def _migrate_normalize_last_seen_at(conn: sqlite3.Connection) -> None:
+    """Remove o sufixo de fuso de `last_seen_at` gravado antes da correção.
+
+    Até essa correção, `last_seen_at` era gravado via `isoformat()` de um
+    datetime ciente de fuso ("...+00:00"), diferente de toda outra coluna
+    de timestamp do banco (gravadas via `datetime('now')` do SQLite, sem
+    sufixo) — isso quebrava o parsing em `usage_metrics` quando esse valor
+    chegava a `instance_runs.started_at` via `backfill_open_runs`. O
+    `LIKE` só casa com o formato antigo, então rodar de novo sobre um
+    banco já normalizado não faz nada.
+    """
+    conn.execute(
+        """UPDATE instances SET last_seen_at = substr(last_seen_at, 1, 19)
+           WHERE last_seen_at LIKE '____-__-__ __:__:__+%'"""
+    )
