@@ -1,7 +1,12 @@
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, vi } from "vitest";
+import { beforeEach, expect, test, vi } from "vitest";
 import InstanceSessionView from "./InstanceSessionView";
+
+// jsdom não implementa a Fullscreen API: sem `requestFullscreen` no
+// elemento, o hook cai direto no modo imersivo (ver useFullscreen.js), que é
+// o caminho exercitado por estes testes — suficiente para verificar a
+// interface, já que ela reage a `isFullscreen` independente do modo.
 
 beforeEach(() => {
   // InstanceSession checa a disponibilidade da sessão via fetch antes de
@@ -126,4 +131,109 @@ test("instância em erro mostra a mensagem de erro em vez da sessão", () => {
 
   expect(screen.getByText("docker indisponível")).toBeInTheDocument();
   expect(screen.queryByTitle(/Sessão da instância/)).not.toBeInTheDocument();
+});
+
+test("botão de tela cheia só aparece com a instância em execução", async () => {
+  const { rerender } = render(
+    <InstanceSessionView instance={instance({ state: "stopped" })} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+  expect(screen.queryByRole("button", { name: /tela cheia/i })).not.toBeInTheDocument();
+
+  rerender(
+    <InstanceSessionView instance={instance({ state: "running" })} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+  expect(screen.getByRole("button", { name: "Tela cheia" })).toBeInTheDocument();
+  await screen.findByTitle(/Sessão da instância inst-1/);
+});
+
+test("entrar em tela cheia mostra o botão de saída e foca o iframe; sair restaura o layout normal", async () => {
+  const user = userEvent.setup();
+  render(
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+  const iframe = await screen.findByTitle(/Sessão da instância inst-1/);
+
+  expect(screen.queryByRole("button", { name: /sair da tela cheia/i })).not.toBeInTheDocument();
+
+  await user.click(screen.getByRole("button", { name: "Tela cheia" }));
+
+  const exitButton = await screen.findByRole("button", { name: /sair da tela cheia/i });
+  expect(iframe).toHaveFocus();
+
+  await user.click(exitButton);
+
+  expect(screen.queryByRole("button", { name: /sair da tela cheia/i })).not.toBeInTheDocument();
+});
+
+test("sai da tela cheia ao clicar em voltar", async () => {
+  const onBack = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={onBack} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+
+  await user.click(screen.getByRole("button", { name: "Tela cheia" }));
+  await screen.findByRole("button", { name: /sair da tela cheia/i });
+
+  await user.click(screen.getByRole("button", { name: /voltar/i }));
+
+  expect(onBack).toHaveBeenCalledTimes(1);
+  expect(screen.queryByRole("button", { name: /sair da tela cheia/i })).not.toBeInTheDocument();
+});
+
+test("sai da tela cheia quando a instância deixa de estar em execução", async () => {
+  const user = userEvent.setup();
+  const { rerender } = render(
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+
+  await user.click(screen.getByRole("button", { name: "Tela cheia" }));
+  await screen.findByRole("button", { name: /sair da tela cheia/i });
+
+  rerender(
+    <InstanceSessionView instance={instance({ state: "stopped" })} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+
+  await waitFor(() =>
+    expect(screen.queryByRole("button", { name: /sair da tela cheia/i })).not.toBeInTheDocument()
+  );
+});
+
+test("entrar em tela cheia foca um campo de teclado dentro do iframe quando ele existe (ex.: terminal via ttyd)", async () => {
+  const user = userEvent.setup();
+  render(
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+  const iframe = await screen.findByTitle(/Sessão da instância inst-1/);
+
+  // Simula o textarea oculto que o xterm.js (usado pelo ttyd) cria dentro do
+  // documento do iframe para capturar o teclado — focar só o <iframe> não é
+  // suficiente para a digitação chegar a ele. jsdom não navega de fato para
+  // `src`, então o documento interno começa sem <body>; criamos um mínimo.
+  const innerDoc = iframe.contentDocument;
+  if (!innerDoc.body) {
+    innerDoc.open();
+    innerDoc.write("<html><body></body></html>");
+    innerDoc.close();
+  }
+  const innerTextarea = innerDoc.createElement("textarea");
+  innerDoc.body.appendChild(innerTextarea);
+
+  await user.click(screen.getByRole("button", { name: "Tela cheia" }));
+  await screen.findByRole("button", { name: /sair da tela cheia/i });
+
+  expect(iframe.contentDocument.activeElement).toBe(innerTextarea);
+});
+
+test("sai da tela cheia ao desmontar a visão", async () => {
+  const user = userEvent.setup();
+  const { unmount } = render(
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+  );
+
+  await user.click(screen.getByRole("button", { name: "Tela cheia" }));
+  await screen.findByRole("button", { name: /sair da tela cheia/i });
+
+  expect(() => unmount()).not.toThrow();
+  expect(document.body.style.overflow).toBe("");
 });

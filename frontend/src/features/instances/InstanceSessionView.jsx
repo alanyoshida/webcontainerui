@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -11,8 +11,11 @@ import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import FullscreenIcon from "@mui/icons-material/Fullscreen";
+import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
 import InstanceSession from "./InstanceSession";
 import { STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
+import { useFullscreen } from "./useFullscreen";
 
 /**
  * Visão dedicada de uma sessão aberta: substitui a listagem inteira (ver
@@ -23,6 +26,16 @@ import { STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
 export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBack, onStop, onDelete }) {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
+  const sessionAreaRef = useRef(null);
+  const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useFullscreen(sessionAreaRef);
+
+  // Sai da tela cheia quando a instância deixa de estar em execução (parada
+  // manual, pelo reaper, ou falha) — não há mais sessão para mostrar.
+  useEffect(() => {
+    if (instance.state !== "running" && isFullscreen) {
+      exitFullscreen();
+    }
+  }, [instance.state, isFullscreen, exitFullscreen]);
 
   async function run(action) {
     setBusy(true);
@@ -31,6 +44,11 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
     } finally {
       setBusy(false);
     }
+  }
+
+  function handleBack() {
+    exitFullscreen();
+    onBack();
   }
 
   async function handleDeleteConfirmed() {
@@ -42,7 +60,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 128px)" }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={onBack}>
+        <Button startIcon={<ArrowBackIcon />} onClick={handleBack}>
           Voltar
         </Button>
         <Typography variant="h5" component="h2" sx={{ flexGrow: 1 }}>
@@ -50,6 +68,11 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         </Typography>
         <Chip label={STATE_LABEL[instance.state] ?? instance.state} color={STATE_COLOR[instance.state]} />
 
+        {instance.state === "running" && (
+          <Button startIcon={<FullscreenIcon />} onClick={enterFullscreen}>
+            Tela cheia
+          </Button>
+        )}
         {instance.state === "running" && (
           <Button disabled={busy} onClick={() => run(() => onStop(instance.id))}>
             Parar
@@ -60,7 +83,18 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         </Button>
       </Stack>
 
-      <Box sx={{ flexGrow: 1, minHeight: 0 }}>
+      <Box
+        ref={sessionAreaRef}
+        sx={[
+          { flexGrow: 1, minHeight: 0, position: "relative" },
+          isFullscreen && {
+            position: "fixed",
+            inset: 0,
+            zIndex: (theme) => theme.zIndex.modal + 1,
+            bgcolor: "common.black",
+          },
+        ]}
+      >
         {instance.state === "running" ? (
           <InstanceSession instanceId={instance.id} />
         ) : (
@@ -80,6 +114,17 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
               </Alert>
             )}
           </Box>
+        )}
+
+        {isFullscreen && (
+          <Button
+            variant="contained"
+            startIcon={<FullscreenExitIcon />}
+            onClick={exitFullscreen}
+            sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}
+          >
+            Sair da tela cheia
+          </Button>
         )}
       </Box>
 
