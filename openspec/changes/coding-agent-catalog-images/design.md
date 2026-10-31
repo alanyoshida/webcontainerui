@@ -20,6 +20,10 @@ Ver proposal.md para a motivação. Estado atual relevante:
   `SUBFOLDER`, `CUSTOM_USER`, `PASSWORD`, `SELKIES_ENABLE_SHARING`,
   `SELKIES_ENABLE_SHARED`, `PUID`, `PGID`, `TZ`
   ([backend/app/services/instances.py:105-117](../../../backend/app/services/instances.py#L105)).
+- `retry_pull` só reabre a entrada para um novo `docker pull`
+  ([backend/app/services/images.py:91-100](../../../backend/app/services/images.py#L91));
+  `images` não registra se a entrada veio de pull ou de build, nem um hash
+  do contexto — não há como decidir retry ou rebuild sem essa informação.
 - O portal já fala com o daemon do host via `/var/run/docker.sock`
   montado ([deploy/docker-compose.yml:44](../../../deploy/docker-compose.yml#L44)), por `aiodocker`
   ([backend/app/runtime/docker_runtime.py](../../../backend/app/runtime/docker_runtime.py)), sempre
@@ -36,12 +40,20 @@ Ver proposal.md para a motivação. Estado atual relevante:
   mesmo mecanismo de sessão que já existe.
 - Provisionamento por build local como alternativa ao pull, reusando a
   mesma máquina de estados (`pulling`/`ready`/`failed`) já especificada.
-- Porta de encaminhamento por imagem, substituindo o literal fixo `3000`.
+- Rebuild de imagem de agente apenas quando o conteúdo do Dockerfile/contexto
+  muda, comparando um hash do contexto guardado na entrada.
+- Retry correto tanto para download quanto para build, conforme o tipo de
+  provisionamento da entrada.
+- Imagem base comum construída e marcada antes das 5 imagens de agente.
+- Porta de encaminhamento por imagem, substituindo o literal fixo `3000`, e
+  injetada no container como `PORT`.
 
 **Non-Goals:**
 - UI de admin para "build from Dockerfile" genérico — decidido
   explicitamente fora de escopo; só o seed automático das 5 imagens usa
   build.
+- Expor a porta de encaminhamento na API/UI de admin — decidido
+  explicitamente fora de escopo; só o seed a define.
 - Gestão de segredos/API keys dos agentes pelo portal — decidido
   explicitamente fora de escopo; usuário configura manualmente dentro do
   terminal.
@@ -59,8 +71,10 @@ Hermes, Agy, Claude Code CLI e oh-my-pi são só terminal. O ttyd é um
 binário único que serve um terminal (xterm.js) por HTTP/WS, com
 `--base-path` (equivalente direto do `SUBFOLDER` já usado) e
 `--credential user:pass` (HTTP Basic Auth — o mesmo mecanismo que
-`session_proxy.py` já injeta). Isso deixa as 5 imagens passando pelo
-exato mesmo caminho de proxy, sem lidar com nenhum protocolo novo.
+`session_proxy.py` já injeta). O comando também precisa de `--writable`
+(sem ele o ttyd é somente leitura e não aceita digitação) e escuta na porta
+vinda de `PORT`, injetada pelo portal (D3). Isso deixa as 5 imagens passando
+pelo exato mesmo caminho de proxy, sem lidar com nenhum protocolo novo.
 
 Alternativa considerada: desktop Selkies completo + navegador em kiosk
 apontado pra UI web de cada ferramenta. Rejeitada: mais pesada (GPU/WebRTC
@@ -85,23 +99,31 @@ agent-images/
   oh-my-pi/Dockerfile
 ```
 
-O entrypoint comum lê `SUBFOLDER`/`CUSTOM_USER`/`PASSWORD` (já injetadas
-hoje em toda instância) e executa
-`ttyd --base-path "$SUBFOLDER" --credential "$CUSTOM_USER:$PASSWORD" -p <porta> <comando-do-agente>`.
+O entrypoint comum lê `SUBFOLDER`/`CUSTOM_USER`/`PASSWORD`/`PORT` (as três
+primeiras já injetadas hoje em toda instância; `PORT` passa a ser injetada,
+D3) e executa
+`ttyd --writable --base-path "$SUBFOLDER" --credential "$CUSTOM_USER:$PASSWORD" -p "$PORT" <comando-do-agente>`.
 Cada Dockerfile de agente só define `<comando-do-agente>`.
 
 Uma imagem por agente (em vez de uma imagem genérica onde o usuário digita
 qual CLI rodar) foi decidido com o usuário: mantém a UX atual do catálogo,
 onde escolher a imagem já escolhe a ferramenta.
 
+A imagem base comum é construída e marcada como `wcui-agent-base` pelo seed
+antes de qualquer imagem de agente (D6); sem esse passo o `FROM` dos
+Dockerfiles de agente falharia.
+
 ### D3: Porta de encaminhamento por imagem, não mudança de protocolo
 
 Nova coluna `images.port` (padrão `3000`, o valor hoje implícito),
 propagada por `_INSTANCE_SELECT` como `image_port` e lida por
 `default_backend_base_url` em `session_proxy.py` no lugar do literal
-`3000`. Como containers nunca publicam porta no host, essa coluna só
-afeta qual porta o *proxy* discando — `ContainerSpec` permanece sem campo
-de porta, sem mudança em `create_container`.
+`3000`. A mesma porta é injetada no container como `PORT` em `_build_spec`
+([backend/app/services/instances.py:89](../../../backend/app/services/instances.py#L89)),
+então o processo de interface escuta exatamente onde o proxy disca.
+`ContainerSpec` permanece sem campo de porta — a porta viaja pelo `env` já
+existente, sem mudança em `create_container`. A coluna é preenchida só pelo
+seed (D4); a API de admin de criação de imagem não a expõe.
 
 ### D4: Build é só um caminho interno de provisionamento, sem endpoint de admin
 
@@ -111,11 +133,20 @@ streaming de eventos do build), reusando o mesmo formato `PullProgress`
 que `mark_pull_progress`/`mark_pull_ready`/`mark_pull_failed` já
 consomem sem alteração.
 
+Duas colunas novas em `images` distinguem a origem e controlam o rebuild:
+`provision_kind` (`'pull'` | `'build'`, padrão `'pull'` para preservar as
+entradas existentes e o fluxo de admin) e `build_hash` (hash do conteúdo do
+contexto de build). O hash de cada agente cobre tanto o diretório do agente
+quanto `agent-images/_base`, já que uma mudança na base também exige
+reconstruir as imagens derivadas.
+
 Um novo módulo `backend/app/services/agent_images.py` (paralelo a
 `image_pull.py`) roda no startup: para cada uma das 5 definições de
 agente, insere a linha em `images` só se a combinação repositório/tag
-ainda não existir (idempotente, mesmo padrão de `_open_run`), e então
-builda do mesmo jeito que `run_pull` já faz o pull.
+ainda não existir (idempotente, mesmo padrão de `_open_run`); se já
+existir como build, reconstrói somente quando o hash calculado difere do
+`build_hash` gravado. O build em si reusa `run_pull`/`mark_pull_*`, como o
+pull já faz.
 
 Build não é exposto no endpoint de admin de criar imagem — decidido
 explicitamente com o usuário, pra não abrir superfície nova de
@@ -129,12 +160,41 @@ aquela entrada como `failed` (via `mark_pull_failed`, já existente) e não
 propaga exceção pro `lifespan` — as demais imagens seguem sendo
 provisionadas e o portal sobe normalmente.
 
+### D6: A base é construída antes dos agentes
+
+O seed constrói `agent-images/_base` e a marca como `wcui-agent-base` antes
+de iniciar os builds dos 5 agentes. Essa ordem é uma dependência real dos
+Dockerfiles (`FROM wcui-agent-base`), não um detalhe de implementação: se a
+base falhar, as 5 imagens de agente falham individualmente (D5) e o portal
+ainda sobe.
+
+### D7: Retry é unificado por `provision_kind`
+
+A entrada de retry existente passa a olhar `images.provision_kind`: para
+`'pull'` agenda `run_pull`, para `'build'` agenda o build do contexto da
+imagem. Sem isso, o retry de uma imagem buildada tentaria `docker pull` de
+um repositório/tag que só existe localmente e falharia sempre.
+
+### D8: O seed aguarda os builds no `lifespan`
+
+Decidido com o usuário: o startup aguarda a construção da base e das 5
+imagens para que o catálogo já esteja consistente quando o portal começa a
+aceitar tráfego. O custo é boot mais lento no primeiro deploy ou após
+mudança de contexto; o hash (D4) evita pagá-lo nas subidas em que nada
+mudou. A falha de um build não propaga (D5), então o `await` não impede o
+portal de subir.
+
 ## Risks / Trade-offs
 
-- [Risco] Buildar 5 imagens a cada subida do portal soma tempo de boot →
-  [Mitigação] cache de camadas do Docker torna o rebuild de um
-  Dockerfile inalterado quase instantâneo; só uma mudança real no
-  conteúdo da imagem dispara rebuild de verdade.
+- [Risco] O startup aguardar os builds atrasa o healthcheck do portal →
+  [Mitigação] o hash do contexto (D4) evita rebuild quando nada mudou; no
+  primeiro deploy ou após mudança real o custo é aceito em troca de o
+  catálogo estar pronto ao fim do startup, e a falha isolada (D5) nunca
+  impede o portal de subir.
+- [Risco] Hash do contexto não detectar mudança relevante (ex.: conteúdo
+  baixado pela rede no build) → [Mitigação] o hash cobre os arquivos de
+  contexto versionados; mudanças externas de CLI ficam fora do escopo,
+  como já registrado em Open Questions.
 - [Risco] Cada agente precisa de API key própria, que o portal não vê nem
   valida → [Mitigação] decidido explicitamente fora de escopo com o
   usuário; fica documentado no próprio primeiro acesso ao terminal.
@@ -149,11 +209,14 @@ provisionadas e o portal sobe normalmente.
 
 ## Migration Plan
 
-- Puramente aditivo: coluna `images.port` nova (com padrão), módulo
+- Puramente aditivo: colunas `images.port`, `images.provision_kind` e
+  `images.build_hash` novas (com padrões que preservam as linhas
+  existentes como `port=3000` e `provision_kind='pull'`), módulo
   `agent_images.py` novo, Dockerfiles novos sob `agent-images/`. Nenhum
   dado existente é migrado.
-- Deploy: na primeira subida após o deploy, as 5 imagens buildam e se
-  registram sozinhas, sem passo manual.
+- Deploy: na primeira subida após o deploy, a base e as 5 imagens buildam e
+  se registram sozinhas, aguardadas pelo `lifespan`, sem passo manual.
+  Subidas seguintes só reconstroem o que mudou de contexto.
 - Rollback: reverter a imagem do portal remove a rotina de seed; as
   linhas de `images` já criadas (incluindo as 5 de agente, já buildadas)
   continuam existindo como entradas de catálogo normais — inofensivo, o

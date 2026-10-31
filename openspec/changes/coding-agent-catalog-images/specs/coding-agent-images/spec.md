@@ -24,19 +24,42 @@ oh-my-pi.
 
 O sistema DEVE construir e registrar as imagens de agente de código ao
 iniciar, sem exigir que um administrador as registre manualmente. Uma
-imagem de agente já registrada em execução anterior NÃO DEVE ser
-duplicada nem reconstruída a cada inicialização do portal.
+imagem de agente já registrada NÃO DEVE ser duplicada, e só DEVE ser
+reconstruída quando o conteúdo do seu contexto de build — incluindo a
+imagem base — mudar.
 
 #### Scenario: Primeira inicialização do portal
 
 - **WHEN** o portal inicia e nenhuma imagem de agente existe ainda no catálogo
 - **THEN** o sistema constrói e registra as imagens de agente definidas
 
-#### Scenario: Reinicialização do portal
+#### Scenario: Reinicialização sem mudança de contexto
 
-- **GIVEN** as imagens de agente já registradas no catálogo
+- **GIVEN** as imagens de agente já registradas no catálogo e o contexto de
+  build inalterado
 - **WHEN** o portal reinicia
-- **THEN** o catálogo continua com uma única entrada por agente, sem duplicação
+- **THEN** o catálogo continua com uma única entrada por agente, sem
+  duplicação
+- **AND** nenhuma imagem de agente é reconstruída
+
+#### Scenario: Mudança no contexto de build
+
+- **GIVEN** uma imagem de agente já registrada no catálogo
+- **WHEN** o conteúdo do Dockerfile ou do contexto de build (incluindo a
+  imagem base) muda
+- **THEN** o sistema reconstrói essa imagem de agente
+- **AND** o catálogo continua com uma única entrada para ela
+
+### Requirement: Imagem base é construída antes das imagens de agente
+
+O sistema DEVE construir e marcar a imagem base comum antes de construir as
+imagens de agente que dependem dela.
+
+#### Scenario: Ordem de construção no startup
+
+- **WHEN** o portal inicia e a imagem base ainda não existe
+- **THEN** a imagem base é construída antes das imagens de agente
+- **AND** as imagens de agente conseguem partir dela
 
 ### Requirement: Falha ao provisionar uma imagem de agente não impede o portal de iniciar
 
