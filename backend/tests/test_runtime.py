@@ -174,3 +174,32 @@ async def test_fake_put_archive_em_container_inexistente_falha():
 
     with pytest.raises(ContainerNotFoundError):
         await runtime.put_archive("nao-existe", "/config", b"tar-bytes")
+
+
+async def test_fake_exec_registra_chamada_e_retorna_sucesso():
+    runtime = FakeContainerRuntime()
+    container_id = await runtime.create_container(_spec())
+
+    exit_code, output = await runtime.exec(container_id, ["rm", "-f", "/config/AGENTS.md"])
+
+    assert exit_code == 0
+    assert output == b""
+    assert runtime.exec_calls == [
+        {"container_id": container_id, "command": ["rm", "-f", "/config/AGENTS.md"]}
+    ]
+
+
+async def test_fake_exec_em_container_inexistente_falha():
+    runtime = FakeContainerRuntime()
+
+    with pytest.raises(ContainerNotFoundError):
+        await runtime.exec("fake-inexistente", ["true"])
+
+
+async def test_fake_exec_permite_injetar_falha():
+    runtime = FakeContainerRuntime()
+    container_id = await runtime.create_container(_spec())
+    runtime.fail_next("exec", RuntimeError("docker exec indisponível"))
+
+    with pytest.raises(RuntimeError):
+        await runtime.exec(container_id, ["true"])

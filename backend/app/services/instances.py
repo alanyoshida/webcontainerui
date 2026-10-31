@@ -6,6 +6,7 @@ from app.config import Settings
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime, ContainerSpec
 from app.services import ssh_identity
+from app.services import agents_md
 from app.services.access_control import is_permitted
 from app.services.errors import NotFoundError, PermissionDeniedError, ValidationFailedError
 from app.services.images import get_image
@@ -155,6 +156,29 @@ async def _inject_ssh_identity(
         pass
 
 
+async def _inject_agents_md(
+    conn: sqlite3.Connection,
+    runtime: ContainerRuntime,
+    settings: Settings,
+    image: sqlite3.Row,
+    container_id: str,
+) -> None:
+    """Grava o documento AGENTS.md vinculado à imagem no container
+    recém-criado (spec agents-md). Best-effort, igual à identidade SSH:
+    uma falha aqui não impede a instância de ficar pronta — ela só fica sem
+    o documento, e o admin pode reaplicar salvando o documento de novo."""
+    document_id = image["agents_md_id"]
+    if document_id is None:
+        return
+    content = agents_md.get_document(conn, document_id)["content"]
+    uid, gid = _ssh_owner_uid_gid(settings, image)
+    tar_bytes = agents_md.build_agents_md_archive(content, uid=uid, gid=gid)
+    try:
+        await runtime.put_archive(container_id, _VOLUME_MOUNT_PATH, tar_bytes)
+    except (ContainerNotFoundError, RuntimeOperationError):
+        pass
+
+
 async def propagate_ssh_identity_to_live_instances(
     conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, user_id: int
 ) -> list[dict]:
@@ -211,6 +235,7 @@ async def _provision_and_start(
         return _get_by_id(conn, row["id"])
 
     await _inject_ssh_identity(conn, runtime, settings, image, container_id, row["user_id"])
+    await _inject_agents_md(conn, runtime, settings, image, container_id)
 
     try:
         await runtime.start_container(container_id)

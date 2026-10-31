@@ -110,6 +110,34 @@ class AioDockerContainerRuntime:
         except DockerError as exc:
             raise RuntimeOperationError(str(exc)) from exc
 
+    async def exec(self, container_id: str, command: list[str]) -> tuple[int, bytes]:
+        """Executa um comando no container e devolve (código de saída, saída).
+
+        O comando é sempre fixo e construído pelo código do portal — nunca
+        derivado de input de usuário (design.md D3 da change
+        agents-md-documents), então a superfície de execução continua sob
+        controle do próprio código. A saída é best-effort: no modo detach do
+        daemon ela vem vazia para alguns comandos; o contrato relevante é o
+        código de saída, aguardado em loop curto porque o exec detached é
+        assíncrono no daemon e o primeiro inspect pode ainda ver None.
+        """
+        import asyncio
+
+        container = await self._get_container(container_id)
+        try:
+            exec_instance = await container.exec(cmd=command)
+            output = await exec_instance.start(detach=True)
+            exit_code = -1
+            for _ in range(50):
+                info = await exec_instance.inspect()
+                if info.get("ExitCode") is not None:
+                    exit_code = int(info["ExitCode"])
+                    break
+                await asyncio.sleep(0.1)
+            return exit_code, output
+        except DockerError as exc:
+            raise RuntimeOperationError(str(exc)) from exc
+
     async def create_container(self, spec: ContainerSpec) -> str:
         config = {
             "Image": f"{spec.repository}:{spec.tag}",

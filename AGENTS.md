@@ -153,6 +153,19 @@ confira o catálogo, o início de instância e a tela de identidade SSH.
 - Falha de build de um agente não impede os demais nem o startup do portal.
   Mantenha esse isolamento.
 
+### Documentos AGENTS.md
+
+- A biblioteca de textos vive em `agent_md_documents`, com vínculo
+  `0..1` por entrada do catálogo (`images.agents_md_id`); CRUD admin em
+  `/api/admin/agents-md`.
+- O documento é injetado como `/config/AGENTS.md` na criação da instância
+  (best-effort, junto da identidade SSH) e propagado às instâncias vivas
+  quando o admin salva o texto ou o vínculo.
+- Desvincular remove o arquivo de fato das instâncias vivas via
+  `runtime.exec` — operação do protocolo `ContainerRuntime` (implementada
+  com `docker exec`). O comando é sempre fixo no código do portal, nunca
+  derivado de input de usuário.
+
 ### OpenSpec (planejamento)
 
 - Changes ficam em `openspec/changes/<nome>/` com `proposal.md`, `design.md`,

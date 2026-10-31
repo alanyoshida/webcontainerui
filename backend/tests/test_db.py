@@ -312,3 +312,60 @@ def test_init_db_adiciona_icon_source_e_marca_capas_como_admin(tmp_path):
         assert rows["Sem capa"]["icon_source"] is None
     finally:
         conn.close()
+
+
+def test_init_db_adiciona_tabela_e_coluna_de_agents_md(tmp_path):
+    db_path = tmp_path / "legado-agents-md.db"
+    conn = connect(db_path)
+    try:
+        # Banco legado: criado antes da tabela de documentos e da coluna
+        # de vínculo existirem.
+        conn.executescript(
+            """
+            CREATE TABLE images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                display_name TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                shm_size_mb INTEGER NOT NULL,
+                mem_limit_mb INTEGER NOT NULL,
+                cpu_limit REAL NOT NULL,
+                harden_desktop INTEGER NOT NULL DEFAULT 0,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                pull_state TEXT NOT NULL DEFAULT 'pulling',
+                pull_progress TEXT,
+                pull_error TEXT,
+                icon_path TEXT,
+                icon_source TEXT,
+                port INTEGER NOT NULL DEFAULT 3000,
+                provision_kind TEXT NOT NULL DEFAULT 'pull',
+                build_hash TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE (repository, tag)
+            );
+            """
+        )
+
+        conn.execute(
+            """INSERT INTO images
+                   (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit)
+               VALUES ('Webtop', 'r/teste', 'latest', 1024, 2048, 2.0)"""
+        )
+
+        init_db(conn)
+        init_db(conn)  # idempotente: rodar de novo não falha nem duplica
+
+        tables = {
+            row["name"] for row in conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table'"
+            )
+        }
+        assert "agent_md_documents" in tables
+
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+        assert "agents_md_id" in columns
+
+        row = conn.execute("SELECT agents_md_id FROM images").fetchone()
+        assert row["agents_md_id"] is None  # sem vínculo por padrão
+    finally:
+        conn.close()

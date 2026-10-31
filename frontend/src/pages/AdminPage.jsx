@@ -4,6 +4,7 @@ import Tab from "@mui/material/Tab";
 import Tabs from "@mui/material/Tabs";
 import Typography from "@mui/material/Typography";
 import AccessPanel from "../features/admin/AccessPanel";
+import AgentsMdPanel from "../features/admin/AgentsMdPanel";
 import GroupsPanel from "../features/admin/GroupsPanel";
 import ImagesPanel from "../features/admin/ImagesPanel";
 import UsageMetricsPanel from "../features/admin/UsageMetricsPanel";
@@ -13,6 +14,7 @@ const TABS = [
   { label: "Usuários", Panel: UsersPanel },
   { label: "Grupos", Panel: GroupsPanel },
   { label: "Catálogo", Panel: ImagesPanel },
+  { label: "AGENTS.md", Panel: AgentsMdPanel },
   { label: "Acessos", Panel: AccessPanel },
   { label: "Métricas de uso", Panel: UsageMetricsPanel },
 ];

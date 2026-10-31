@@ -127,3 +127,8 @@ No startup, o portal cadastra automaticamente uma capa padrão em toda entrada
 existente do catálogo, a partir dos logos versionados em `agent-images/covers/`
 (ver `agent-images/covers/README.md`). Uma capa enviada pelo administrador
 sempre prevalece sobre a padrão.
+
+O administrador também mantém uma biblioteca de documentos `AGENTS.md` (aba
+"AGENTS.md" no painel administrativo) e vincula cada imagem do catálogo a um
+deles; o texto é injetado como `/config/AGENTS.md` nas instâncias e propagado
+às instâncias vivas quando o admin salva alterações.

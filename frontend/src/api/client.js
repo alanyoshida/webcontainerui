@@ -96,4 +96,13 @@ export const api = {
   adminUsageLive: () => request("GET", "/admin/usage/live"),
   adminUsageRuns: (limit, offset) => request("GET", `/admin/usage/runs?limit=${limit}&offset=${offset}`),
   adminUsageSummary: () => request("GET", "/admin/usage/summary"),
+
+  adminListAgentsMd: () => request("GET", "/admin/agents-md"),
+  adminCreateAgentsMd: (payload) => request("POST", "/admin/agents-md", payload),
+  adminUpdateAgentsMd: (documentId, payload) =>
+    request("PATCH", `/admin/agents-md/${documentId}`, payload),
+  adminDeleteAgentsMd: (documentId) => request("DELETE", `/admin/agents-md/${documentId}`),
+  adminListImageAgentsMdLinks: () => request("GET", "/admin/agents-md/images"),
+  adminSetImageAgentsMd: (imageId, documentId) =>
+    request("PUT", `/admin/agents-md/images/${imageId}`, { document_id: documentId }),
 };

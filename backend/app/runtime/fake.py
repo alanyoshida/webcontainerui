@@ -27,6 +27,7 @@ class FakeContainerRuntime:
         self.build_calls: list[dict] = []
         self.pull_calls: list[dict] = []
         self.put_archive_calls: list[dict] = []
+        self.exec_calls: list[dict] = []
 
     def set_delay(self, operation: str, seconds: float) -> None:
         self._delays[operation] = seconds
@@ -80,6 +81,12 @@ class FakeContainerRuntime:
         self.put_archive_calls.append(
             {"container_id": container_id, "destination_path": destination_path, "tar_bytes": tar_bytes}
         )
+
+    async def exec(self, container_id: str, command: list[str]) -> tuple[int, bytes]:
+        self._require(container_id)
+        await self._simulate("exec")
+        self.exec_calls.append({"container_id": container_id, "command": command})
+        return 0, b""
 
     async def create_container(self, spec: ContainerSpec) -> str:
         await self._simulate("create_container")

@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS images (
     port INTEGER NOT NULL DEFAULT 3000,
     provision_kind TEXT NOT NULL DEFAULT 'pull',
     build_hash TEXT,
+    agents_md_id INTEGER REFERENCES agent_md_documents(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (repository, tag)
 );
@@ -112,6 +113,17 @@ CREATE TABLE IF NOT EXISTS ssh_identities (
     private_key_encrypted BLOB NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+-- Biblioteca de documentos AGENTS.md (ver services/agents_md.py): textos
+-- nomeados que o administrador vincula às entradas do catálogo para serem
+-- injetados nas instâncias como /config/AGENTS.md.
+CREATE TABLE IF NOT EXISTS agent_md_documents (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL UNIQUE,
+    content TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT
+);
 """
 
 
@@ -138,6 +150,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     _migrate_add_icon_path(conn)
     _migrate_add_icon_source(conn)
+    _migrate_add_agents_md_id(conn)
     _migrate_add_image_provisioning_columns(conn)
     _migrate_normalize_last_seen_at(conn)
 
@@ -168,6 +181,18 @@ def _migrate_add_icon_path(conn: sqlite3.Connection) -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
     if "icon_path" not in columns:
         conn.execute("ALTER TABLE images ADD COLUMN icon_path TEXT")
+
+
+def _migrate_add_agents_md_id(conn: sqlite3.Connection) -> None:
+    """Adiciona a coluna agents_md_id a bancos criados antes dela existir.
+
+    A tabela `agent_md_documents` nasce no CREATE TABLE IF NOT EXISTS; a
+    coluna em `images`, sendo referencia (0..1), precisa do ALTER guardado
+    por PRAGMA table_info para bancos legados.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+    if "agents_md_id" not in columns:
+        conn.execute("ALTER TABLE images ADD COLUMN agents_md_id INTEGER")
 
 
 def _migrate_add_image_provisioning_columns(conn: sqlite3.Connection) -> None:

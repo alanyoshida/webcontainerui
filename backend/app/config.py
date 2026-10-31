@@ -44,6 +44,11 @@ class Settings(BaseSettings):
     uploads_dir: Path = Path("/data/uploads/images")
     max_icon_upload_mb: int = Field(default=5, gt=0)
 
+    # Limite do conteúdo de um documento AGENTS.md da biblioteca
+    # (ver services/agents_md.py): evita documento gigante propagado
+    # para N instâncias vivas de uma vez.
+    max_agents_md_bytes: int = Field(default=262144, gt=0)
+
     puid: int = Field(default=1000, ge=0)
     pgid: int = Field(default=1000, ge=0)
     timezone: str = Field(default="Etc/UTC", min_length=1)

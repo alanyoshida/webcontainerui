@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.api.access_control import router as access_control_router
 from app.api.admin import router as admin_router
+from app.api.agents_md import router as agents_md_router
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.images import admin_router as images_admin_router
@@ -116,6 +117,7 @@ def create_app(
     app.include_router(catalog_router, prefix="/api", tags=["catalog"])
     app.include_router(access_control_router, prefix="/api/admin", tags=["admin", "access-control"])
     app.include_router(usage_metrics_router, prefix="/api/admin", tags=["admin", "usage-metrics"])
+    app.include_router(agents_md_router, prefix="/api/admin", tags=["admin", "agents-md"])
     app.include_router(instances_router, prefix="/api", tags=["instances"])
     app.include_router(ssh_identity_router, prefix="/api", tags=["ssh-identity"])
     app.include_router(public_config_router, prefix="/api", tags=["config"])
