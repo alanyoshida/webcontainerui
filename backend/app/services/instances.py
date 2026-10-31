@@ -17,7 +17,8 @@ _VOLUME_MOUNT_PATH = "/config"
 # são expostos, sem colidir com as colunas de `instances`.
 _INSTANCE_SELECT = """
     SELECT i.*, img.display_name AS image_display_name,
-           img.repository AS image_repository, img.tag AS image_tag
+           img.repository AS image_repository, img.tag AS image_tag,
+           img.port AS image_port
     FROM instances i JOIN images img ON img.id = i.image_id
 """
 
@@ -106,6 +107,9 @@ def _build_spec(
             "SUBFOLDER": f"/i/{instance_id}/",
             "CUSTOM_USER": inner_user,
             "PASSWORD": inner_password,
+            # A mesma porta que session_proxy.py disca: o processo de
+            # interface (ttyd ou equivalente) escuta nela dentro do container.
+            "PORT": str(image["port"]),
             # Obrigatório (D6): os links nativos de compartilhamento do
             # Selkies concedem controle total da sessão, incluindo o
             # terminal com sudo sem senha, sem autenticação própria.

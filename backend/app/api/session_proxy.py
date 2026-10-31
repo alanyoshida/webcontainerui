@@ -38,7 +38,7 @@ UPSTREAM_TIMEOUT_SECONDS = 3600.0
 
 
 def default_backend_base_url(row: sqlite3.Row) -> str:
-    return f"http://{row['container_name']}:3000"
+    return f"http://{row['container_name']}:{row['image_port']}"
 
 
 def _resolver(connection: Request | WebSocket):
@@ -153,15 +153,24 @@ async def proxy_websocket(
     headers = {"authorization": _basic_auth_header(row["inner_user"], row["inner_password"])}
     tracker = websocket.app.state.activity_tracker
 
+    # O subprotocolo faz parte do contrato de alguns backends de terminal
+    # (o ttyd exige "tty"); sem encaminhá-lo o upstream trata a conexão
+    # como HTTP e nunca inicia o processo do agente.
+    requested = websocket.headers.get("sec-websocket-protocol")
+    subprotocols = [p.strip() for p in requested.split(",") if p.strip()] if requested else None
+
     try:
         # ping_interval=None: isto é um relay transparente, não um
         # cliente com opinião própria sobre vivacidade — uma sessão
         # ociosa não deve ser encerrada pela nossa política, só pela
         # inatividade tratada em D8/ActivityTracker.
         async with websockets.connect(
-            ws_target, additional_headers=headers, ping_interval=None
+            ws_target,
+            additional_headers=headers,
+            ping_interval=None,
+            subprotocols=subprotocols,
         ) as upstream:
-            await websocket.accept()
+            await websocket.accept(subprotocol=upstream.subprotocol)
             await _relay(websocket, upstream, tracker, instance_id)
     except (OSError, WebSocketException):
         # upstream inalcançável: se a conexão com o cliente ainda não foi

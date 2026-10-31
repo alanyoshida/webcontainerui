@@ -173,3 +173,48 @@ def test_init_db_adiciona_icon_path_a_banco_sem_a_coluna(tmp_path):
         assert row["icon_path"] is None
     finally:
         conn.close()
+
+
+def test_init_db_adiciona_colunas_de_provisionamento_a_banco_sem_elas(tmp_path):
+    db_path = tmp_path / "legado-provisionamento.db"
+    conn = connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                display_name TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                shm_size_mb INTEGER NOT NULL,
+                mem_limit_mb INTEGER NOT NULL,
+                cpu_limit REAL NOT NULL,
+                harden_desktop INTEGER NOT NULL DEFAULT 0,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                pull_state TEXT NOT NULL DEFAULT 'pulling',
+                pull_progress TEXT,
+                pull_error TEXT,
+                icon_path TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE (repository, tag)
+            );
+            """
+        )
+        conn.execute(
+            """INSERT INTO images
+                   (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit)
+               VALUES ('Webtop', 'lscr.io/linuxserver/webtop', 'latest', 1024, 2048, 2.0)"""
+        )
+
+        init_db(conn)
+
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+        assert {"port", "provision_kind", "build_hash"} <= columns
+        row = conn.execute(
+            "SELECT port, provision_kind, build_hash FROM images"
+        ).fetchone()
+        assert row["port"] == 3000
+        assert row["provision_kind"] == "pull"
+        assert row["build_hash"] is None
+    finally:
+        conn.close()

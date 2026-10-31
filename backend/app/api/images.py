@@ -4,6 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, stat
 from pydantic import BaseModel
 
 from app.deps import get_current_user, get_db, require_admin
+from app.services.agent_images import (
+    build_hash_for,
+    default_agent_images_dir,
+    find_agent_image,
+    run_build,
+)
 from app.services.background import spawn
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 from app.services.image_pull import run_pull
@@ -13,7 +19,7 @@ from app.services.images import (
     get_image,
     list_catalog_for_admin,
     list_catalog_for_user,
-    retry_pull,
+    reopen_for_retry,
     set_image_icon,
 )
 from app.services.sessions import AuthenticatedUser
@@ -105,16 +111,46 @@ async def retry_pull_endpoint(
     image_id: int, request: Request, db: sqlite3.Connection = Depends(get_db)
 ) -> ImageResponse:
     try:
-        retry_pull(db, image_id)
+        row = get_image(db, image_id)
+        # Valida o contexto antes de reabrir: uma entrada de build sem
+        # definição conhecida não deve ficar presa em "pulling".
+        spec = (
+            find_agent_image(row["repository"], row["tag"])
+            if row["provision_kind"] == "build"
+            else None
+        )
+        if row["provision_kind"] == "build" and spec is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="contexto de build desconhecido para esta imagem",
+            )
+        reopen_for_retry(db, image_id)
         row = get_image(db, image_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     settings = request.app.state.settings
-    spawn(
-        request.app,
-        run_pull(settings.db_path, request.app.state.runtime, image_id, row["repository"], row["tag"]),
-    )
+    runtime = request.app.state.runtime
+
+    if spec is not None:
+        base_dir = default_agent_images_dir()
+        spawn(
+            request.app,
+            run_build(
+                settings.db_path,
+                runtime,
+                image_id,
+                row["repository"],
+                row["tag"],
+                context_dir=str(base_dir / spec.context_subdir),
+                build_hash=build_hash_for(spec, base_dir),
+            ),
+        )
+    else:
+        spawn(
+            request.app,
+            run_pull(settings.db_path, runtime, image_id, row["repository"], row["tag"]),
+        )
 
     return _to_response(row)
 

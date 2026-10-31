@@ -42,7 +42,8 @@ async def stream(instance_id: str):
 
 @app.websocket("/i/{instance_id}/ws")
 async def ws_echo(websocket: WebSocket, instance_id: str) -> None:
-    await websocket.accept()
+    requested = websocket.scope.get("subprotocols") or []
+    await websocket.accept(subprotocol=requested[0] if requested else None)
     try:
         while True:
             message = await websocket.receive()

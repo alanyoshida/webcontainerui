@@ -1,8 +1,15 @@
 import base64
 
-from app.db import connect
+from app.db import connect, init_db
 
-from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
+from .conftest import (
+    add_user_to_group,
+    grant_image_to_group,
+    insert_group,
+    insert_image,
+    insert_instance,
+    insert_user,
+)
 
 
 def _login_as(client, seed_user, email, password="senha-usuario-123"):
@@ -184,3 +191,46 @@ def test_isolamento_entre_duas_sessoes_simultaneas(proxy_client, seed_user, app_
         assert resp_a_na_propria.status_code == resp_b_na_propria.status_code == 200
         assert resp_a_na_propria.json()["instance_id"] == instancia_a
         assert resp_b_na_propria.json()["instance_id"] == instancia_b
+
+
+def test_base_url_padrao_usa_a_porta_da_imagem_de_cada_instancia(app_settings):
+    from app.api.session_proxy import default_backend_base_url
+    from app.services.instances import get_owned_instance
+
+    conn = connect(app_settings.db_path)
+    init_db(conn)
+    user_id = insert_user(conn, "portas@exemplo.test")
+    imagem_3000 = insert_image(conn, repository="repo-a", tag="latest", port=3000)
+    imagem_4242 = insert_image(conn, repository="repo-b", tag="latest", port=4242)
+    instancia_a = insert_instance(conn, user_id, imagem_3000)
+    instancia_b = insert_instance(conn, user_id, imagem_4242)
+    conn.execute(
+        "UPDATE instances SET container_name = 'container-a' WHERE id = ?", (instancia_a,)
+    )
+    conn.execute(
+        "UPDATE instances SET container_name = 'container-b' WHERE id = ?", (instancia_b,)
+    )
+
+    url_a = default_backend_base_url(get_owned_instance(conn, instancia_a, user_id))
+    url_b = default_backend_base_url(get_owned_instance(conn, instancia_b, user_id))
+    conn.close()
+
+    assert url_a == "http://container-a:3000"
+    assert url_b == "http://container-b:4242"
+
+
+def test_websocket_encaminha_o_subprotocolo_do_cliente_ao_container(
+    proxy_client, seed_user, app_settings
+):
+    """O ttyd exige o subprotocolo "tty"; sem encaminhá-lo o upstream trata
+    a conexão como HTTP e não inicia o processo do agente."""
+    instance_id, _ = _create_running_instance(
+        proxy_client, seed_user, app_settings, "subproto@exemplo.test"
+    )
+
+    with proxy_client.websocket_connect(
+        f"/i/{instance_id}/ws", subprotocols=["tty"]
+    ) as ws:
+        assert ws.accepted_subprotocol == "tty"
+        ws.send_text("ola")
+        assert ws.receive_text() == "echo:ola"

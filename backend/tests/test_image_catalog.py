@@ -353,3 +353,36 @@ def test_imagem_desabilitada_sai_do_catalogo_do_usuario(client, seed_user, app_s
     catalogo = list_catalog_for_user(conn, user_id)
     conn.close()
     assert catalogo == []
+
+
+def test_create_image_omite_porta_e_tipo_usa_padroes(db_conn):
+    from app.services.images import create_image
+
+    image_id = create_image(
+        db_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=Settings()
+    )
+
+    row = db_conn.execute(
+        "SELECT port, provision_kind, build_hash FROM images WHERE id = ?", (image_id,)
+    ).fetchone()
+    assert row["port"] == 3000
+    assert row["provision_kind"] == "pull"
+    assert row["build_hash"] is None
+
+
+def test_create_image_aceita_porta_e_tipo_explicitos(db_conn):
+    from app.services.images import create_image
+
+    image_id = create_image(
+        db_conn,
+        "Agente",
+        "wcui-agent-teste",
+        "latest",
+        settings=Settings(),
+        port=4242,
+        provision_kind="build",
+    )
+
+    row = db_conn.execute("SELECT port, provision_kind FROM images WHERE id = ?", (image_id,)).fetchone()
+    assert row["port"] == 4242
+    assert row["provision_kind"] == "build"

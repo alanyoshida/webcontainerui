@@ -294,3 +294,29 @@ def test_desabilitar_conta_para_instancia_em_execucao_preservando_volume(
         conn.close()
         assert row["state"] == "stopped"
         assert row["volume_name"] in fake_runtime._volumes
+
+
+def test_env_PORTA_usa_a_porta_da_imagem(client, seed_user, app_settings, fake_runtime):
+    user_id = _login_as(client, seed_user, "porta@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn, port=4242)
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+
+    resp = client.post("/api/instances", json={"image_id": image_id})
+    instance_id = resp.json()["id"]
+
+    conn = connect(app_settings.db_path)
+    from app.services.instances import get_owned_instance
+
+    row = get_owned_instance(conn, instance_id, user_id)
+    container_id = conn.execute(
+        "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
+    ).fetchone()["container_id"]
+    conn.close()
+
+    assert row["image_port"] == 4242
+    spec = fake_runtime._containers[container_id]["spec"]
+    assert spec.env["PORT"] == "4242"

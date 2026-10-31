@@ -9,6 +9,8 @@ vídeo das sessões de outros usuários, conforme D3 em design.md.
 from __future__ import annotations
 
 import asyncio
+import io
+import tarfile
 from collections.abc import AsyncIterator
 
 import aiodocker
@@ -24,6 +26,21 @@ from app.runtime.protocol import ContainerSpec, ContainerState, PullProgress
 # na prática num teste e2e real (não é uma suposição).
 _REMOVE_VOLUME_RETRIES = 5
 _REMOVE_VOLUME_BACKOFF_SECONDS = 0.5
+
+
+def _tar_context(directory: str) -> io.BytesIO:
+    """Empacota o diretório de contexto para `images.build`.
+
+    `aiodocker` só aceita um `fileobj` (ou uma URL remota), não um caminho
+    local — o tar é montado aqui e enviado ao daemon. Roda numa thread
+    (`asyncio.to_thread`) para não bloquear o event loop enquanto lê o
+    contexto.
+    """
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+        tar.add(directory, arcname=".")
+    buffer.seek(0)
+    return buffer
 
 
 class AioDockerContainerRuntime:
@@ -62,6 +79,26 @@ class AioDockerContainerRuntime:
                 if error:
                     raise RuntimeOperationError(error)
                 yield PullProgress(status=message.get("status", ""), detail=message.get("progress"))
+        except DockerError as exc:
+            raise RuntimeOperationError(str(exc)) from exc
+        yield PullProgress(status="pronta", completed=True)
+
+    async def build_image(
+        self, context_dir: str, repository: str, tag: str
+    ) -> AsyncIterator[PullProgress]:
+        reference = f"{repository}:{tag}"
+        fileobj = await asyncio.to_thread(_tar_context, context_dir)
+        try:
+            async for message in self._docker.images.build(
+                fileobj=fileobj, encoding="gzip", tag=reference, stream=True
+            ):
+                error = message.get("error")
+                if error:
+                    detail = (message.get("errorDetail") or {}).get("message")
+                    raise RuntimeOperationError(detail or error)
+                stream = message.get("stream")
+                status = (stream or message.get("status") or "build").strip()
+                yield PullProgress(status=status or "build", detail=stream)
         except DockerError as exc:
             raise RuntimeOperationError(str(exc)) from exc
         yield PullProgress(status="pronta", completed=True)

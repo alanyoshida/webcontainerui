@@ -47,6 +47,9 @@ CREATE TABLE IF NOT EXISTS images (
     pull_progress TEXT,
     pull_error TEXT,
     icon_path TEXT,
+    port INTEGER NOT NULL DEFAULT 3000,
+    provision_kind TEXT NOT NULL DEFAULT 'pull',
+    build_hash TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (repository, tag)
 );
@@ -124,6 +127,7 @@ def connect(db_path: Path) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     _migrate_add_icon_path(conn)
+    _migrate_add_image_provisioning_columns(conn)
     _migrate_normalize_last_seen_at(conn)
 
 
@@ -137,6 +141,25 @@ def _migrate_add_icon_path(conn: sqlite3.Connection) -> None:
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
     if "icon_path" not in columns:
         conn.execute("ALTER TABLE images ADD COLUMN icon_path TEXT")
+
+
+def _migrate_add_image_provisioning_columns(conn: sqlite3.Connection) -> None:
+    """Adiciona porta, tipo de provisionamento e hash de contexto a `images`.
+
+    Mesmo motivo de `_migrate_add_icon_path`: bancos criados antes dessas
+    colunas existirem não são alterados por `CREATE TABLE IF NOT EXISTS`.
+    Os defaults preservam o comportamento anterior: porta 3000 (a que o
+    proxy já assumia) e entradas existentes como provisionadas por pull.
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+    if "port" not in columns:
+        conn.execute("ALTER TABLE images ADD COLUMN port INTEGER NOT NULL DEFAULT 3000")
+    if "provision_kind" not in columns:
+        conn.execute(
+            "ALTER TABLE images ADD COLUMN provision_kind TEXT NOT NULL DEFAULT 'pull'"
+        )
+    if "build_hash" not in columns:
+        conn.execute("ALTER TABLE images ADD COLUMN build_hash TEXT")
 
 
 def _migrate_normalize_last_seen_at(conn: sqlite3.Connection) -> None:

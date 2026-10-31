@@ -23,12 +23,18 @@ class FakeContainerRuntime:
         self._ids = itertools.count(1)
         self._delays: dict[str, float] = {}
         self._failures: dict[str, Exception] = {}
+        self._build_progress: list[PullProgress] | None = None
+        self.build_calls: list[dict] = []
+        self.pull_calls: list[dict] = []
 
     def set_delay(self, operation: str, seconds: float) -> None:
         self._delays[operation] = seconds
 
     def fail_next(self, operation: str, exc: Exception) -> None:
         self._failures[operation] = exc
+
+    def set_build_progress(self, progress: list[PullProgress]) -> None:
+        self._build_progress = progress
 
     async def _simulate(self, operation: str) -> None:
         delay = self._delays.get(operation, 0)
@@ -50,8 +56,22 @@ class FakeContainerRuntime:
         return name in self._volumes
 
     async def pull_image(self, repository: str, tag: str) -> AsyncIterator[PullProgress]:
+        self.pull_calls.append({"repository": repository, "tag": tag})
         await self._simulate("pull_image")
         yield PullProgress(status="pronta", completed=True)
+
+    async def build_image(
+        self, context_dir: str, repository: str, tag: str
+    ) -> AsyncIterator[PullProgress]:
+        self.build_calls.append(
+            {"context_dir": context_dir, "repository": repository, "tag": tag}
+        )
+        await self._simulate("build_image")
+        if self._build_progress is None:
+            yield PullProgress(status="pronta", completed=True)
+            return
+        for progress in self._build_progress:
+            yield progress
 
     async def create_container(self, spec: ContainerSpec) -> str:
         await self._simulate("create_container")

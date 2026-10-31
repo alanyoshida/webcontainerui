@@ -16,6 +16,10 @@ COPY backend/pyproject.toml ./
 COPY backend/app ./app
 RUN pip install --no-cache-dir .
 
+# Contextos de build das imagens de agente: o seed roda dentro deste
+# container e envia o contexto para o daemon do host via docker.sock.
+COPY agent-images ./agent-images
+
 COPY --from=frontend-builder /frontend/dist ./frontend/dist
 
 # /data é onde o volume nomeado do SQLite é montado (ver deploy/compose.yml).

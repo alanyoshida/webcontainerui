@@ -35,19 +35,22 @@ def create_image(
     mem_limit_mb: int | None = None,
     cpu_limit: float | None = None,
     harden_desktop: bool = False,
+    port: int | None = None,
+    provision_kind: str = "pull",
 ) -> int:
     """Registra a entrada do catálogo com estado inicial `pulling`.
 
-    Limites de recurso omitidos recebem o padrão de `settings`. O download
-    propriamente dito não ocorre aqui — quem registra agenda `run_pull` em
-    segundo plano e usa este id para atualizar o progresso.
+    Limites de recurso omitidos recebem o padrão de `settings`; a porta
+    omitida recebe 3000 (o valor que o proxy já assumia). O provisionamento
+    propriamente dito não ocorre aqui — quem registra agenda `run_pull` ou
+    um build em segundo plano e usa este id para atualizar o progresso.
     """
     try:
         cur = conn.execute(
             """INSERT INTO images
                    (display_name, repository, tag, shm_size_mb, mem_limit_mb,
-                    cpu_limit, harden_desktop, pull_state)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pulling')""",
+                    cpu_limit, harden_desktop, pull_state, port, provision_kind)
+               VALUES (?, ?, ?, ?, ?, ?, ?, 'pulling', ?, ?)""",
             (
                 display_name,
                 repository,
@@ -56,6 +59,8 @@ def create_image(
                 mem_limit_mb or settings.default_mem_limit_mb,
                 cpu_limit or settings.default_cpu_limit,
                 int(harden_desktop),
+                port if port is not None else 3000,
+                provision_kind,
             ),
         )
     except sqlite3.IntegrityError as exc:
@@ -68,6 +73,16 @@ def get_image(conn: sqlite3.Connection, image_id: int) -> sqlite3.Row:
     if row is None:
         raise NotFoundError(f"imagem não encontrada: {image_id}")
     return row
+
+
+def mark_pull_started(conn: sqlite3.Connection, image_id: int) -> None:
+    """Reabre a entrada para provisionamento e limpa o erro/progresso anterior."""
+    conn.execute(
+        """UPDATE images SET pull_state = 'pulling', pull_progress = NULL,
+               pull_error = NULL
+           WHERE id = ?""",
+        (image_id,),
+    )
 
 
 def mark_pull_progress(conn: sqlite3.Connection, image_id: int, progress: str) -> None:
@@ -88,8 +103,12 @@ def mark_pull_failed(conn: sqlite3.Connection, image_id: int, error: str) -> Non
     )
 
 
-def retry_pull(conn: sqlite3.Connection, image_id: int) -> None:
-    """Reabre uma entrada em falha para novo download, sem recriá-la."""
+def reopen_for_retry(conn: sqlite3.Connection, image_id: int) -> None:
+    """Reabre uma entrada em falha para novo provisionamento, sem recriá-la.
+
+    Não decide entre download e build: quem chama consulta
+    `provision_kind` e agenda a operação correspondente.
+    """
     cur = conn.execute(
         """UPDATE images SET pull_state = 'pulling', pull_progress = NULL, pull_error = NULL
            WHERE id = ? AND pull_state = 'failed'""",

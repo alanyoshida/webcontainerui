@@ -125,3 +125,34 @@ def test_docker_runtime_nao_usa_chamada_sincrona_bloqueante():
         if isinstance(n, ast.FunctionDef) and n.name != "__init__"
     ]
     assert sync_methods == [], f"método síncrono no runtime: {sync_methods}"
+
+
+async def test_fake_build_image_produz_a_sequencia_de_progresso_configurada():
+    from app.runtime.protocol import PullProgress
+
+    runtime = FakeContainerRuntime()
+    runtime.set_build_progress(
+        [
+            PullProgress(status="Step 1/2", detail="FROM python:3.12-slim"),
+            PullProgress(status="pronta", completed=True),
+        ]
+    )
+
+    progress = [p async for p in runtime.build_image("/ctx", "wcui-agent-teste", "latest")]
+
+    assert [p.status for p in progress] == ["Step 1/2", "pronta"]
+    assert progress[-1].completed
+    assert runtime.build_calls == [
+        {"context_dir": "/ctx", "repository": "wcui-agent-teste", "tag": "latest"}
+    ]
+
+
+async def test_fake_build_image_propaga_falha_configurada():
+    from app.runtime.errors import RuntimeOperationError
+
+    runtime = FakeContainerRuntime()
+    runtime.fail_next("build_image", RuntimeOperationError("Dockerfile inválido"))
+
+    with pytest.raises(RuntimeOperationError, match="Dockerfile inválido"):
+        async for _ in runtime.build_image("/ctx", "wcui-agent-teste", "latest"):
+            pass

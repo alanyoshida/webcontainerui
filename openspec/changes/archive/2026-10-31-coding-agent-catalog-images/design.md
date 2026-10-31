@@ -113,6 +113,12 @@ A imagem base comum é construída e marcada como `wcui-agent-base` pelo seed
 antes de qualquer imagem de agente (D6); sem esse passo o `FROM` dos
 Dockerfiles de agente falharia.
 
+A base também fixa `HOME=/config`: o volume nomeado por usuário+imagem é
+montado nesse caminho, então credenciais, sessões e configuração das CLIs
+sobrevivem à recriação do container. Sem isso, esse estado ficaria na camada
+gravável do container e se perderia ao recriá-lo — só o volume `/config`
+persiste. Excluir a instância continua removendo o volume.
+
 ### D3: Porta de encaminhamento por imagem, não mudança de protocolo
 
 Nova coluna `images.port` (padrão `3000`, o valor hoje implícito),

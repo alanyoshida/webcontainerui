@@ -149,6 +149,7 @@ def test_usuario_pode_pertencer_a_multiplos_grupos_e_remover_um_preserva_o_outro
 def test_bootstrap_primeiro_administrador(tmp_path):
     from app.config import Settings
     from app.main import create_app
+    from app.runtime.fake import FakeContainerRuntime
     from fastapi.testclient import TestClient
 
     settings = Settings(
@@ -158,7 +159,7 @@ def test_bootstrap_primeiro_administrador(tmp_path):
         admin_password="senha-root-bem-longa",
     )
 
-    with TestClient(create_app(settings)) as client:
+    with TestClient(create_app(settings, runtime=FakeContainerRuntime())) as client:
         login = client.post(
             "/api/auth/login", json={"email": "root@exemplo.test", "password": "senha-root-bem-longa"}
         )
@@ -169,6 +170,7 @@ def test_bootstrap_primeiro_administrador(tmp_path):
 def test_segunda_inicializacao_nao_cria_nem_sobrescreve(tmp_path):
     from app.config import Settings
     from app.main import create_app
+    from app.runtime.fake import FakeContainerRuntime
     from fastapi.testclient import TestClient
 
     settings = Settings(
@@ -178,11 +180,11 @@ def test_segunda_inicializacao_nao_cria_nem_sobrescreve(tmp_path):
         admin_password="senha-root-bem-longa",
     )
 
-    with TestClient(create_app(settings)):
+    with TestClient(create_app(settings, runtime=FakeContainerRuntime())):
         pass  # primeira inicialização cria o admin
 
     # segunda inicialização, mesmo banco, mesmas credenciais configuradas
-    with TestClient(create_app(settings)):
+    with TestClient(create_app(settings, runtime=FakeContainerRuntime())):
         pass
 
     conn = connect(settings.db_path)

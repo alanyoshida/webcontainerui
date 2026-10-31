@@ -45,13 +45,16 @@ def insert_image(
     *,
     pull_state: str = "ready",
     enabled: bool = True,
+    port: int = 3000,
+    provision_kind: str = "pull",
+    build_hash: str | None = None,
 ) -> int:
     cur = conn.execute(
         """INSERT INTO images
                (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit,
-                pull_state, enabled)
-           VALUES (?, ?, ?, 1024, 2048, 2.0, ?, ?)""",
-        ("Webtop", repository, tag, pull_state, int(enabled)),
+                pull_state, enabled, port, provision_kind, build_hash)
+           VALUES (?, ?, ?, 1024, 2048, 2.0, ?, ?, ?, ?, ?)""",
+        ("Webtop", repository, tag, pull_state, int(enabled), port, provision_kind, build_hash),
     )
     return cur.lastrowid
 
