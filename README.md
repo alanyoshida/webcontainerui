@@ -122,3 +122,8 @@ arquitetura e o plano de tarefas.
 ```bash
 openspec show webtop-portal
 ```
+
+No startup, o portal cadastra automaticamente uma capa padrão em toda entrada
+existente do catálogo, a partir dos logos versionados em `agent-images/covers/`
+(ver `agent-images/covers/README.md`). Uma capa enviada pelo administrador
+sempre prevalece sobre a padrão.

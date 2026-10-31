@@ -151,7 +151,10 @@ def set_image_icon(
     new_filename = f"{image_id}-{uuid.uuid4().hex}{extension}"
     (settings.uploads_dir / new_filename).write_bytes(content)
 
-    conn.execute("UPDATE images SET icon_path = ? WHERE id = ?", (new_filename, image_id))
+    conn.execute(
+        "UPDATE images SET icon_path = ?, icon_source = 'admin' WHERE id = ?",
+        (new_filename, image_id),
+    )
 
     if previous_icon_path:
         _delete_icon_file(settings, previous_icon_path)

@@ -59,6 +59,7 @@ def insert_user(conn: sqlite3.Connection, email: str = "user@exemplo.test") -> i
 
 def insert_image(
     conn: sqlite3.Connection,
+    display_name: str = "Webtop",
     repository: str = "lscr.io/linuxserver/webtop",
     tag: str = "latest",
     *,
@@ -73,7 +74,7 @@ def insert_image(
                (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit,
                 pull_state, enabled, port, provision_kind, build_hash)
            VALUES (?, ?, ?, 1024, 2048, 2.0, ?, ?, ?, ?, ?)""",
-        ("Webtop", repository, tag, pull_state, int(enabled), port, provision_kind, build_hash),
+        (display_name, repository, tag, pull_state, int(enabled), port, provision_kind, build_hash),
     )
     return cur.lastrowid
 

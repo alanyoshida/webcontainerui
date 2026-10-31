@@ -258,3 +258,57 @@ def test_init_db_adiciona_colunas_de_provisionamento_a_banco_sem_elas(tmp_path):
         assert row["build_hash"] is None
     finally:
         conn.close()
+
+
+def test_init_db_adiciona_icon_source_e_marca_capas_como_admin(tmp_path):
+    db_path = tmp_path / "legado-icon-source.db"
+    conn = connect(db_path)
+    try:
+        conn.executescript(
+            """
+            CREATE TABLE images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                display_name TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                shm_size_mb INTEGER NOT NULL,
+                mem_limit_mb INTEGER NOT NULL,
+                cpu_limit REAL NOT NULL,
+                harden_desktop INTEGER NOT NULL DEFAULT 0,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                pull_state TEXT NOT NULL DEFAULT 'pulling',
+                pull_progress TEXT,
+                pull_error TEXT,
+                icon_path TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE (repository, tag)
+            );
+            """
+        )
+        conn.execute(
+            """INSERT INTO images
+                   (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit, icon_path)
+               VALUES ('Com capa', 'r1/teste', 'latest', 1024, 2048, 2.0, '1-abc.png')"""
+        )
+        conn.execute(
+            """INSERT INTO images
+                   (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit)
+               VALUES ('Sem capa', 'r2/teste', 'latest', 1024, 2048, 2.0)"""
+        )
+
+        init_db(conn)
+        init_db(conn)  # idempotente: rodar de novo não reverte o backfill
+
+        columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+        assert "icon_source" in columns
+        rows = {
+            row["display_name"]: row
+            for row in conn.execute("SELECT display_name, icon_path, icon_source FROM images")
+        }
+        # Capa pré-existente só podia ter vindo de upload manual: é 'admin'
+        # para o seed de capas padrão jamais sobrescrevê-la.
+        assert rows["Com capa"]["icon_source"] == "admin"
+        assert rows["Sem capa"]["icon_path"] is None
+        assert rows["Sem capa"]["icon_source"] is None
+    finally:
+        conn.close()

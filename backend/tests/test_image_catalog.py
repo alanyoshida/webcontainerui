@@ -184,8 +184,11 @@ def test_upload_de_capa_valido_grava_arquivo_e_associa_a_entrada(db_conn, tmp_pa
 
     set_image_icon(db_conn, image_id, _PNG_1X1, settings=settings)
 
-    row = db_conn.execute("SELECT icon_path FROM images WHERE id = ?", (image_id,)).fetchone()
+    row = db_conn.execute(
+        "SELECT icon_path, icon_source FROM images WHERE id = ?", (image_id,)
+    ).fetchone()
     assert row["icon_path"] is not None
+    assert row["icon_source"] == "admin"  # upload manual sempre prevalece no seed
     assert (settings.uploads_dir / row["icon_path"]).read_bytes() == _PNG_1X1
 
 

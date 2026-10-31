@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS images (
     pull_progress TEXT,
     pull_error TEXT,
     icon_path TEXT,
+    icon_source TEXT,
     port INTEGER NOT NULL DEFAULT 3000,
     provision_kind TEXT NOT NULL DEFAULT 'pull',
     build_hash TEXT,
@@ -136,8 +137,25 @@ def connect(db_path: Path) -> sqlite3.Connection:
 def init_db(conn: sqlite3.Connection) -> None:
     conn.executescript(SCHEMA_SQL)
     _migrate_add_icon_path(conn)
+    _migrate_add_icon_source(conn)
     _migrate_add_image_provisioning_columns(conn)
     _migrate_normalize_last_seen_at(conn)
+
+
+def _migrate_add_icon_source(conn: sqlite3.Connection) -> None:
+    """Adiciona a coluna icon_source e marca capas pré-existentes como admin.
+
+    Capas existentes antes desta coluna só podiam vir de upload manual do
+    administrador, então o backfill as marca como 'admin' para que o seed de
+    capas padrão jamais as sobrescreva (ver services/image_covers.py).
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+    if "icon_source" not in columns:
+        conn.execute("ALTER TABLE images ADD COLUMN icon_source TEXT")
+    conn.execute(
+        "UPDATE images SET icon_source = 'admin'"
+        " WHERE icon_path IS NOT NULL AND icon_source IS NULL"
+    )
 
 
 def _migrate_add_icon_path(conn: sqlite3.Connection) -> None:
