@@ -81,7 +81,20 @@ export default function TopBar() {
                     if (index > 0) nodes.push(<Divider key={`divider-${section.group}`} />);
                     const groupLabel = ADMIN_SECTION_GROUPS[section.group];
                     if (groupLabel) {
-                      nodes.push(<ListSubheader key={`heading-${section.group}`}>{groupLabel}</ListSubheader>);
+                      nodes.push(
+                        <ListSubheader
+                          key={`heading-${section.group}`}
+                          sx={{
+                            fontSize: "0.6875rem",
+                            fontWeight: 600,
+                            letterSpacing: "0.06em",
+                            textTransform: "uppercase",
+                            lineHeight: 2.5,
+                          }}
+                        >
+                          {groupLabel}
+                        </ListSubheader>
+                      );
                     }
                   }
                   nodes.push(
@@ -91,7 +104,7 @@ export default function TopBar() {
                       to={`/admin/${section.path}`}
                       onClick={() => setAdminMenuAnchor(null)}
                     >
-                      <ListItemIcon>
+                      <ListItemIcon sx={{ color: "primary.main" }}>
                         <section.Icon size={18} />
                       </ListItemIcon>
                       <ListItemText>{section.label}</ListItemText>
