@@ -28,7 +28,7 @@ def test_usuario_comum_nao_registra_imagem(client, seed_user):
 
     resp = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     )
 
     assert resp.status_code == 403
@@ -39,7 +39,7 @@ def test_registro_com_limites_padrao_quando_omitidos(client, seed_user):
 
     resp = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     )
 
     assert resp.status_code == 201
@@ -56,7 +56,7 @@ def test_registro_com_limites_explicitos_nao_usa_o_padrao(client, seed_user):
         "/api/admin/images",
         json={
             "display_name": "Webtop pesado",
-            "repository": "lscr.io/linuxserver/webtop",
+            "repository": "exemplo/webtop",
             "tag": "alpine-kde",
             "shm_size_mb": 2048,
             "mem_limit_mb": 4096,
@@ -73,7 +73,7 @@ def test_registro_com_limites_explicitos_nao_usa_o_padrao(client, seed_user):
 
 def test_repositorio_e_tag_duplicados_sao_recusados(client, seed_user):
     _login_admin(client, seed_user)
-    payload = {"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"}
+    payload = {"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"}
 
     client.post("/api/admin/images", json=payload)
     resp = client.post("/api/admin/images", json=payload)
@@ -88,7 +88,7 @@ def test_registro_responde_imediatamente_sem_esperar_o_download(client, seed_use
     inicio = time.monotonic()
     resp = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     )
     elapsed = time.monotonic() - inicio
 
@@ -106,12 +106,12 @@ async def test_run_pull_leva_a_entrada_ao_estado_pronta(app_settings):
     setup_conn = connect(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
-        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+        setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
     )
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
-    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
 
     conn = connect(app_settings.db_path)
     row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
@@ -128,15 +128,15 @@ async def test_run_pull_registra_o_label_de_versao_da_imagem(app_settings):
     setup_conn = connect(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
-        setup_conn, "VS Code", "lscr.io/linuxserver/vscode", "latest", settings=app_settings
+        setup_conn, "VS Code", "exemplo/vscode", "latest", settings=app_settings
     )
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
     runtime.set_image_info(
-        "lscr.io/linuxserver/vscode", "latest", labels={"build_version": "1.143.1-ls31"}
+        "exemplo/vscode", "latest", labels={"build_version": "1.143.1-ls31"}
     )
-    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/vscode", "latest")
+    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/vscode", "latest")
 
     conn = connect(app_settings.db_path)
     row = conn.execute(
@@ -156,15 +156,15 @@ async def test_run_pull_sem_label_registra_o_digest_curto(app_settings):
     setup_conn = connect(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
-        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+        setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
     )
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
     runtime.set_image_info(
-        "lscr.io/linuxserver/webtop", "latest", digest="sha256:0123456789abcdef0123"
+        "exemplo/webtop", "latest", digest="sha256:0123456789abcdef0123"
     )
-    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
 
     conn = connect(app_settings.db_path)
     row = conn.execute(
@@ -188,13 +188,13 @@ async def test_run_pull_com_falha_de_inspecao_deixa_entrada_pronta_sem_versao(ap
     setup_conn = connect(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
-        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+        setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
     )
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
     runtime.fail_next("inspect_image", RuntimeOperationError("daemon indisponível"))
-    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
 
     conn = connect(app_settings.db_path)
     row = conn.execute(
@@ -217,13 +217,13 @@ async def test_run_pull_com_erro_inesperado_de_inspecao_deixa_entrada_pronta(app
     setup_conn = connect(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
-        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+        setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
     )
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
     runtime.fail_next("inspect_image", AttributeError("'coroutine' object has no attribute 'show'"))
-    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
 
     conn = connect(app_settings.db_path)
     row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
@@ -241,13 +241,13 @@ async def test_run_pull_leva_a_entrada_ao_estado_falha(app_settings):
     setup_conn = connect(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
-        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+        setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
     )
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
     runtime.fail_next("pull_image", RuntimeOperationError("registro indisponível"))
-    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
 
     conn = connect(app_settings.db_path)
     row = conn.execute(
@@ -262,7 +262,7 @@ def test_retry_pull_sobre_entrada_em_falha_nao_recria(client, seed_user, app_set
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
 
     conn = connect(app_settings.db_path)
@@ -282,7 +282,7 @@ def test_update_image_sobre_entrada_pronta_reabre_o_download(client, seed_user, 
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
     conn = connect(app_settings.db_path)
     conn.execute("UPDATE images SET pull_state = 'ready' WHERE id = ?", (criada["id"],))
@@ -299,7 +299,7 @@ def test_update_image_recusa_entrada_em_download(client, seed_user, app_settings
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
     conn = connect(app_settings.db_path)
     conn.execute("UPDATE images SET pull_state = 'pulling' WHERE id = ?", (criada["id"],))
@@ -316,7 +316,7 @@ def test_update_image_recusa_entrada_em_falha(client, seed_user, app_settings):
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
     conn = connect(app_settings.db_path)
     conn.execute("UPDATE images SET pull_state = 'failed' WHERE id = ?", (criada["id"],))
@@ -361,7 +361,7 @@ def test_resposta_da_imagem_expoe_image_version(client, seed_user, app_settings)
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "VS Code", "repository": "lscr.io/linuxserver/vscode", "tag": "latest"},
+        json={"display_name": "VS Code", "repository": "exemplo/vscode", "tag": "latest"},
     ).json()
     conn = connect(app_settings.db_path)
     conn.execute("UPDATE images SET image_version = '1.143.1-ls31' WHERE id = ?", (criada["id"],))
@@ -447,7 +447,7 @@ def test_upload_de_icone_via_endpoint_retorna_icon_url(client, seed_user):
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
     assert criada["icon_url"] is None
 
@@ -465,7 +465,7 @@ def test_upload_de_icone_com_tipo_invalido_retorna_400(client, seed_user):
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
 
     resp = client.post(
@@ -505,7 +505,7 @@ def test_upload_de_icone_maior_que_o_limite_retorna_400(app_settings, fake_runti
 
         criada = c.post(
             "/api/admin/images",
-            json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+            json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
         ).json()
 
         corpo_grande = b"\xff\xd8\xff" + b"\x00" * (3 * 1024 * 1024)  # 3MB, limite é 1MB
@@ -569,7 +569,7 @@ def test_create_image_omite_porta_e_tipo_usa_padroes(db_conn):
     from app.services.images import create_image
 
     image_id = create_image(
-        db_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=Settings()
+        db_conn, "Webtop", "exemplo/webtop", "latest", settings=Settings()
     )
 
     row = db_conn.execute(

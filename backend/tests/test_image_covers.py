@@ -254,6 +254,11 @@ async def test_startup_cadastra_capa_nas_entradas_existentes(client, app_setting
             "Agy",
             "OpenCode",
             "oh-my-pi",
+            # entradas de desktop do seed de desktops (seed-desktop-images)
+            "Webtop XFCE",
+            "Ubuntu KDE",
+            "Alpine MATE",
+            "VS Code",
         }
         for row in rows:
             assert row["icon_path"] is not None
@@ -365,7 +370,7 @@ async def test_falha_do_seed_de_capas_nao_impede_o_startup(app_settings, fake_ru
     conn = connect(app_settings.db_path)
     rows = conn.execute("SELECT icon_path, icon_source FROM images").fetchall()
     conn.close()
-    assert len(rows) == 5
+    assert len(rows) == 9  # 5 agentes + 4 desktops do seed (seed-desktop-images)
     for row in rows:
         assert row["icon_path"] is None  # falha isolada: nada gravado
         assert row["icon_source"] is None

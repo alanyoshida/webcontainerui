@@ -106,7 +106,7 @@ def test_criacao_fixa_o_dono_dos_arquivos_conforme_provision_kind(
     user_id = _login_as(client, seed_user, "dono-ssh@exemplo.test")
     conn = connect(app_settings.db_path)
     init_db(conn)
-    image_webtop = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
+    image_webtop = insert_image(conn, repository="exemplo/webtop", tag="latest")
     image_agente = insert_image(
         conn, repository="wcui-agent-teste", tag="latest", provision_kind="build"
     )
@@ -140,8 +140,8 @@ async def test_propagacao_atualiza_instancias_em_execucao_e_paradas(
     user_id = _login_as(client, seed_user, "propaga@exemplo.test")
     conn = connect(app_settings.db_path)
     init_db(conn)
-    image_a = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
-    image_b = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="ubuntu-kde")
+    image_a = insert_image(conn, repository="exemplo/webtop", tag="latest")
+    image_b = insert_image(conn, repository="exemplo/webtop", tag="ubuntu-kde")
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
     grant_image_to_group(conn, group_id, image_a)
@@ -181,8 +181,8 @@ async def test_propagacao_isola_falha_por_instancia(client, seed_user, app_setti
     user_id = _login_as(client, seed_user, "propaga-falha@exemplo.test")
     conn = connect(app_settings.db_path)
     init_db(conn)
-    image_a = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
-    image_b = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="ubuntu-kde")
+    image_a = insert_image(conn, repository="exemplo/webtop", tag="latest")
+    image_b = insert_image(conn, repository="exemplo/webtop", tag="ubuntu-kde")
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
     grant_image_to_group(conn, group_id, image_a)
@@ -222,7 +222,7 @@ def test_segunda_instancia_da_mesma_imagem_devolve_a_existente(client, seed_user
 def test_instancias_de_imagens_diferentes_coexistem(client, seed_user, app_settings):
     user_id = _login_as(client, seed_user, "multi@exemplo.test")
     conn = connect(app_settings.db_path)
-    imagem_a = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="latest")
+    imagem_a = insert_image(conn, repository="exemplo/webtop", tag="latest")
     imagem_b = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="alpine-kde")
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -524,7 +524,7 @@ def test_atualizacao_recria_o_container_do_tag_atual_preservando_o_volume(
 
     # container recriado do repositório/tag atual da imagem
     spec = fake_runtime._containers[nova["container_id"]]["spec"]
-    assert spec.repository == "lscr.io/linuxserver/webtop"
+    assert spec.repository == "exemplo/webtop"  # repositório do insert_image
     assert spec.tag == "latest"
 
 

@@ -385,7 +385,7 @@ def test_retry_de_imagem_de_download_continua_disparando_download(
     _login_admin(client, seed_user)
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
     conn = connect(app_settings.db_path)
     conn.execute(
@@ -400,7 +400,7 @@ def test_retry_de_imagem_de_download_continua_disparando_download(
 
     assert resp.status_code == 200
     _wait_for(
-        lambda: any(c["repository"] == "lscr.io/linuxserver/webtop" for c in fake_runtime.pull_calls)
+        lambda: any(c["repository"] == "exemplo/webtop" for c in fake_runtime.pull_calls)
     )
     assert fake_runtime.build_calls == []
 

@@ -62,7 +62,7 @@ def test_arquivo_de_capa_enviado_e_servido_em_uploads(client, seed_user):
     client.post("/api/auth/login", json={"email": "admin@exemplo.test", "password": "senha-admin-123"})
     criada = client.post(
         "/api/admin/images",
-        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "custom-dev"},
     ).json()
     png = (
         b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00"

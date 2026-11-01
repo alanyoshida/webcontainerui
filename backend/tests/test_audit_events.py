@@ -44,7 +44,7 @@ def _monta_catalogo(app_settings, *, email):
     cur = conn.execute(
         """INSERT INTO images
                (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit, pull_state)
-           VALUES ('Webtop', 'lscr.io/linuxserver/webtop', 'latest', 1024, 2048, 2.0, 'ready')"""
+           VALUES ('Webtop', 'exemplo/webtop', 'latest', 1024, 2048, 2.0, 'ready')"""
     )
     image_id = cur.lastrowid
     group_id = conn.execute("INSERT INTO groups (name) VALUES ('g') RETURNING id").fetchone()[0]
@@ -60,7 +60,7 @@ def _image_id_de_teste(app_settings):
     da imagem criada para o teste é consultado do banco."""
     conn = connect(app_settings.db_path)
     row = conn.execute(
-        "SELECT id FROM images WHERE repository = 'lscr.io/linuxserver/webtop'"
+        "SELECT id FROM images WHERE repository = 'exemplo/webtop'"
     ).fetchone()
     conn.close()
     return row["id"]

@@ -30,6 +30,7 @@ from app.services.activity import ActivityTracker
 from app.services.activity_flusher import run_activity_flusher
 from app.services.agent_images import seed_agent_images
 from app.services.background import cancel_all, spawn
+from app.services.desktop_images import seed_desktop_images
 from app.services.image_covers import seed_image_covers
 from app.services.instances import backfill_open_runs
 from app.services.login_throttle import LoginThrottle
@@ -140,6 +141,11 @@ def create_app(
         # Garante a base e as 5 imagens de agente no catálogo. Aguarda os
         # builds (D8), mas cada falha é isolada e não impede o startup (D5).
         await seed_agent_images(resolved_settings, resolved_runtime)
+
+        # Entradas de desktop padrão (change seed-desktop-images): pull em
+        # segundo plano, antes do seed de capas — assim as capas padrão
+        # (xfce/kde/mate/vscode) caem no mesmo boot do registro.
+        seed_desktop_images(app, resolved_settings, resolved_runtime)
 
         # Capas padrão para toda entrada existente no catálogo: independe do
         # resultado do build e nunca sobrescreve capa enviada pelo admin.

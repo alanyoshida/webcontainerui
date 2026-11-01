@@ -60,7 +60,10 @@ def insert_user(conn: sqlite3.Connection, email: str = "user@exemplo.test") -> i
 def insert_image(
     conn: sqlite3.Connection,
     display_name: str = "Webtop",
-    repository: str = "lscr.io/linuxserver/webtop",
+    # Repositório neutro: o seed de desktops (seed-desktop-images) registra
+    # lscr.io/linuxserver/webtop no banco do app, e o default deste helper é
+    # usado em testes que escrevem nesse mesmo banco.
+    repository: str = "exemplo/webtop",
     tag: str = "latest",
     *,
     pull_state: str = "ready",

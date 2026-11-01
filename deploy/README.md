@@ -23,6 +23,14 @@ A composição cria a rede `wcui_net` e o volume do banco automaticamente. O
 inicialização (ver `specs/user-management/spec.md`); o `caddy` depende do
 `portal` já estar de pé antes de começar a aceitar tráfego externo.
 
+O catálogo também é provisionado no startup: os 5 agentes de código (build)
+e as 4 entradas de desktop — Webtop XFCE, Ubuntu KDE, Alpine MATE e VS Code
+— começam a baixar em segundo plano. As imagens de desktop somam vários GB
+de disco e rede no primeiro deploy. Entradas que já existem no catálogo
+nunca são duplicadas nem sobrescritas pelo seed: estado, limites editados,
+desabilitação e capa manual do administrador prevalecem. Para um usuário
+ver qualquer imagem, conceda-a a um grupo do qual ele participe.
+
 > **Atualizando um deploy existente**: a subnet da `wcui_net` é fixada por
 > IPAM (ver variáveis abaixo), e o Docker não aplica IPAM novo em rede já
 > criada — o `docker compose up -d` recria a rede, o que desconecta os
