@@ -1,5 +1,4 @@
 import CssBaseline from "@mui/material/CssBaseline";
-import { ThemeProvider } from "@mui/material/styles";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider } from "./auth/AuthContext";
 import { AdminRoute, ProtectedRoute } from "./components/ProtectedRoute";
@@ -10,7 +9,7 @@ import AdminSectionPage from "./pages/AdminSectionPage";
 import HomePage from "./pages/HomePage";
 import LoginPage from "./pages/LoginPage";
 import SshIdentityPage from "./pages/SshIdentityPage";
-import theme from "./theme";
+import { ThemeModeProvider } from "./theme/ThemeModeContext";
 
 function AppLayout({ children }) {
   return (
@@ -23,7 +22,7 @@ function AppLayout({ children }) {
 
 export default function App() {
   return (
-    <ThemeProvider theme={theme}>
+    <ThemeModeProvider>
       <CssBaseline />
       <AuthProvider>
         <BrowserRouter>
@@ -65,6 +64,6 @@ export default function App() {
           </Routes>
         </BrowserRouter>
       </AuthProvider>
-    </ThemeProvider>
+    </ThemeModeProvider>
   );
 }

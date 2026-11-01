@@ -32,7 +32,7 @@
 
 ## 6. Temas e tipografia
 
-- [ ] 6.1 `buildTheme("light" | "dark" | "pastel")` em `theme.js` (dark carvão `#121417`, pastel com primário pêssego) + `ThemeModeProvider` com persistência em `localStorage` e dark como padrão sem escolha. **Verificar:** teste vitest de padrão, persistência e troca
+- [x] 6.1 `buildTheme("light" | "dark" | "pastel")` em `theme.js` (dark carvão `#121417`, pastel com primário pêssego) + `ThemeModeProvider` com persistência em `localStorage` e dark como padrão sem escolha. **Verificar:** teste vitest de padrão, persistência e troca
 - [ ] 6.2 Dependências `@fontsource-variable/inter` e `@fontsource-variable/jetbrains-mono`; Inter como `fontFamily` global e JetBrains Mono na chave pública SSH e nas referências de imagem. **Verificar:** `npm run build` e inspeção da chave SSH em mono
 - [ ] 6.3 Varredura de cores fixas (hex em `sx`) nos componentes tocados, substituindo por tokens da paleta; conferir que gráficos das métricas seguem o tema ativo. **Verificar:** inspeção visual nos 3 temas
 
