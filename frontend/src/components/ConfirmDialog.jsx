@@ -5,12 +5,14 @@ import DialogActions from "@mui/material/DialogActions";
 import DialogContent from "@mui/material/DialogContent";
 import DialogContentText from "@mui/material/DialogContentText";
 import DialogTitle from "@mui/material/DialogTitle";
+import { X } from "lucide-react";
 
 /**
  * Diálogo de confirmação único para toda ação destrutiva do console (ver
  * design.md D6) — generaliza o padrão já usado em AccessPanel: título,
  * descrição do impacto, confirmação destacada em vermelho, foco inicial no
- * cancelar e estado de busy enquanto a confirmação roda.
+ * cancelar e estado de busy enquanto a confirmação roda. `confirmIcon` é
+ * passado por quem chama, pois varia por ação (parar, excluir, vincular...).
  */
 export default function ConfirmDialog({
   open,
@@ -18,6 +20,7 @@ export default function ConfirmDialog({
   description,
   confirmLabel = "Confirmar",
   cancelLabel = "Cancelar",
+  confirmIcon,
   confirmDisabled = false,
   onCancel,
   onConfirm,
@@ -44,7 +47,7 @@ export default function ConfirmDialog({
         )}
       </DialogContent>
       <DialogActions>
-        <Button autoFocus onClick={onCancel} disabled={busy}>
+        <Button autoFocus onClick={onCancel} disabled={busy} startIcon={<X size={16} />}>
           {cancelLabel}
         </Button>
         <Button
@@ -52,6 +55,7 @@ export default function ConfirmDialog({
           variant="contained"
           disabled={busy || confirmDisabled}
           onClick={handleConfirm}
+          startIcon={confirmIcon}
         >
           {confirmLabel}
         </Button>

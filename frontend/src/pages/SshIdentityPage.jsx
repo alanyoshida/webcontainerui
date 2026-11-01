@@ -5,6 +5,7 @@ import Button from "@mui/material/Button";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Check, Copy, RefreshCw } from "lucide-react";
 import { api } from "../api/client";
 import ConfirmDialog from "../components/ConfirmDialog";
 import { MONO_FONT_FAMILY } from "../theme";
@@ -78,12 +79,21 @@ export default function SshIdentityPage() {
           fullWidth
           slotProps={{ input: { readOnly: true, sx: { fontFamily: MONO_FONT_FAMILY } } }}
         />
-        <Button onClick={handleCopy} sx={{ whiteSpace: "nowrap" }}>
+        <Button
+          onClick={handleCopy}
+          startIcon={copied ? <Check size={16} /> : <Copy size={16} />}
+          sx={{ whiteSpace: "nowrap" }}
+        >
           {copied ? "Copiado!" : "Copiar"}
         </Button>
       </Stack>
 
-      <Button color="error" disabled={regenerating} onClick={() => setConfirmingRegenerate(true)}>
+      <Button
+        color="error"
+        startIcon={<RefreshCw size={16} />}
+        disabled={regenerating}
+        onClick={() => setConfirmingRegenerate(true)}
+      >
         Regenerar identidade
       </Button>
 
@@ -92,6 +102,7 @@ export default function SshIdentityPage() {
         title="Regenerar identidade SSH?"
         description="Isto substitui sua chave SSH por uma nova. A chave antiga para de funcionar — se você a cadastrou em algum git host, precisará cadastrar a nova lá também."
         confirmLabel="Regenerar"
+        confirmIcon={<RefreshCw size={16} />}
         onCancel={() => setConfirmingRegenerate(false)}
         onConfirm={handleRegenerateConfirmed}
       />

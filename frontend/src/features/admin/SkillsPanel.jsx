@@ -18,6 +18,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Link2, Link2Off, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SuccessSnackbar from "../../components/SuccessSnackbar";
@@ -132,7 +133,7 @@ export default function SkillsPanel() {
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Biblioteca de skills</Typography>
-          <Button variant="contained" onClick={openCreate}>
+          <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCreate}>
             Nova skill
           </Button>
         </Stack>
@@ -161,10 +162,10 @@ export default function SkillsPanel() {
                       <Chip size="small" label={imageCountLabel(skill.linked_images)} />
                     </TableCell>
                     <TableCell align="right">
-                      <Button size="small" onClick={() => openEdit(skill)}>
+                      <Button size="small" startIcon={<Pencil size={16} />} onClick={() => openEdit(skill)}>
                         Editar
                       </Button>
-                      <Button size="small" color="error" onClick={() => handleDelete(skill)}>
+                      <Button size="small" color="error" startIcon={<Trash2 size={16} />} onClick={() => handleDelete(skill)}>
                         Remover
                       </Button>
                     </TableCell>
@@ -295,8 +296,10 @@ export default function SkillsPanel() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditing(null)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>
+          <Button startIcon={<X size={16} />} onClick={() => setEditing(null)}>
+            Cancelar
+          </Button>
+          <Button variant="contained" startIcon={<Save size={16} />} onClick={handleSave}>
             Salvar
           </Button>
         </DialogActions>
@@ -309,6 +312,7 @@ export default function SkillsPanel() {
           linkTarget?.linked ? "remover" : "instalar"
         } a skill ${linkTarget?.skillDisplayName}. O progresso pode ser acompanhado como em qualquer outro build.`}
         confirmLabel={linkTarget?.linked ? "Desvincular" : "Vincular"}
+        confirmIcon={linkTarget?.linked ? <Link2Off size={16} /> : <Link2 size={16} />}
         onCancel={() => setLinkTarget(null)}
         onConfirm={confirmToggleLink}
       />

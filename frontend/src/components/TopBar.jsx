@@ -12,7 +12,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { ChevronDown, KeyRound, LogOut, Palette } from "lucide-react";
+import { ChevronDown, KeyRound, LogOut, Palette, Shield } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { ADMIN_SECTIONS } from "../features/admin/adminSections";
@@ -65,6 +65,7 @@ export default function TopBar() {
             <>
               <Button
                 color="inherit"
+                startIcon={<Shield size={16} />}
                 endIcon={<ChevronDown size={16} />}
                 onClick={(event) => setAdminMenuAnchor(event.currentTarget)}
                 sx={{ minWidth: 0, flexShrink: 0, px: { xs: 1, sm: 2 }, fontSize: { xs: "0.75rem", sm: "0.875rem" } }}

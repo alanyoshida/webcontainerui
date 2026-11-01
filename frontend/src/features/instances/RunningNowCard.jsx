@@ -3,6 +3,7 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
+import { ExternalLink } from "lucide-react";
 
 /**
  * Resumo fixo das instâncias em execução, no topo da home (ver design.md
@@ -34,7 +35,7 @@ export default function RunningNowCard({ instances, onOpenSession }) {
                 spacing={2}
               >
                 <Typography variant="body2">{instance.image_display_name}</Typography>
-                <Button size="small" onClick={() => onOpenSession(instance.id)}>
+                <Button size="small" startIcon={<ExternalLink size={16} />} onClick={() => onOpenSession(instance.id)}>
                   Abrir sessão
                 </Button>
               </Stack>

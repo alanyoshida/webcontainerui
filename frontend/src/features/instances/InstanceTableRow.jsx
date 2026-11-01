@@ -110,6 +110,7 @@ export default function InstanceTableRow({
           title="Parar instância?"
           description="Os processos em execução são interrompidos; os arquivos permanecem salvos."
           confirmLabel="Parar"
+          confirmIcon={<Square size={16} />}
           onCancel={() => setConfirmingStop(false)}
           onConfirm={async () => {
             setConfirmingStop(false);
@@ -122,6 +123,7 @@ export default function InstanceTableRow({
           title="Excluir instância?"
           description={`Isto remove o container e o volume de ${instance.image_display_name}. Os arquivos salvos dentro dessa instância serão perdidos de forma definitiva.`}
           confirmLabel="Excluir"
+          confirmIcon={<Trash2 size={16} />}
           onCancel={() => setConfirmingDelete(false)}
           onConfirm={async () => {
             setConfirmingDelete(false);

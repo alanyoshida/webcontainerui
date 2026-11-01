@@ -12,6 +12,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Ban, Plus, X } from "lucide-react";
 import { api } from "../../api/client";
 
 export default function AccessPanel() {
@@ -104,7 +105,9 @@ export default function AccessPanel() {
                   </MenuItem>
                 ))}
             </TextField>
-            <Button onClick={handleGrant}>Conceder</Button>
+            <Button startIcon={<Plus size={16} />} onClick={handleGrant}>
+              Conceder
+            </Button>
           </Stack>
 
           <Box>
@@ -147,8 +150,15 @@ export default function AccessPanel() {
           )}
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setRevokeTarget(null)}>Cancelar</Button>
-          <Button color="error" disabled={revokePreviewCount === null} onClick={confirmRevoke}>
+          <Button startIcon={<X size={16} />} onClick={() => setRevokeTarget(null)}>
+            Cancelar
+          </Button>
+          <Button
+            color="error"
+            startIcon={<Ban size={16} />}
+            disabled={revokePreviewCount === null}
+            onClick={confirmRevoke}
+          >
             Revogar
           </Button>
         </DialogActions>

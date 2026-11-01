@@ -9,7 +9,7 @@ import CardMedia from "@mui/material/CardMedia";
 import CircularProgress from "@mui/material/CircularProgress";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
-import { Image as ImageIcon } from "lucide-react";
+import { Image as ImageIcon, Play } from "lucide-react";
 import { api } from "../../api/client";
 import { MONO_FONT_FAMILY } from "../../theme";
 
@@ -89,6 +89,7 @@ export default function CatalogSection({ onStart }) {
                 <Button
                   size="small"
                   variant="contained"
+                  startIcon={<Play size={16} />}
                   disabled={startingId === image.id}
                   onClick={() => handleStart(image.id)}
                 >

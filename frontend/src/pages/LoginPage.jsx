@@ -5,6 +5,7 @@ import Button from "@mui/material/Button";
 import Paper from "@mui/material/Paper";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { LogIn } from "lucide-react";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { LOGO_FONT_FAMILY } from "../theme";
@@ -82,7 +83,14 @@ export default function LoginPage() {
           margin="normal"
           required
         />
-        <Button type="submit" variant="contained" fullWidth sx={{ mt: 2 }} disabled={submitting}>
+        <Button
+          type="submit"
+          variant="contained"
+          fullWidth
+          startIcon={<LogIn size={18} />}
+          sx={{ mt: 2 }}
+          disabled={submitting}
+        >
           Entrar
         </Button>
       </Paper>

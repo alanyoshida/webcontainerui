@@ -13,7 +13,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Image as ImageIcon } from "lucide-react";
+import { Ban, Image as ImageIcon, Plus, RefreshCw, Upload } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { MONO_FONT_FAMILY } from "../../theme";
@@ -126,7 +126,7 @@ export default function ImagesPanel() {
             required
           />
           <TextField label="Tag" size="small" value={tag} onChange={(e) => setTag(e.target.value)} required />
-          <Button type="submit" variant="contained">
+          <Button type="submit" variant="contained" startIcon={<Plus size={16} />}>
             Registrar
           </Button>
         </Stack>
@@ -171,16 +171,16 @@ export default function ImagesPanel() {
                   )}
                 </TableCell>
                 <TableCell align="right">
-                  <Button size="small" onClick={() => handleUploadIconClick(image.id)}>
+                  <Button size="small" startIcon={<Upload size={16} />} onClick={() => handleUploadIconClick(image.id)}>
                     Enviar capa
                   </Button>
                   {image.pull_state === "failed" && (
-                    <Button size="small" onClick={() => handleRetry(image.id)}>
+                    <Button size="small" startIcon={<RefreshCw size={16} />} onClick={() => handleRetry(image.id)}>
                       Tentar de novo
                     </Button>
                   )}
                   {image.enabled && (
-                    <Button size="small" color="error" onClick={() => setDisableTarget(image)}>
+                    <Button size="small" color="error" startIcon={<Ban size={16} />} onClick={() => setDisableTarget(image)}>
                       Desabilitar
                     </Button>
                   )}
@@ -196,6 +196,7 @@ export default function ImagesPanel() {
         title={`Desabilitar ${disableTarget?.display_name}?`}
         description="A entrada deixa de aparecer no catálogo oferecido aos usuários e novas instâncias a partir dela passam a ser recusadas. O registro é preservado."
         confirmLabel="Desabilitar"
+        confirmIcon={<Ban size={16} />}
         onCancel={() => setDisableTarget(null)}
         onConfirm={handleDisableConfirmed}
       />

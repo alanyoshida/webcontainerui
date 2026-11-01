@@ -17,6 +17,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import SuccessSnackbar from "../../components/SuccessSnackbar";
 import { imageCountLabel } from "../../utils/pluralize";
@@ -103,7 +104,7 @@ export default function AgentsMdPanel() {
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Documentos AGENTS.md</Typography>
-          <Button variant="contained" onClick={openCreate}>
+          <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCreate}>
             Novo documento
           </Button>
         </Stack>
@@ -129,10 +130,10 @@ export default function AgentsMdPanel() {
                       <Chip size="small" label={imageCountLabel(doc.linked_images)} />
                     </TableCell>
                     <TableCell align="right">
-                      <Button size="small" onClick={() => openEdit(doc)}>
+                      <Button size="small" startIcon={<Pencil size={16} />} onClick={() => openEdit(doc)}>
                         Editar
                       </Button>
-                      <Button size="small" color="error" onClick={() => handleDelete(doc)}>
+                      <Button size="small" color="error" startIcon={<Trash2 size={16} />} onClick={() => handleDelete(doc)}>
                         Remover
                       </Button>
                     </TableCell>
@@ -214,8 +215,10 @@ export default function AgentsMdPanel() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditing(null)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>
+          <Button startIcon={<X size={16} />} onClick={() => setEditing(null)}>
+            Cancelar
+          </Button>
+          <Button variant="contained" startIcon={<Save size={16} />} onClick={handleSave}>
             Salvar
           </Button>
         </DialogActions>

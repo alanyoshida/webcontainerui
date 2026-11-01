@@ -14,6 +14,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
+import { Ban, Plus } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
@@ -72,7 +73,7 @@ export default function UsersPanel() {
             control={<Checkbox checked={isAdmin} onChange={(e) => setIsAdmin(e.target.checked)} />}
             label="Administrador"
           />
-          <Button type="submit" variant="contained">
+          <Button type="submit" variant="contained" startIcon={<Plus size={16} />}>
             Criar
           </Button>
         </Stack>
@@ -102,7 +103,7 @@ export default function UsersPanel() {
                 </TableCell>
                 <TableCell align="right">
                   {!user.disabled && user.id !== currentUser?.id && (
-                    <Button size="small" color="error" onClick={() => setDisableTarget(user)}>
+                    <Button size="small" color="error" startIcon={<Ban size={16} />} onClick={() => setDisableTarget(user)}>
                       Desabilitar
                     </Button>
                   )}
@@ -118,6 +119,7 @@ export default function UsersPanel() {
         title={`Desabilitar ${disableTarget?.email}?`}
         description={`A conta ${disableTarget?.email} perde acesso imediatamente; o registro e os dados dela são preservados.`}
         confirmLabel="Desabilitar"
+        confirmIcon={<Ban size={16} />}
         onCancel={() => setDisableTarget(null)}
         onConfirm={handleDisableConfirmed}
       />

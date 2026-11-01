@@ -5,7 +5,7 @@ import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { ArrowLeft, Maximize, Minimize } from "lucide-react";
+import { ArrowLeft, Maximize, Minimize, Square, Trash2 } from "lucide-react";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import InstanceSession from "./InstanceSession";
 import { STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
@@ -69,11 +69,16 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
           </Button>
         )}
         {instance.state === "running" && (
-          <Button disabled={busy} onClick={() => setConfirmingStop(true)}>
+          <Button startIcon={<Square size={18} />} disabled={busy} onClick={() => setConfirmingStop(true)}>
             Parar
           </Button>
         )}
-        <Button color="error" disabled={busy} onClick={() => setConfirmingDelete(true)}>
+        <Button
+          color="error"
+          startIcon={<Trash2 size={18} />}
+          disabled={busy}
+          onClick={() => setConfirmingDelete(true)}
+        >
           Excluir
         </Button>
       </Stack>
@@ -128,6 +133,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         title="Parar instância?"
         description="Os processos em execução são interrompidos; os arquivos permanecem salvos."
         confirmLabel="Parar"
+        confirmIcon={<Square size={16} />}
         onCancel={() => setConfirmingStop(false)}
         onConfirm={async () => {
           setConfirmingStop(false);
@@ -140,6 +146,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         title="Excluir instância?"
         description={`Isto remove o container e o volume de ${instance.image_display_name}. Os arquivos salvos dentro dessa instância serão perdidos de forma definitiva.`}
         confirmLabel="Excluir"
+        confirmIcon={<Trash2 size={16} />}
         onCancel={() => setConfirmingDelete(false)}
         onConfirm={handleDeleteConfirmed}
       />

@@ -19,6 +19,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SuccessSnackbar from "../../components/SuccessSnackbar";
@@ -194,7 +195,7 @@ export default function McpServersPanel() {
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Biblioteca de servidores MCP</Typography>
-          <Button variant="contained" onClick={openCreate}>
+          <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCreate}>
             Novo servidor
           </Button>
         </Stack>
@@ -230,10 +231,10 @@ export default function McpServersPanel() {
                       <Chip size="small" label={imageCountLabel(server.linked_images)} />
                     </TableCell>
                     <TableCell align="right">
-                      <Button size="small" onClick={() => openEdit(server)}>
+                      <Button size="small" startIcon={<Pencil size={16} />} onClick={() => openEdit(server)}>
                         Editar
                       </Button>
-                      <Button size="small" color="error" onClick={() => setDeleteTarget(server)}>
+                      <Button size="small" color="error" startIcon={<Trash2 size={16} />} onClick={() => setDeleteTarget(server)}>
                         Remover
                       </Button>
                     </TableCell>
@@ -388,8 +389,10 @@ export default function McpServersPanel() {
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setEditing(null)}>Cancelar</Button>
-          <Button variant="contained" onClick={handleSave}>
+          <Button startIcon={<X size={16} />} onClick={() => setEditing(null)}>
+            Cancelar
+          </Button>
+          <Button variant="contained" startIcon={<Save size={16} />} onClick={handleSave}>
             Salvar
           </Button>
         </DialogActions>
@@ -400,6 +403,7 @@ export default function McpServersPanel() {
         title={`Remover ${deleteTarget?.display_name}?`}
         description="O efeito alcança imediatamente as instâncias em execução das imagens vinculadas a este servidor — elas deixam de ter esse servidor configurado."
         confirmLabel="Remover"
+        confirmIcon={<Trash2 size={16} />}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirmed}
       />

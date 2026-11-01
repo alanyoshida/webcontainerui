@@ -17,6 +17,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
+import { Plus, Trash2, UserPlus, Users, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
@@ -99,7 +100,7 @@ export default function GroupsPanel() {
             onChange={(e) => setNewGroupName(e.target.value)}
             required
           />
-          <Button type="submit" variant="contained">
+          <Button type="submit" variant="contained" startIcon={<Plus size={16} />}>
             Criar
           </Button>
         </Stack>
@@ -118,10 +119,10 @@ export default function GroupsPanel() {
               <TableRow key={group.id}>
                 <TableCell>{group.name}</TableCell>
                 <TableCell align="right">
-                  <Button size="small" onClick={() => openManageMembers(group)}>
+                  <Button size="small" startIcon={<Users size={16} />} onClick={() => openManageMembers(group)}>
                     Membros
                   </Button>
-                  <Button size="small" color="error" onClick={() => openDeleteDialog(group)}>
+                  <Button size="small" color="error" startIcon={<Trash2 size={16} />} onClick={() => openDeleteDialog(group)}>
                     Excluir
                   </Button>
                 </TableCell>
@@ -163,11 +164,15 @@ export default function GroupsPanel() {
                   </MenuItem>
                 ))}
             </TextField>
-            <Button onClick={handleAddMember}>Adicionar</Button>
+            <Button startIcon={<UserPlus size={16} />} onClick={handleAddMember}>
+              Adicionar
+            </Button>
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setManagingGroup(null)}>Fechar</Button>
+          <Button startIcon={<X size={16} />} onClick={() => setManagingGroup(null)}>
+            Fechar
+          </Button>
         </DialogActions>
       </Dialog>
 
@@ -182,6 +187,7 @@ export default function GroupsPanel() {
               : `Este grupo tem ${deleteTargetMemberCount} membro(s). As contas deles são preservadas; só o grupo e suas concessões de imagem deixam de existir.`
         }
         confirmLabel="Excluir"
+        confirmIcon={<Trash2 size={16} />}
         confirmDisabled={deleteTargetMemberCount === null}
         onCancel={() => {
           setDeleteTarget(null);
