@@ -11,7 +11,7 @@ from __future__ import annotations
 import asyncio
 import io
 import tarfile
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 
 import aiodocker
 from aiodocker.exceptions import DockerError
@@ -84,13 +84,22 @@ class AioDockerContainerRuntime:
         yield PullProgress(status="pronta", completed=True)
 
     async def build_image(
-        self, context_dir: str, repository: str, tag: str
+        self,
+        context_dir: str,
+        repository: str,
+        tag: str,
+        *,
+        buildargs: Mapping[str, str] | None = None,
     ) -> AsyncIterator[PullProgress]:
         reference = f"{repository}:{tag}"
         fileobj = await asyncio.to_thread(_tar_context, context_dir)
         try:
             async for message in self._docker.images.build(
-                fileobj=fileobj, encoding="gzip", tag=reference, stream=True
+                fileobj=fileobj,
+                encoding="gzip",
+                tag=reference,
+                stream=True,
+                buildargs=buildargs or None,
             ):
                 error = message.get("error")
                 if error:

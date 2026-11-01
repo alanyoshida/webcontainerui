@@ -15,9 +15,11 @@ from app.services.agent_images import (
     BASE_IMAGE_TAG,
     build_hash_for,
     find_agent_image,
+    rebuild_agent_image,
     run_build,
     seed_agent_images,
 )
+from app.services.agent_skills import create_skill, link_skill
 
 from .conftest import insert_image
 
@@ -103,7 +105,12 @@ async def test_run_build_sucesso_marca_pronta_e_grava_hash(tmp_path):
     assert row["build_hash"] == "hash-1"
     assert row["pull_error"] is None
     assert runtime.build_calls == [
-        {"context_dir": str(tmp_path), "repository": "wcui-agent-teste", "tag": "latest"}
+        {
+            "context_dir": str(tmp_path),
+            "repository": "wcui-agent-teste",
+            "tag": "latest",
+            "buildargs": {},
+        }
     ]
 
 
@@ -202,13 +209,20 @@ async def test_seed_isola_falha_de_uma_imagem(tmp_path):
     falha = AGENT_IMAGES[1]
 
     class RuntimeComFalha(FakeContainerRuntime):
-        async def build_image(self, context_dir, repository, tag):
+        async def build_image(self, context_dir, repository, tag, *, buildargs=None):
             if repository == falha.repository:
                 self.build_calls.append(
-                    {"context_dir": context_dir, "repository": repository, "tag": tag}
+                    {
+                        "context_dir": context_dir,
+                        "repository": repository,
+                        "tag": tag,
+                        "buildargs": dict(buildargs) if buildargs else {},
+                    }
                 )
                 raise RuntimeOperationError("falha proposital")
-            async for progress in super().build_image(context_dir, repository, tag):
+            async for progress in super().build_image(
+                context_dir, repository, tag, buildargs=buildargs
+            ):
                 yield progress
 
     runtime = RuntimeComFalha()
@@ -248,6 +262,84 @@ def test_hash_inclui_a_base_e_muda_com_o_conteudo(tmp_path):
 
     (root / "_base" / "Dockerfile").write_text("FROM debian:trixie-slim\n", encoding="utf-8")
     assert build_hash_for(spec, root) != original
+
+
+def test_hash_muda_so_com_skills_vinculadas_sem_tocar_arquivo(tmp_path):
+    root = tmp_path / "agent-images"
+    _make_context(root)
+    spec = AGENT_IMAGES[0]
+
+    sem_skills = build_hash_for(spec, root)
+    com_skills = build_hash_for(spec, root, skill_refs=["owner/repo"])
+
+    assert com_skills != sem_skills
+    # mesma lista, em outra ordem: hash estável (ordenação interna)
+    assert build_hash_for(spec, root, skill_refs=["owner/repo"]) == com_skills
+
+
+async def test_seed_resolve_skills_vinculadas_e_passa_nos_buildargs(tmp_path):
+    settings = _settings(tmp_path)
+    conn = connect(settings.db_path)
+    init_db(conn)
+    conn.close()
+    root = tmp_path / "agent-images"
+    _make_context(root)
+
+    runtime = FakeContainerRuntime()
+    await seed_agent_images(settings, runtime, base_dir=root)
+
+    alvo = AGENT_IMAGES[0]
+    conn = connect(settings.db_path)
+    try:
+        image_id = conn.execute(
+            "SELECT id FROM images WHERE repository = ?", (alvo.repository,)
+        ).fetchone()[0]
+        skill_id = create_skill(conn, "Minha skill", "owner", "repo")
+        link_skill(conn, image_id, skill_id)
+    finally:
+        conn.close()
+
+    runtime.build_calls.clear()
+    await seed_agent_images(settings, runtime, base_dir=root)  # hash mudou: rebuilda
+
+    builds_do_alvo = [c for c in runtime.build_calls if c["repository"] == alvo.repository]
+    assert len(builds_do_alvo) == 1
+    assert builds_do_alvo[0]["buildargs"] == {"SKILLS": "owner/repo"}
+
+
+async def test_rebuild_agent_image_resolve_skills_atuais_do_banco(tmp_path):
+    settings = _settings(tmp_path)
+    conn = connect(settings.db_path)
+    init_db(conn)
+    conn.close()
+    root = tmp_path / "agent-images"
+    _make_context(root)
+
+    runtime = FakeContainerRuntime()
+    await seed_agent_images(settings, runtime, base_dir=root)
+
+    alvo = AGENT_IMAGES[0]
+    conn = connect(settings.db_path)
+    try:
+        image_id = conn.execute(
+            "SELECT id FROM images WHERE repository = ?", (alvo.repository,)
+        ).fetchone()[0]
+        skill_id = create_skill(conn, "Minha skill", "owner", "repo")
+        link_skill(conn, image_id, skill_id)
+    finally:
+        conn.close()
+
+    runtime.build_calls.clear()
+    await rebuild_agent_image(settings, runtime, image_id, base_dir=root)
+
+    assert len(runtime.build_calls) == 1
+    assert runtime.build_calls[0]["repository"] == alvo.repository
+    assert runtime.build_calls[0]["buildargs"] == {"SKILLS": "owner/repo"}
+
+    conn = connect(settings.db_path)
+    row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
+    conn.close()
+    assert row["pull_state"] == "ready"
 
 
 def test_seed_roda_no_lifespan_e_deixa_as_cinco_prontas(client):

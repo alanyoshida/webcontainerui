@@ -143,7 +143,12 @@ async def test_fake_build_image_produz_a_sequencia_de_progresso_configurada():
     assert [p.status for p in progress] == ["Step 1/2", "pronta"]
     assert progress[-1].completed
     assert runtime.build_calls == [
-        {"context_dir": "/ctx", "repository": "wcui-agent-teste", "tag": "latest"}
+        {
+            "context_dir": "/ctx",
+            "repository": "wcui-agent-teste",
+            "tag": "latest",
+            "buildargs": {},
+        }
     ]
 
 

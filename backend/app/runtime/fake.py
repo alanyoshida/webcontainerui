@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import itertools
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping
 
 from app.runtime.errors import ContainerNotFoundError
 from app.runtime.protocol import ContainerSpec, ContainerState, PullProgress
@@ -63,10 +63,20 @@ class FakeContainerRuntime:
         yield PullProgress(status="pronta", completed=True)
 
     async def build_image(
-        self, context_dir: str, repository: str, tag: str
+        self,
+        context_dir: str,
+        repository: str,
+        tag: str,
+        *,
+        buildargs: Mapping[str, str] | None = None,
     ) -> AsyncIterator[PullProgress]:
         self.build_calls.append(
-            {"context_dir": context_dir, "repository": repository, "tag": tag}
+            {
+                "context_dir": context_dir,
+                "repository": repository,
+                "tag": tag,
+                "buildargs": dict(buildargs) if buildargs else {},
+            }
         )
         await self._simulate("build_image")
         if self._build_progress is None:

@@ -18,6 +18,7 @@ from app.config import Settings
 from app.db import connect
 from app.runtime.errors import RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime
+from app.services.agent_skills import resolve_image_skill_refs
 from app.services.errors import ConflictError
 from app.services.images import (
     create_image,
@@ -111,8 +112,31 @@ def context_hash(context_dirs: Sequence[Path]) -> str:
     return digest.hexdigest()
 
 
-def build_hash_for(spec: AgentImageSpec, base_dir: Path | str) -> str:
-    return context_hash(agent_context_dirs(spec, base_dir))
+def build_hash_for(
+    spec: AgentImageSpec, base_dir: Path | str, *, skill_refs: Sequence[str] = ()
+) -> str:
+    """Hash do contexto de arquivos combinado com as skills vinculadas.
+
+    `skill_refs` (vazio por padrão, mantendo o hash só de arquivo para quem
+    não passa o argumento) entra no hash para que vincular/desvincular uma
+    skill também conte como "contexto alterado", mesmo sem nenhum arquivo
+    em disco ter mudado — ver design.md, "Gatilho de rebuild".
+    """
+    digest = hashlib.sha256(context_hash(agent_context_dirs(spec, base_dir)).encode("utf-8"))
+    for ref in sorted(skill_refs):
+        digest.update(b"\0")
+        digest.update(ref.encode("utf-8"))
+    return digest.hexdigest()
+
+
+def skills_buildargs(skill_refs: Sequence[str]) -> dict[str, str]:
+    """`buildargs` passado a `runtime.build_image` com a lista de skills.
+
+    Sempre inclui a chave `SKILLS` (mesmo vazia) para refletir explicitamente
+    o estado atual do vínculo — nunca um valor anterior guardado em algum
+    lugar (ver design.md, decisão "Gatilho de rebuild").
+    """
+    return {"SKILLS": " ".join(skill_refs)}
 
 
 def find_agent_image(repository: str, tag: str) -> AgentImageSpec | None:
@@ -131,6 +155,7 @@ async def run_build(
     *,
     context_dir: str,
     build_hash: str | None = None,
+    buildargs: dict[str, str] | None = None,
 ) -> None:
     """Executa o build e atualiza o estado da entrada, como `run_pull` faz.
 
@@ -140,7 +165,9 @@ async def run_build(
     conn = connect(db_path)
     try:
         mark_pull_started(conn, image_id)
-        async for progress in runtime.build_image(context_dir, repository, tag):
+        async for progress in runtime.build_image(
+            context_dir, repository, tag, buildargs=buildargs
+        ):
             if progress.detail:
                 mark_pull_progress(conn, image_id, progress.detail)
         if build_hash is not None:
@@ -182,7 +209,6 @@ async def _provision_agent(
     spec: AgentImageSpec,
     base_dir: Path,
 ) -> None:
-    current_hash = build_hash_for(spec, base_dir)
     row = _find_row(conn, spec)
 
     if row is None:
@@ -201,6 +227,10 @@ async def _provision_agent(
             if row is None:
                 raise
         else:
+            # Imagem recém-criada: ainda não pode ter skill vinculada (o
+            # vínculo exige a imagem já existir), mas resolve mesmo assim
+            # para seguir a mesma regra "sempre a partir do banco" de baixo.
+            skill_refs = resolve_image_skill_refs(conn, image_id)
             await run_build(
                 settings.db_path,
                 runtime,
@@ -208,12 +238,15 @@ async def _provision_agent(
                 spec.repository,
                 spec.tag,
                 context_dir=str(base_dir / spec.context_subdir),
-                build_hash=current_hash,
+                build_hash=build_hash_for(spec, base_dir, skill_refs=skill_refs),
+                buildargs=skills_buildargs(skill_refs),
             )
             return
 
     if row["provision_kind"] != "build":
         return
+    skill_refs = resolve_image_skill_refs(conn, row["id"])
+    current_hash = build_hash_for(spec, base_dir, skill_refs=skill_refs)
     if row["build_hash"] == current_hash and row["pull_state"] == "ready":
         return
     await run_build(
@@ -224,6 +257,49 @@ async def _provision_agent(
         spec.tag,
         context_dir=str(base_dir / spec.context_subdir),
         build_hash=current_hash,
+        buildargs=skills_buildargs(skill_refs),
+    )
+
+
+async def rebuild_agent_image(
+    settings: Settings,
+    runtime: ContainerRuntime,
+    image_id: int,
+    *,
+    base_dir: Path | str | None = None,
+) -> None:
+    """Rebuild sob demanda de uma imagem de agente já registrada.
+
+    Chamado pelas rotas de vínculo/desvínculo de skill (api/agent_skills.py)
+    — fora do seed de startup —, sempre resolvendo as skills vinculadas no
+    momento da chamada, nunca um valor anterior (ver design.md, "Gatilho de
+    rebuild"). Assume que o chamador já validou que a imagem existe e é
+    `provision_kind == 'build'` (mesma checagem de `agent_skills.link_skill`).
+    """
+    root = Path(base_dir) if base_dir is not None else default_agent_images_dir()
+    conn = connect(settings.db_path)
+    try:
+        row = conn.execute(
+            "SELECT repository, tag FROM images WHERE id = ?", (image_id,)
+        ).fetchone()
+        if row is None:
+            return
+        spec = find_agent_image(row["repository"], row["tag"])
+        if spec is None:
+            return
+        skill_refs = resolve_image_skill_refs(conn, image_id)
+    finally:
+        conn.close()
+
+    await run_build(
+        settings.db_path,
+        runtime,
+        image_id,
+        spec.repository,
+        spec.tag,
+        context_dir=str(root / spec.context_subdir),
+        build_hash=build_hash_for(spec, root, skill_refs=skill_refs),
+        buildargs=skills_buildargs(skill_refs),
     )
 
 

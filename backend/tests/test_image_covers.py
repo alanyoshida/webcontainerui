@@ -301,13 +301,20 @@ async def test_falha_de_build_de_agente_nao_impede_capa_nem_startup(
     from app.services.agent_images import AGENT_IMAGES, seed_agent_images
 
     class RuntimeComFalha(FakeContainerRuntime):
-        async def build_image(self, context_dir, repository, tag):
+        async def build_image(self, context_dir, repository, tag, *, buildargs=None):
             if repository == AGENT_IMAGES[0].repository:
                 self.build_calls.append(
-                    {"context_dir": context_dir, "repository": repository, "tag": tag}
+                    {
+                        "context_dir": context_dir,
+                        "repository": repository,
+                        "tag": tag,
+                        "buildargs": dict(buildargs) if buildargs else {},
+                    }
                 )
                 raise RuntimeOperationError("falha proposital no build")
-            async for progress in super().build_image(context_dir, repository, tag):
+            async for progress in super().build_image(
+                context_dir, repository, tag, buildargs=buildargs
+            ):
                 yield progress
 
     settings = Settings(

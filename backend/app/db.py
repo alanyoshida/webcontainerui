@@ -124,6 +124,32 @@ CREATE TABLE IF NOT EXISTS agent_md_documents (
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT
 );
+
+-- Biblioteca de skills (ver services/agent_skills.py): referências a
+-- repositórios do GitHub no formato distribuído pelo skills.sh, que o
+-- administrador vincula a imagens de agente de código para serem
+-- instaladas no build de cada imagem. `subpath` é '' (não NULL) quando o
+-- repositório não empacota várias skills, para que a UNIQUE abaixo
+-- funcione — SQLite trata cada NULL como distinto, o que deixaria
+-- repo_owner+repo_name duplicados passarem sempre que subpath fosse NULL.
+CREATE TABLE IF NOT EXISTS agent_skills (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    display_name TEXT NOT NULL UNIQUE,
+    repo_owner TEXT NOT NULL,
+    repo_name TEXT NOT NULL,
+    subpath TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT,
+    UNIQUE (repo_owner, repo_name, subpath)
+);
+
+-- Vínculo N:N entre skills e imagens de agente de código (só imagens com
+-- provision_kind='build' recebem vínculo — ver agent_skills.link_skill).
+CREATE TABLE IF NOT EXISTS image_skills (
+    image_id INTEGER NOT NULL REFERENCES images(id),
+    skill_id INTEGER NOT NULL REFERENCES agent_skills(id),
+    PRIMARY KEY (image_id, skill_id)
+);
 """
 
 

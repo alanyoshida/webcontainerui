@@ -369,3 +369,79 @@ def test_init_db_adiciona_tabela_e_coluna_de_agents_md(tmp_path):
         assert row["agents_md_id"] is None  # sem vínculo por padrão
     finally:
         conn.close()
+
+
+def test_agent_skills_existe_apos_init_db(db_conn):
+    columns = {row["name"] for row in db_conn.execute("PRAGMA table_info(agent_skills)")}
+    assert columns == {
+        "id",
+        "display_name",
+        "repo_owner",
+        "repo_name",
+        "subpath",
+        "created_at",
+        "updated_at",
+    }
+
+
+def test_image_skills_existe_apos_init_db(db_conn):
+    columns = {row["name"] for row in db_conn.execute("PRAGMA table_info(image_skills)")}
+    assert columns == {"image_id", "skill_id"}
+
+
+def test_agent_skills_nome_duplicado_e_rejeitado(db_conn):
+    db_conn.execute(
+        "INSERT INTO agent_skills (display_name, repo_owner, repo_name) VALUES (?, ?, ?)",
+        ("Minha skill", "owner", "repo-a"),
+    )
+
+    with pytest.raises(Exception):
+        db_conn.execute(
+            "INSERT INTO agent_skills (display_name, repo_owner, repo_name) VALUES (?, ?, ?)",
+            ("Minha skill", "owner", "repo-b"),
+        )
+
+
+def test_agent_skills_repo_e_subpath_duplicados_sao_rejeitados(db_conn):
+    db_conn.execute(
+        "INSERT INTO agent_skills (display_name, repo_owner, repo_name, subpath) VALUES (?, ?, ?, ?)",
+        ("Skill A", "owner", "repo", "onboarding"),
+    )
+
+    with pytest.raises(Exception):
+        db_conn.execute(
+            "INSERT INTO agent_skills (display_name, repo_owner, repo_name, subpath) VALUES (?, ?, ?, ?)",
+            ("Skill B", "owner", "repo", "onboarding"),
+        )
+
+
+def test_agent_skills_mesmo_repo_com_subpath_diferente_e_aceito(db_conn):
+    db_conn.execute(
+        "INSERT INTO agent_skills (display_name, repo_owner, repo_name, subpath) VALUES (?, ?, ?, ?)",
+        ("Skill A", "owner", "repo", "onboarding"),
+    )
+    db_conn.execute(
+        "INSERT INTO agent_skills (display_name, repo_owner, repo_name, subpath) VALUES (?, ?, ?, ?)",
+        ("Skill B", "owner", "repo", "draft-pr"),
+    )
+
+    total = db_conn.execute("SELECT COUNT(*) FROM agent_skills").fetchone()[0]
+    assert total == 2
+
+
+def test_image_skills_vincula_skill_a_imagem_de_build(db_conn):
+    image_id = insert_image(db_conn, provision_kind="build")
+    skill_id = db_conn.execute(
+        "INSERT INTO agent_skills (display_name, repo_owner, repo_name) VALUES (?, ?, ?)",
+        ("Minha skill", "owner", "repo"),
+    ).lastrowid
+
+    db_conn.execute(
+        "INSERT INTO image_skills (image_id, skill_id) VALUES (?, ?)", (image_id, skill_id)
+    )
+
+    vinculadas = db_conn.execute(
+        "SELECT COUNT(*) FROM image_skills WHERE image_id = ? AND skill_id = ?",
+        (image_id, skill_id),
+    ).fetchone()[0]
+    assert vinculadas == 1

@@ -51,7 +51,12 @@ class ContainerRuntime(Protocol):
     def pull_image(self, repository: str, tag: str) -> AsyncIterator[PullProgress]: ...
 
     def build_image(
-        self, context_dir: str, repository: str, tag: str
+        self,
+        context_dir: str,
+        repository: str,
+        tag: str,
+        *,
+        buildargs: Mapping[str, str] | None = None,
     ) -> AsyncIterator[PullProgress]: ...
 
     async def put_archive(self, container_id: str, destination_path: str, tar_bytes: bytes) -> None: ...

@@ -105,4 +105,15 @@ export const api = {
   adminListImageAgentsMdLinks: () => request("GET", "/admin/agents-md/images"),
   adminSetImageAgentsMd: (imageId, documentId) =>
     request("PUT", `/admin/agents-md/images/${imageId}`, { document_id: documentId }),
+
+  adminListAgentSkills: () => request("GET", "/admin/agent-skills"),
+  adminCreateAgentSkill: (payload) => request("POST", "/admin/agent-skills", payload),
+  adminUpdateAgentSkill: (skillId, payload) =>
+    request("PATCH", `/admin/agent-skills/${skillId}`, payload),
+  adminDeleteAgentSkill: (skillId) => request("DELETE", `/admin/agent-skills/${skillId}`),
+  adminListImageAgentSkills: () => request("GET", "/admin/agent-skills/images"),
+  adminLinkAgentSkill: (imageId, skillId) =>
+    request("POST", `/admin/agent-skills/images/${imageId}/skills/${skillId}`),
+  adminUnlinkAgentSkill: (imageId, skillId) =>
+    request("DELETE", `/admin/agent-skills/images/${imageId}/skills/${skillId}`),
 };
