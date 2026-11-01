@@ -101,6 +101,14 @@ export default function AgentsMdPanel() {
     <Stack spacing={3}>
       {error && <Alert severity="error">{error}</Alert>}
 
+      <Typography variant="body2" color="text.secondary">
+        O documento vinculado é escrito em <code>/config/AGENTS.md</code> dentro do container. Em
+        instâncias já em execução, salvar o texto ou trocar o vínculo aplica a mudança na hora, sem
+        precisar reiniciar. Instâncias paradas só recebem a versão atual quando são excluídas e
+        recriadas — parar e iniciar de novo reaproveita o container existente e não atualiza o
+        arquivo.
+      </Typography>
+
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Documentos AGENTS.md</Typography>

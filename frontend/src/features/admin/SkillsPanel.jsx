@@ -130,6 +130,14 @@ export default function SkillsPanel() {
     <Stack spacing={3}>
       {error && <Alert severity="error">{error}</Alert>}
 
+      <Typography variant="body2" color="text.secondary">
+        Vincular ou desvincular uma skill dispara um novo build da imagem — a skill é instalada
+        dentro dela, não injetada em containers já criados. Instâncias já em execução não são
+        afetadas por esse rebuild. Para usar o conjunto atualizado, exclua a instância existente e
+        crie uma nova; parar e iniciar de novo não é suficiente, porque reaproveita o container (e o
+        volume) antigo.
+      </Typography>
+
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Biblioteca de skills</Typography>

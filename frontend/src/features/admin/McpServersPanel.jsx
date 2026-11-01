@@ -192,6 +192,14 @@ export default function McpServersPanel() {
         </Alert>
       )}
 
+      <Typography variant="body2" color="text.secondary">
+        A configuração de cada servidor é escrita dentro do container, em um caminho próprio por
+        agente (ex.: <code>/config/.claude.json</code>). Vincular, desvincular ou editar propaga na
+        hora para instâncias já em execução, sem rebuild e sem precisar reiniciar.
+        Instâncias paradas só recebem a configuração atual quando são excluídas e recriadas — parar e
+        iniciar de novo reaproveita o container existente.
+      </Typography>
+
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
           <Typography variant="h6">Biblioteca de servidores MCP</Typography>
