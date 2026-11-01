@@ -1,4 +1,4 @@
-import Typography from "@mui/material/Typography";
+import PageTitle from "../components/PageTitle";
 
 /**
  * Wrapper de cada seção administrativa roteada (ver AdminPage.jsx e
@@ -8,9 +8,7 @@ import Typography from "@mui/material/Typography";
 export default function AdminSectionPage({ title, Panel }) {
   return (
     <>
-      <Typography variant="h4" component="h1" gutterBottom>
-        {title}
-      </Typography>
+      <PageTitle>{title}</PageTitle>
       <Panel />
     </>
   );

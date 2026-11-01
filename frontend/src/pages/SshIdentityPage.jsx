@@ -8,6 +8,7 @@ import Typography from "@mui/material/Typography";
 import { Check, Copy, RefreshCw } from "lucide-react";
 import { api } from "../api/client";
 import ConfirmDialog from "../components/ConfirmDialog";
+import PageTitle from "../components/PageTitle";
 import { MONO_FONT_FAMILY } from "../theme";
 
 /**
@@ -53,9 +54,9 @@ export default function SshIdentityPage() {
 
   return (
     <Box sx={{ p: 3, maxWidth: 720 }}>
-      <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+      <PageTitle variant="h5" component="h2">
         Identidade SSH
-      </Typography>
+      </PageTitle>
       <Typography variant="body2" sx={{ mb: 2 }}>
         Esta chave pública é injetada automaticamente em toda instância sua
         (de agente ou webtop), para que o <code>git</code> dentro do
