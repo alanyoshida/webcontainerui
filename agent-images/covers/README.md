@@ -51,6 +51,7 @@ identificação das entradas do catálogo:
 | `lxqt` | LXQt | https://commons.wikimedia.org/wiki/File:Lxqt_logo.svg |
 | `i3` | i3 | https://cdn.simpleicons.org/i3 (Simple Icons) |
 | `sway` | Sway | https://cdn.simpleicons.org/sway (Simple Icons) |
+| `vscode` | Visual Studio Code | https://commons.wikimedia.org/wiki/File:Visual_Studio_Code_1.35_icon.svg |
 | `generic` | símbolo neutro do portal | criado neste repositório |
 
 ## Seed no startup

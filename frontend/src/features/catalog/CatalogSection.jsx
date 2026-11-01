@@ -85,6 +85,11 @@ export default function CatalogSection({ onStart }) {
                 <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO_FONT_FAMILY }}>
                   {image.repository}:{image.tag}
                 </Typography>
+                {image.image_version && (
+                  <Typography variant="caption" color="text.secondary">
+                    versão {image.image_version}
+                  </Typography>
+                )}
               </CardContent>
               <CardActions>
                 <Button

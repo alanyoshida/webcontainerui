@@ -60,3 +60,36 @@ test("entrada sem imagem de capa exibe o indicador padrão", async () => {
 
   expect(screen.queryByRole("img", { name: "Webtop" })).not.toBeInTheDocument();
 });
+
+test("entrada com versão registrada a exibe no cartão", async () => {
+  api.getCatalog.mockResolvedValue([
+    {
+      id: 1,
+      display_name: "VS Code",
+      repository: "lscr.io/linuxserver/vscode",
+      tag: "latest",
+      image_version: "1.143.1-ls31",
+    },
+  ]);
+
+  render(<CatalogSection onStart={vi.fn()} />);
+
+  expect(await screen.findByText(/versão 1\.143\.1-ls31/)).toBeInTheDocument();
+});
+
+test("entrada sem versão registrada não mostra linha de versão", async () => {
+  api.getCatalog.mockResolvedValue([
+    {
+      id: 1,
+      display_name: "Webtop",
+      repository: "lscr.io/linuxserver/webtop",
+      tag: "latest",
+      image_version: null,
+    },
+  ]);
+
+  render(<CatalogSection onStart={vi.fn()} />);
+  await screen.findByText("Webtop");
+
+  expect(screen.queryByText(/^versão /)).not.toBeInTheDocument();
+});

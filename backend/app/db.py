@@ -51,6 +51,9 @@ CREATE TABLE IF NOT EXISTS images (
     port INTEGER NOT NULL DEFAULT 3000,
     provision_kind TEXT NOT NULL DEFAULT 'pull',
     build_hash TEXT,
+    -- Versão legível da imagem baixada (label build_version das imagens
+    -- LinuxServer; digest curto na ausência dele). NULL = ainda não capturada.
+    image_version TEXT,
     agents_md_id INTEGER REFERENCES agent_md_documents(id),
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE (repository, tag)
@@ -77,6 +80,9 @@ CREATE TABLE IF NOT EXISTS instances (
     -- mensagens por MCP/campo; NULL = sem quebra). Consultável pelo admin,
     -- não impede a instância de ficar pronta (ver mcp_servers.py).
     mcp_validation_errors TEXT,
+    -- Versão da imagem no momento da criação/recriação do container
+    -- (snapshot do catálogo; NULL = criada antes do registro existir).
+    image_version TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_seen_at TEXT,
     deleted_at TEXT
@@ -211,6 +217,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _migrate_add_agents_md_id(conn)
     _migrate_add_image_provisioning_columns(conn)
     _migrate_add_instance_mcp_validation_errors(conn)
+    _migrate_add_image_version_columns(conn)
     _migrate_normalize_last_seen_at(conn)
 
 
@@ -283,6 +290,23 @@ def _migrate_add_instance_mcp_validation_errors(conn: sqlite3.Connection) -> Non
     columns = {row["name"] for row in conn.execute("PRAGMA table_info(instances)")}
     if "mcp_validation_errors" not in columns:
         conn.execute("ALTER TABLE instances ADD COLUMN mcp_validation_errors TEXT")
+
+
+def _migrate_add_image_version_columns(conn: sqlite3.Connection) -> None:
+    """Adiciona a coluna `image_version` a `images` e a `instances`.
+
+    Padrão das demais migrações: bancos criados antes não são alterados
+    pelo CREATE TABLE IF NOT EXISTS. NULL significa "versão desconhecida"
+    tanto para a entrada do catálogo (ainda não capturada) quanto para a
+    instância (criada antes do registro existir).
+    """
+    image_columns = {row["name"] for row in conn.execute("PRAGMA table_info(images)")}
+    if "image_version" not in image_columns:
+        conn.execute("ALTER TABLE images ADD COLUMN image_version TEXT")
+
+    instance_columns = {row["name"] for row in conn.execute("PRAGMA table_info(instances)")}
+    if "image_version" not in instance_columns:
+        conn.execute("ALTER TABLE instances ADD COLUMN image_version TEXT")
 
 
 def _migrate_normalize_last_seen_at(conn: sqlite3.Connection) -> None:

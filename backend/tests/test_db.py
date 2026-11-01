@@ -389,6 +389,90 @@ def test_image_skills_existe_apos_init_db(db_conn):
     assert columns == {"image_id", "skill_id"}
 
 
+def test_init_db_cria_image_version_em_banco_novo(db_conn):
+    imagens = {row["name"] for row in db_conn.execute("PRAGMA table_info(images)")}
+    instancias = {row["name"] for row in db_conn.execute("PRAGMA table_info(instances)")}
+
+    assert "image_version" in imagens
+    assert "image_version" in instancias
+
+    image_id = insert_image(db_conn)
+    row = db_conn.execute("SELECT image_version FROM images WHERE id = ?", (image_id,)).fetchone()
+    assert row["image_version"] is None
+
+
+def test_init_db_adiciona_image_version_a_banco_legado(tmp_path):
+    db_path = tmp_path / "legado-image-version.db"
+    conn = connect(db_path)
+    try:
+        # Banco legado: tabelas sem as colunas image_version (antes da
+        # funcionalidade de ciclo de atualização existir).
+        conn.executescript(
+            """
+            CREATE TABLE users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                is_admin INTEGER NOT NULL DEFAULT 0,
+                disabled_at TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            CREATE TABLE images (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                display_name TEXT NOT NULL,
+                repository TEXT NOT NULL,
+                tag TEXT NOT NULL,
+                shm_size_mb INTEGER NOT NULL,
+                mem_limit_mb INTEGER NOT NULL,
+                cpu_limit REAL NOT NULL,
+                harden_desktop INTEGER NOT NULL DEFAULT 0,
+                enabled INTEGER NOT NULL DEFAULT 1,
+                pull_state TEXT NOT NULL DEFAULT 'pulling',
+                pull_progress TEXT,
+                pull_error TEXT,
+                icon_path TEXT,
+                icon_source TEXT,
+                port INTEGER NOT NULL DEFAULT 3000,
+                provision_kind TEXT NOT NULL DEFAULT 'pull',
+                build_hash TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                UNIQUE (repository, tag)
+            );
+            CREATE TABLE instances (
+                id TEXT PRIMARY KEY,
+                user_id INTEGER NOT NULL REFERENCES users(id),
+                image_id INTEGER NOT NULL REFERENCES images(id),
+                container_id TEXT,
+                container_name TEXT,
+                volume_name TEXT NOT NULL,
+                inner_user TEXT NOT NULL,
+                inner_password TEXT NOT NULL,
+                state TEXT NOT NULL DEFAULT 'starting',
+                error_message TEXT,
+                mcp_validation_errors TEXT,
+                created_at TEXT NOT NULL DEFAULT (datetime('now')),
+                last_seen_at TEXT,
+                deleted_at TEXT
+            );
+            """
+        )
+        conn.execute(
+            """INSERT INTO images
+                   (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit)
+               VALUES ('Webtop', 'lscr.io/linuxserver/webtop', 'latest', 1024, 2048, 2.0)"""
+        )
+
+        init_db(conn)
+        init_db(conn)  # idempotente: rodar de novo não falha nem altera dados
+
+        row = conn.execute(
+            "SELECT image_version FROM images WHERE repository = 'lscr.io/linuxserver/webtop'"
+        ).fetchone()
+        assert row["image_version"] is None
+    finally:
+        conn.close()
+
+
 def test_agent_skills_nome_duplicado_e_rejeitado(db_conn):
     db_conn.execute(
         "INSERT INTO agent_skills (display_name, repo_owner, repo_name) VALUES (?, ?, ?)",

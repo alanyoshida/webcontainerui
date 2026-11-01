@@ -9,7 +9,7 @@ import RunningNowCard from "../features/instances/RunningNowCard";
 import { useInstances } from "../features/instances/useInstances";
 
 export default function HomePage() {
-  const { instances, loading, error, create, stop, remove } = useInstances();
+  const { instances, loading, error, create, stop, update, remove } = useInstances();
   const [openInstanceId, setOpenInstanceId] = useState(null);
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(null);
 
@@ -41,6 +41,7 @@ export default function HomePage() {
           onBack={() => setOpenInstanceId(null)}
           onStop={stop}
           onDelete={remove}
+          onUpdate={update}
         />
       ) : (
         <Stack spacing={4}>
@@ -54,6 +55,7 @@ export default function HomePage() {
             onStart={create}
             onStop={stop}
             onDelete={remove}
+            onUpdate={update}
           />
         </Stack>
       )}

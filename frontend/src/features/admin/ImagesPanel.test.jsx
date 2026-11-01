@@ -9,6 +9,7 @@ vi.mock("../../api/client", () => ({
     adminListImages: vi.fn(),
     adminCreateImage: vi.fn(),
     adminRetryPull: vi.fn(),
+    adminUpdateImage: vi.fn(),
     adminDisableImage: vi.fn(),
     adminUploadImageIcon: vi.fn(),
   },
@@ -32,6 +33,8 @@ function imagemBase(overrides = {}) {
     pull_progress: null,
     pull_error: null,
     icon_url: null,
+    image_version: null,
+    provision_kind: "pull",
     created_at: "2024-01-01 00:00:00",
     ...overrides,
   };
@@ -154,4 +157,48 @@ test("desabilitar exige confirmação descrevendo a retirada da oferta", async (
   await user.click(within(dialog).getByRole("button", { name: /^desabilitar$/i }));
 
   expect(api.adminDisableImage).toHaveBeenCalledWith(1);
+});
+
+test("entrada pronta de pull oferece atualizar imagem e recarrega a lista após o disparo", async () => {
+  const user = userEvent.setup();
+  api.adminListImages.mockResolvedValue([imagemBase()]);
+  api.adminUpdateImage.mockResolvedValue(imagemBase({ pull_state: "pulling" }));
+
+  render(<ImagesPanel />);
+  const chamadasAntes = api.adminListImages.mock.calls.length;
+
+  await user.click(await screen.findByRole("button", { name: /atualizar imagem/i }));
+
+  expect(api.adminUpdateImage).toHaveBeenCalledWith(1);
+  await waitFor(() => {
+    expect(api.adminListImages.mock.calls.length).toBeGreaterThan(chamadasAntes);
+  });
+});
+
+test("entrada pronta de build não oferece atualização de imagem (ciclo próprio de rebuild)", async () => {
+  api.adminListImages.mockResolvedValue([imagemBase({ provision_kind: "build" })]);
+
+  render(<ImagesPanel />);
+  await screen.findByText("Webtop");
+
+  expect(screen.queryByRole("button", { name: /atualizar imagem/i })).not.toBeInTheDocument();
+});
+
+test("erro na atualização de imagem é exibido ao administrador", async () => {
+  const user = userEvent.setup();
+  api.adminListImages.mockResolvedValue([imagemBase()]);
+  api.adminUpdateImage.mockRejectedValue(new ApiError(409, "atualização de imagem só vale para entradas de pull"));
+
+  render(<ImagesPanel />);
+  await user.click(await screen.findByRole("button", { name: /atualizar imagem/i }));
+
+  expect(await screen.findByText("atualização de imagem só vale para entradas de pull")).toBeInTheDocument();
+});
+
+test("versão registrada aparece junto à referência da entrada", async () => {
+  api.adminListImages.mockResolvedValue([imagemBase({ image_version: "1.143.1-ls31" })]);
+
+  render(<ImagesPanel />);
+
+  expect(await screen.findByText(/versão 1\.143\.1-ls31/)).toBeInTheDocument();
 });

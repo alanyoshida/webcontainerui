@@ -17,7 +17,7 @@ import aiodocker
 from aiodocker.exceptions import DockerError
 
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
-from app.runtime.protocol import ContainerSpec, ContainerState, PullProgress
+from app.runtime.protocol import ContainerSpec, ContainerState, ImageInfo, PullProgress
 
 # Depois de `container.delete(force=True)`, o Docker pode levar um
 # instante para soltar as camadas de armazenamento do container — remover
@@ -217,6 +217,22 @@ class AioDockerContainerRuntime:
         except DockerError as exc:
             raise RuntimeOperationError(str(exc)) from exc
         return ContainerState.RUNNING if info["State"]["Running"] else ContainerState.STOPPED
+
+    async def inspect_image(self, repository: str, tag: str) -> ImageInfo:
+        reference = f"{repository}:{tag}"
+        try:
+            # aiodocker 0.27: `images.inspect` devolve o dict direto (o antigo
+            # `images.get(...).show()` não existe mais — `get` virou coroutine).
+            info = await self._docker.images.inspect(reference)
+        except DockerError as exc:
+            raise RuntimeOperationError(str(exc)) from exc
+        digest = None
+        for entry in info.get("RepoDigests") or []:
+            if "@" in entry:
+                digest = entry.split("@", 1)[1]
+                break
+        labels = (info.get("Config") or {}).get("Labels") or {}
+        return ImageInfo(labels=labels, digest=digest)
 
     async def _get_container(self, container_id: str):
         try:

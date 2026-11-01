@@ -11,6 +11,7 @@ vi.mock("../api/client", () => ({
     listInstances: vi.fn(),
     createInstance: vi.fn(),
     stopInstance: vi.fn(),
+    updateInstance: vi.fn(),
     deleteInstance: vi.fn(),
   },
 }));

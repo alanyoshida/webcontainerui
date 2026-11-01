@@ -68,13 +68,24 @@ def insert_image(
     port: int = 3000,
     provision_kind: str = "pull",
     build_hash: str | None = None,
+    image_version: str | None = None,
 ) -> int:
     cur = conn.execute(
         """INSERT INTO images
                (display_name, repository, tag, shm_size_mb, mem_limit_mb, cpu_limit,
-                pull_state, enabled, port, provision_kind, build_hash)
-           VALUES (?, ?, ?, 1024, 2048, 2.0, ?, ?, ?, ?, ?)""",
-        (display_name, repository, tag, pull_state, int(enabled), port, provision_kind, build_hash),
+                pull_state, enabled, port, provision_kind, build_hash, image_version)
+           VALUES (?, ?, ?, 1024, 2048, 2.0, ?, ?, ?, ?, ?, ?)""",
+        (
+            display_name,
+            repository,
+            tag,
+            pull_state,
+            int(enabled),
+            port,
+            provision_kind,
+            build_hash,
+            image_version,
+        ),
     )
     return cur.lastrowid
 

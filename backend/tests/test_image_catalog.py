@@ -119,6 +119,118 @@ async def test_run_pull_leva_a_entrada_ao_estado_pronta(app_settings):
     assert row["pull_state"] == "ready"
 
 
+async def test_run_pull_registra_o_label_de_versao_da_imagem(app_settings):
+    from app.db import init_db
+    from app.runtime.fake import FakeContainerRuntime
+    from app.services.image_pull import run_pull
+    from app.services.images import create_image
+
+    setup_conn = connect(app_settings.db_path)
+    init_db(setup_conn)
+    image_id = create_image(
+        setup_conn, "VS Code", "lscr.io/linuxserver/vscode", "latest", settings=app_settings
+    )
+    setup_conn.close()
+
+    runtime = FakeContainerRuntime()
+    runtime.set_image_info(
+        "lscr.io/linuxserver/vscode", "latest", labels={"build_version": "1.143.1-ls31"}
+    )
+    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/vscode", "latest")
+
+    conn = connect(app_settings.db_path)
+    row = conn.execute(
+        "SELECT pull_state, image_version FROM images WHERE id = ?", (image_id,)
+    ).fetchone()
+    conn.close()
+    assert row["pull_state"] == "ready"
+    assert row["image_version"] == "1.143.1-ls31"
+
+
+async def test_run_pull_sem_label_registra_o_digest_curto(app_settings):
+    from app.db import init_db
+    from app.runtime.fake import FakeContainerRuntime
+    from app.services.image_pull import run_pull
+    from app.services.images import create_image
+
+    setup_conn = connect(app_settings.db_path)
+    init_db(setup_conn)
+    image_id = create_image(
+        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+    )
+    setup_conn.close()
+
+    runtime = FakeContainerRuntime()
+    runtime.set_image_info(
+        "lscr.io/linuxserver/webtop", "latest", digest="sha256:0123456789abcdef0123"
+    )
+    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+
+    conn = connect(app_settings.db_path)
+    row = conn.execute(
+        "SELECT pull_state, image_version FROM images WHERE id = ?", (image_id,)
+    ).fetchone()
+    conn.close()
+    assert row["pull_state"] == "ready"
+    assert row["image_version"] == "0123456789ab"
+
+
+async def test_run_pull_com_falha_de_inspecao_deixa_entrada_pronta_sem_versao(app_settings):
+    """A inspeção de versão é best-effort: o download concluiu, então a
+    entrada fica pronta mesmo que a inspeção falhe — só a versão fica
+    sem ser atualizada."""
+    from app.db import init_db
+    from app.runtime.errors import RuntimeOperationError
+    from app.runtime.fake import FakeContainerRuntime
+    from app.services.image_pull import run_pull
+    from app.services.images import create_image
+
+    setup_conn = connect(app_settings.db_path)
+    init_db(setup_conn)
+    image_id = create_image(
+        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+    )
+    setup_conn.close()
+
+    runtime = FakeContainerRuntime()
+    runtime.fail_next("inspect_image", RuntimeOperationError("daemon indisponível"))
+    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+
+    conn = connect(app_settings.db_path)
+    row = conn.execute(
+        "SELECT pull_state, image_version FROM images WHERE id = ?", (image_id,)
+    ).fetchone()
+    conn.close()
+    assert row["pull_state"] == "ready"
+    assert row["image_version"] is None
+
+
+async def test_run_pull_com_erro_inesperado_de_inspecao_deixa_entrada_pronta(app_settings):
+    """Regressão: falha não-mapeada na inspeção (ex.: mudança de API do
+    aiodocker levantando AttributeError) não pode deixar a entrada presa em
+    "pulling" para sempre — o download concluiu, então vira pronta."""
+    from app.db import init_db
+    from app.runtime.fake import FakeContainerRuntime
+    from app.services.image_pull import run_pull
+    from app.services.images import create_image
+
+    setup_conn = connect(app_settings.db_path)
+    init_db(setup_conn)
+    image_id = create_image(
+        setup_conn, "Webtop", "lscr.io/linuxserver/webtop", "latest", settings=app_settings
+    )
+    setup_conn.close()
+
+    runtime = FakeContainerRuntime()
+    runtime.fail_next("inspect_image", AttributeError("'coroutine' object has no attribute 'show'"))
+    await run_pull(app_settings.db_path, runtime, image_id, "lscr.io/linuxserver/webtop", "latest")
+
+    conn = connect(app_settings.db_path)
+    row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
+    conn.close()
+    assert row["pull_state"] == "ready"
+
+
 async def test_run_pull_leva_a_entrada_ao_estado_falha(app_settings):
     from app.db import init_db
     from app.runtime.errors import RuntimeOperationError
@@ -164,6 +276,101 @@ def test_retry_pull_sobre_entrada_em_falha_nao_recria(client, seed_user, app_set
     assert resp.status_code == 200
     assert resp.json()["pull_state"] == "pulling"
     assert resp.json()["id"] == criada["id"]
+
+
+def test_update_image_sobre_entrada_pronta_reabre_o_download(client, seed_user, app_settings):
+    _login_admin(client, seed_user)
+    criada = client.post(
+        "/api/admin/images",
+        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+    ).json()
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET pull_state = 'ready' WHERE id = ?", (criada["id"],))
+    conn.close()
+
+    resp = client.post(f"/api/admin/images/{criada['id']}/update-image")
+
+    assert resp.status_code == 200
+    assert resp.json()["pull_state"] == "pulling"
+    assert resp.json()["id"] == criada["id"]
+
+
+def test_update_image_recusa_entrada_em_download(client, seed_user, app_settings):
+    _login_admin(client, seed_user)
+    criada = client.post(
+        "/api/admin/images",
+        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+    ).json()
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET pull_state = 'pulling' WHERE id = ?", (criada["id"],))
+    conn.close()
+
+    resp = client.post(f"/api/admin/images/{criada['id']}/update-image")
+
+    assert resp.status_code == 409
+
+
+def test_update_image_recusa_entrada_em_falha(client, seed_user, app_settings):
+    """Em falha o fluxo correto é retry-pull, não update-image: semânticas
+    distintas (recuperação × manutenção)."""
+    _login_admin(client, seed_user)
+    criada = client.post(
+        "/api/admin/images",
+        json={"display_name": "Webtop", "repository": "lscr.io/linuxserver/webtop", "tag": "latest"},
+    ).json()
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET pull_state = 'failed' WHERE id = ?", (criada["id"],))
+    conn.close()
+
+    resp = client.post(f"/api/admin/images/{criada['id']}/update-image")
+
+    assert resp.status_code == 409
+
+
+def test_update_image_recusa_entrada_de_build(client, seed_user, app_settings):
+    from .conftest import insert_image
+
+    _login_admin(client, seed_user)
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn, repository="wcui-agent-teste", provision_kind="build")
+    conn.close()
+
+    resp = client.post(f"/api/admin/images/{image_id}/update-image")
+
+    assert resp.status_code == 409
+
+
+def test_update_image_recusa_imagem_inexistente(client, seed_user):
+    _login_admin(client, seed_user)
+
+    resp = client.post("/api/admin/images/999999/update-image")
+
+    assert resp.status_code == 404
+
+
+def test_usuario_comum_nao_atualiza_imagem(client, seed_user):
+    seed_user("comum3@exemplo.test", "senha-comum-123")
+    client.post("/api/auth/login", json={"email": "comum3@exemplo.test", "password": "senha-comum-123"})
+
+    resp = client.post("/api/admin/images/1/update-image")
+
+    assert resp.status_code == 403
+
+
+def test_resposta_da_imagem_expoe_image_version(client, seed_user, app_settings):
+    _login_admin(client, seed_user)
+    criada = client.post(
+        "/api/admin/images",
+        json={"display_name": "VS Code", "repository": "lscr.io/linuxserver/vscode", "tag": "latest"},
+    ).json()
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET image_version = '1.143.1-ls31' WHERE id = ?", (criada["id"],))
+    conn.close()
+
+    resp = client.get("/api/admin/images")
+
+    entry = next(i for i in resp.json() if i["id"] == criada["id"])
+    assert entry["image_version"] == "1.143.1-ls31"
 
 
 def test_imagem_permitida_mas_em_download_nao_aparece_no_catalogo_do_usuario(db_conn):

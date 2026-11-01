@@ -7,7 +7,7 @@ import pytest
 from app.runtime.docker_runtime import AioDockerContainerRuntime
 from app.runtime.errors import ContainerNotFoundError
 from app.runtime.fake import FakeContainerRuntime
-from app.runtime.protocol import ContainerRuntime, ContainerSpec, ContainerState
+from app.runtime.protocol import ContainerRuntime, ContainerSpec, ContainerState, ImageInfo
 
 
 def _spec(name: str = "wcui-teste") -> ContainerSpec:
@@ -257,3 +257,60 @@ async def test_fake_exec_permite_injetar_falha():
 
     with pytest.raises(RuntimeError):
         await runtime.exec(container_id, ["true"])
+
+
+async def test_fake_inspect_image_devolve_labels_e_digest_configurados():
+    runtime = FakeContainerRuntime()
+    runtime.set_image_info(
+        "lscr.io/linuxserver/vscode",
+        "latest",
+        labels={"build_version": "1.143.1-ls31"},
+        digest="sha256:0123456789abcdef",
+    )
+
+    info = await runtime.inspect_image("lscr.io/linuxserver/vscode", "latest")
+
+    assert info.labels["build_version"] == "1.143.1-ls31"
+    assert info.digest == "sha256:0123456789abcdef"
+
+
+async def test_fake_inspect_image_pull_registra_imagem_sem_info():
+    runtime = FakeContainerRuntime()
+    async for _ in runtime.pull_image("lscr.io/linuxserver/webtop", "latest"):
+        pass
+
+    info = await runtime.inspect_image("lscr.io/linuxserver/webtop", "latest")
+
+    assert info == ImageInfo(labels={})
+
+
+async def test_fake_inspect_image_em_imagem_inexistente_falha():
+    runtime = FakeContainerRuntime()
+
+    with pytest.raises(ContainerNotFoundError):
+        await runtime.inspect_image("r/imagem", "latest")
+
+
+def test_parse_do_label_build_version():
+    from app.services.images import version_from_image_info
+
+    info = ImageInfo(
+        labels={"build_version": "1.143.1-ls31", "org.opencontainers.image.title": "vscode"},
+        digest="sha256:0123456789abcdef0123456789abcdef",
+    )
+
+    assert version_from_image_info(info) == "1.143.1-ls31"
+
+
+def test_parse_sem_label_usa_digest_curto():
+    from app.services.images import version_from_image_info
+
+    info = ImageInfo(labels={}, digest="sha256:0123456789abcdef0123456789abcdef")
+
+    assert version_from_image_info(info) == "0123456789ab"
+
+
+def test_parse_sem_label_nem_digest_retorna_none():
+    from app.services.images import version_from_image_info
+
+    assert version_from_image_info(ImageInfo(labels={})) is None

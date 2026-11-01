@@ -58,6 +58,7 @@ LOGOS: tuple[LogoSpec, ...] = (
     LogoSpec("lxqt", ("lxqt",)),
     LogoSpec("i3", ("i3",)),
     LogoSpec("sway", ("sway",)),
+    LogoSpec("vscode", ("vscode", "vs code", "visual studio code")),
     # Agentes de código (provisionados pelo seed de agent_images).
     LogoSpec("claude", ("claude",)),
     LogoSpec("hermes", ("hermes",)),

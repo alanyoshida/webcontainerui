@@ -17,12 +17,15 @@ _VOLUME_MOUNT_PATH = "/config"
 
 # Junção com `images` para expor nome/repositório/tag junto da instância,
 # evitando que quem lista instâncias precise de uma segunda consulta por
-# imagem. `img.*` não é usado de propósito: só os três campos relevantes
-# são expostos, sem colidir com as colunas de `instances`.
+# imagem. `img.*` não é usado de propósito: só os campos relevantes
+# são expostos, sem colidir com as colunas de `instances`. A versão do
+# catálogo vem junto para que a interface compare com o snapshot da
+# instância e indique desatualização sem uma segunda consulta.
 _INSTANCE_SELECT = """
     SELECT i.*, img.display_name AS image_display_name,
            img.repository AS image_repository, img.tag AS image_tag,
-           img.port AS image_port
+           img.port AS image_port,
+           img.image_version AS image_catalog_version
     FROM instances i JOIN images img ON img.id = i.image_id
 """
 
@@ -276,11 +279,13 @@ async def _provision_and_start(
 
     conn.execute(
         "UPDATE instances SET state = 'running', error_message = NULL,"
-        " mcp_validation_errors = ?, container_id = ?, container_name = ? WHERE id = ?",
+        " mcp_validation_errors = ?, container_id = ?, container_name = ?,"
+        " image_version = ? WHERE id = ?",
         (
             json.dumps(mcp_validation_errors, ensure_ascii=False) if mcp_validation_errors else None,
             container_id,
             container_name,
+            image["image_version"],
             row["id"],
         ),
     )
@@ -382,6 +387,43 @@ async def stop_instance(
             pass
     _close_run(conn, instance_id, reason)
     conn.execute("UPDATE instances SET state = 'stopped' WHERE id = ?", (instance_id,))
+
+
+async def update_instance(
+    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, instance_id: str, user_id: int
+) -> sqlite3.Row:
+    """Recria o container do tag atual da imagem, preservando o volume.
+
+    Caminho de recriação existente (D3): para (se rodando — fecha o run de
+    métricas), remove o container sem tocar no volume, limpa `container_id`
+    e deixa `_resume_existing` recriar do zero via `_provision_and_start`,
+    que reusa volume, credenciais e injeções (SSH, AGENTS.md, MCP). A
+    checagem de imagem pronta é a mesma de `create_instance`. Falha na
+    recriação cai no estado `error` existente, com o volume intacto.
+    """
+    row = get_owned_instance(conn, instance_id, user_id)
+    image = get_image(conn, row["image_id"])
+    if not image["enabled"] or image["pull_state"] != "ready":
+        raise ValidationFailedError("imagem não está pronta para uso")
+
+    if row["container_id"] is not None:
+        try:
+            await runtime.stop_container(row["container_id"])
+        except ContainerNotFoundError:
+            pass
+        _close_run(conn, instance_id, "instance_update")
+        try:
+            await runtime.remove_container(row["container_id"])
+        except ContainerNotFoundError:
+            pass
+        conn.execute(
+            "UPDATE instances SET container_id = NULL, container_name = NULL,"
+            " state = 'stopped' WHERE id = ?",
+            (instance_id,),
+        )
+
+    fresh = _get_by_id(conn, instance_id)
+    return await _resume_existing(conn, runtime, settings, image, fresh)
 
 
 async def delete_instance(

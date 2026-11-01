@@ -45,6 +45,14 @@ export function useInstances() {
     [reload]
   );
 
+  const update = useCallback(
+    async (instanceId) => {
+      await api.updateInstance(instanceId);
+      await reload();
+    },
+    [reload]
+  );
+
   const remove = useCallback(
     async (instanceId) => {
       await api.deleteInstance(instanceId, true);
@@ -53,5 +61,5 @@ export function useInstances() {
     [reload]
   );
 
-  return { instances, loading, error, reload, create, stop, remove };
+  return { instances, loading, error, reload, create, stop, update, remove };
 }

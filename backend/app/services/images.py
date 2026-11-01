@@ -2,6 +2,7 @@ import sqlite3
 import uuid
 
 from app.config import Settings
+from app.runtime.protocol import ImageInfo
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 
 # Assinaturas (magic bytes) dos formatos de imagem aceitos como capa.
@@ -68,6 +69,25 @@ def create_image(
     return cur.lastrowid
 
 
+def version_from_image_info(info: ImageInfo) -> str | None:
+    """Versão legível da imagem a partir da inspeção do runtime.
+
+    O rótulo `build_version` é o que as imagens LinuxServer publicam (ex.:
+    `1.143.1-ls31`); sem rótulo, usa o digest curto do conteúdo — com tags
+    móveis como `:latest`, o tag sozinho não identifica o que foi baixado.
+    """
+    label = info.labels.get("build_version")
+    if label:
+        return label
+    if info.digest:
+        return info.digest.split(":", 1)[-1][:12]
+    return None
+
+
+def set_image_version(conn: sqlite3.Connection, image_id: int, version: str) -> None:
+    conn.execute("UPDATE images SET image_version = ? WHERE id = ?", (version, image_id))
+
+
 def get_image(conn: sqlite3.Connection, image_id: int) -> sqlite3.Row:
     row = conn.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone()
     if row is None:
@@ -116,6 +136,23 @@ def reopen_for_retry(conn: sqlite3.Connection, image_id: int) -> None:
     )
     if cur.rowcount == 0:
         raise NotFoundError(f"imagem não está em falha: {image_id}")
+
+
+def reopen_for_update(conn: sqlite3.Connection, image_id: int) -> None:
+    """Reabre uma entrada pronta para novo download (atualização de imagem).
+
+    Semântica distinta de `reopen_for_retry` (recuperação de falha): aqui a
+    pré-condição é a entrada estar `ready` — só entradas de pull têm tag
+    móvel que faz sentido re-baixar. Durante o download a instanciação
+    fica bloqueada pela checagem existente em `create_instance`.
+    """
+    cur = conn.execute(
+        """UPDATE images SET pull_state = 'pulling', pull_progress = NULL, pull_error = NULL
+           WHERE id = ? AND pull_state = 'ready' AND provision_kind = 'pull'""",
+        (image_id,),
+    )
+    if cur.rowcount == 0:
+        raise ConflictError(f"imagem não está pronta para atualização: {image_id}")
 
 
 def disable_image(conn: sqlite3.Connection, image_id: int) -> None:

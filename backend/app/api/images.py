@@ -20,6 +20,7 @@ from app.services.images import (
     list_catalog_for_admin,
     list_catalog_for_user,
     reopen_for_retry,
+    reopen_for_update,
     set_image_icon,
 )
 from app.services.sessions import AuthenticatedUser
@@ -52,6 +53,8 @@ class ImageResponse(BaseModel):
     pull_progress: str | None
     pull_error: str | None
     icon_url: str | None
+    image_version: str | None
+    provision_kind: str
     created_at: str
 
 
@@ -71,6 +74,8 @@ def _to_response(row: sqlite3.Row) -> ImageResponse:
         pull_progress=row["pull_progress"],
         pull_error=row["pull_error"],
         icon_url=f"/uploads/{icon_path}" if icon_path else None,
+        image_version=row["image_version"],
+        provision_kind=row["provision_kind"],
         created_at=row["created_at"],
     )
 
@@ -151,6 +156,36 @@ async def retry_pull_endpoint(
             request.app,
             run_pull(settings.db_path, runtime, image_id, row["repository"], row["tag"]),
         )
+
+    return _to_response(row)
+
+
+@admin_router.post("/images/{image_id}/update-image", response_model=ImageResponse)
+async def update_image_endpoint(
+    image_id: int, request: Request, db: sqlite3.Connection = Depends(get_db)
+) -> ImageResponse:
+    """Re-baixa a referência de uma entrada pronta do catálogo.
+
+    Só entradas de pull participam: imagens de build têm ciclo próprio de
+    rebuild (retry-pull). Pré-condição `ready` distinta da recuperação de
+    falha — são semânticas diferentes, com respostas HTTP diferentes.
+    """
+    try:
+        row = get_image(db, image_id)
+        if row["provision_kind"] != "pull":
+            raise ConflictError("atualização de imagem só vale para entradas de pull")
+        reopen_for_update(db, image_id)
+        row = get_image(db, image_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    settings = request.app.state.settings
+    spawn(
+        request.app,
+        run_pull(settings.db_path, request.app.state.runtime, image_id, row["repository"], row["tag"]),
+    )
 
     return _to_response(row)
 

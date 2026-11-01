@@ -63,6 +63,13 @@ def test_resolve_agente_de_codigo_pelo_nome():
     assert resolve_logo_key("oh-my-pi") == "oh-my-pi"
 
 
+def test_resolve_vscode_pelo_nome_e_pelo_repositorio():
+    assert resolve_logo_key("VS Code") == "vscode"
+    assert resolve_logo_key("Visual Studio Code") == "vscode"
+    assert resolve_logo_key("VS Code", "lscr.io/linuxserver/vscode", "latest") == "vscode"
+    assert resolve_logo_key("Webtop", "lscr.io/linuxserver/vscode", "latest") == "vscode"
+
+
 def test_resolve_por_repositorio_e_tag():
     assert resolve_logo_key("Agente", "wcui-agent-claude-code", "latest") == "claude"
     assert resolve_logo_key("Agente", "wcui-agent-oh-my-pi", "latest") == "oh-my-pi"

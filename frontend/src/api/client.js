@@ -58,6 +58,7 @@ export const api = {
   listInstances: () => request("GET", "/instances"),
   createInstance: (imageId) => request("POST", "/instances", { image_id: imageId }),
   stopInstance: (id) => request("POST", `/instances/${id}/stop`),
+  updateInstance: (id) => request("POST", `/instances/${id}/update`),
   deleteInstance: (id, confirm) => request("DELETE", `/instances/${id}?confirm=${confirm}`),
 
   adminListUsers: () => request("GET", "/admin/users"),
@@ -79,6 +80,7 @@ export const api = {
   adminListImages: () => request("GET", "/admin/images"),
   adminCreateImage: (payload) => request("POST", "/admin/images", payload),
   adminRetryPull: (imageId) => request("POST", `/admin/images/${imageId}/retry-pull`),
+  adminUpdateImage: (imageId) => request("POST", `/admin/images/${imageId}/update-image`),
   adminDisableImage: (imageId) => request("POST", `/admin/images/${imageId}/disable`),
   adminUploadImageIcon: (imageId, file) => {
     const formData = new FormData();

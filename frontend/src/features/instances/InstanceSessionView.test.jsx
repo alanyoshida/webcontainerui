@@ -23,8 +23,24 @@ function instance(overrides = {}) {
     image_tag: "latest",
     state: "running",
     error_message: null,
+    image_version: null,
+    image_catalog_version: null,
     ...overrides,
   };
+}
+
+function renderView(overrides = {}, callbacks = {}) {
+  return render(
+    <InstanceSessionView
+      instance={instance(overrides)}
+      idleTimeoutMinutes={30}
+      onBack={vi.fn()}
+      onStop={vi.fn()}
+      onDelete={vi.fn()}
+      onUpdate={vi.fn()}
+      {...callbacks}
+    />
+  );
 }
 
 test("instância em execução mostra a sessão embutida", async () => {
@@ -246,7 +262,7 @@ test("entrar em tela cheia foca um campo de teclado dentro do iframe quando ele 
 test("sai da tela cheia ao desmontar a visão", async () => {
   const user = userEvent.setup();
   const { unmount } = render(
-    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} />
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={vi.fn()} onDelete={vi.fn()} onUpdate={vi.fn()} />
   );
 
   await user.click(screen.getByRole("button", { name: "Tela cheia" }));
@@ -254,4 +270,55 @@ test("sai da tela cheia ao desmontar a visão", async () => {
 
   expect(() => unmount()).not.toThrow();
   expect(document.body.style.overflow).toBe("");
+});
+
+test("instância desatualizada mostra o selo com as duas versões", async () => {
+  const user = userEvent.setup();
+  renderView({
+    image_version: "1.142.0-ls28",
+    image_catalog_version: "1.143.1-ls31",
+  });
+
+  const badge = screen.getByText("Desatualizada");
+  await user.hover(badge);
+
+  expect(
+    await screen.findByText(/versão 1\.142\.0-ls28.*versão 1\.143\.1-ls31/)
+  ).toBeInTheDocument();
+});
+
+test("atualizar pede confirmação e, confirmado, chama onUpdate sem sair da visão", async () => {
+  const onUpdate = vi.fn();
+  const onBack = vi.fn();
+  const user = userEvent.setup();
+  renderView({}, { onUpdate, onBack });
+
+  await user.click(screen.getByRole("button", { name: "Atualizar" }));
+  expect(onUpdate).not.toHaveBeenCalled();
+
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("Atualizar instância?")).toBeInTheDocument();
+  expect(within(dialog).getByText(/processos em andamento na sessão são perdidos/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: "Atualizar" }));
+
+  expect(onUpdate).toHaveBeenCalledWith("inst-1");
+  expect(onBack).not.toHaveBeenCalled();
+});
+
+test("cancelar a atualização não chama onUpdate", async () => {
+  const onUpdate = vi.fn();
+  const user = userEvent.setup();
+  renderView({}, { onUpdate });
+
+  await user.click(screen.getByRole("button", { name: "Atualizar" }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+
+  expect(onUpdate).not.toHaveBeenCalled();
+});
+
+test("atualizar fica disponível também para instância parada", async () => {
+  renderView({ state: "stopped" });
+
+  expect(screen.getByRole("button", { name: "Atualizar" })).toBeInTheDocument();
 });

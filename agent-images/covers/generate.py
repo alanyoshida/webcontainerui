@@ -49,6 +49,7 @@ COVERS: tuple[CoverSpec, ...] = (
     CoverSpec("lxqt", "lxqt.png", "#0284C7"),
     CoverSpec("i3", "i3.png", "#52C0FF"),
     CoverSpec("sway", "sway.png", "#68751C"),
+    CoverSpec("vscode", "vscode.png", "#007ACC"),
     CoverSpec("generic", "generic.png", "#1565C0"),
 )
 

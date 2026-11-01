@@ -13,7 +13,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { Ban, Image as ImageIcon, Plus, RefreshCw, Upload } from "lucide-react";
+import { CloudDownload, Ban, Image as ImageIcon, Plus, RefreshCw, Upload } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SectionTitle from "../../components/SectionTitle";
@@ -68,6 +68,16 @@ export default function ImagesPanel() {
   async function handleRetry(imageId) {
     await api.adminRetryPull(imageId);
     reload();
+  }
+
+  async function handleUpdateImage(imageId) {
+    setError("");
+    try {
+      await api.adminUpdateImage(imageId);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Não foi possível atualizar a imagem.");
+    }
   }
 
   async function handleDisableConfirmed() {
@@ -153,6 +163,11 @@ export default function ImagesPanel() {
                 <TableCell>{image.display_name}</TableCell>
                 <TableCell sx={{ fontFamily: MONO_FONT_FAMILY }}>
                   {image.repository}:{image.tag}
+                  {image.image_version && (
+                    <Typography variant="caption" color="text.secondary" component="div">
+                      versão {image.image_version}
+                    </Typography>
+                  )}
                 </TableCell>
                 <TableCell>
                   <Chip size="small" label={STATE_LABEL[image.pull_state] ?? image.pull_state} color={STATE_COLOR[image.pull_state]} />
@@ -176,6 +191,15 @@ export default function ImagesPanel() {
                   {image.pull_state === "failed" && (
                     <Button size="small" startIcon={<RefreshCw size={16} />} onClick={() => handleRetry(image.id)}>
                       Tentar de novo
+                    </Button>
+                  )}
+                  {image.pull_state === "ready" && image.provision_kind === "pull" && (
+                    <Button
+                      size="small"
+                      startIcon={<CloudDownload size={16} />}
+                      onClick={() => handleUpdateImage(image.id)}
+                    >
+                      Atualizar imagem
                     </Button>
                   )}
                   {image.enabled && (

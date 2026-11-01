@@ -12,6 +12,8 @@ function instance(overrides = {}) {
     image_tag: "latest",
     state: "running",
     error_message: null,
+    image_version: null,
+    image_catalog_version: null,
     ...overrides,
   };
 }
@@ -24,6 +26,19 @@ function renderRow(props) {
       </tbody>
     </table>
   );
+}
+
+function rowFor(instanceOverrides, callbacks = {}) {
+  return {
+    instance: instance(instanceOverrides),
+    idleTimeoutMinutes: 30,
+    onOpenSession: vi.fn(),
+    onStart: vi.fn(),
+    onStop: vi.fn(),
+    onDelete: vi.fn(),
+    onUpdate: vi.fn(),
+    ...callbacks,
+  };
 }
 
 test("nenhuma ação de pausa é oferecida, em nenhum estado", () => {
@@ -196,4 +211,73 @@ test("instância em erro mostra a mensagem de erro", () => {
   });
 
   expect(screen.getByText("docker indisponível")).toBeInTheDocument();
+});
+
+test("instância com versão anterior à do catálogo recebe o selo de desatualizada com as duas versões", async () => {
+  const user = userEvent.setup();
+  renderRow(
+    rowFor({
+      state: "stopped",
+      image_version: "1.142.0-ls28",
+      image_catalog_version: "1.143.1-ls31",
+    })
+  );
+
+  const badge = screen.getByText("Desatualizada");
+  await user.hover(badge);
+
+  expect(
+    await screen.findByText(/versão 1\.142\.0-ls28.*versão 1\.143\.1-ls31/)
+  ).toBeInTheDocument();
+});
+
+test("instância na mesma versão do catálogo não recebe selo de desatualizada", () => {
+  renderRow(
+    rowFor({
+      image_version: "1.143.1-ls31",
+      image_catalog_version: "1.143.1-ls31",
+    })
+  );
+
+  expect(screen.queryByText("Desatualizada")).not.toBeInTheDocument();
+});
+
+test("instância sem versão registrada (criada antes do registro) não recebe selo de desatualizada", () => {
+  renderRow(
+    rowFor({
+      image_version: null,
+      image_catalog_version: "1.143.1-ls31",
+    })
+  );
+
+  expect(screen.queryByText("Desatualizada")).not.toBeInTheDocument();
+});
+
+test("atualizar pede confirmação avisando da perda de processos e, confirmado, chama onUpdate", async () => {
+  const onUpdate = vi.fn();
+  const user = userEvent.setup();
+  renderRow(rowFor({ state: "stopped" }, { onUpdate }));
+
+  await user.click(screen.getByRole("button", { name: /atualizar/i }));
+  expect(onUpdate).not.toHaveBeenCalled();
+
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("Atualizar instância?")).toBeInTheDocument();
+  expect(within(dialog).getByText(/processos em andamento na sessão são perdidos/)).toBeInTheDocument();
+  expect(within(dialog).getByText(/arquivos permanecem salvos/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: "Atualizar" }));
+
+  expect(onUpdate).toHaveBeenCalledWith("inst-1");
+});
+
+test("cancelar a atualização não chama onUpdate", async () => {
+  const onUpdate = vi.fn();
+  const user = userEvent.setup();
+  renderRow(rowFor({}, { onUpdate }));
+
+  await user.click(screen.getByRole("button", { name: /atualizar/i }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+
+  expect(onUpdate).not.toHaveBeenCalled();
 });

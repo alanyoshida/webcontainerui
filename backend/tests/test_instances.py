@@ -459,3 +459,180 @@ def test_env_PORTA_usa_a_porta_da_imagem(client, seed_user, app_settings, fake_r
     assert row["image_port"] == 4242
     spec = fake_runtime._containers[container_id]["spec"]
     assert spec.env["PORT"] == "4242"
+
+
+def test_resposta_da_instancia_expoe_versao_da_instancia_e_do_catalogo(client, seed_user, app_settings):
+    user_id = _login_as(client, seed_user, "versao@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn, image_version="1.143.1-ls31")
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+
+    resp = client.post("/api/instances", json={"image_id": image_id})
+
+    body = resp.json()
+    assert body["image_version"] == "1.143.1-ls31"  # snapshot da criação
+    assert body["image_catalog_version"] == "1.143.1-ls31"
+
+
+def test_atualizacao_recria_o_container_do_tag_atual_preservando_o_volume(
+    client, seed_user, app_settings, fake_runtime
+):
+    user_id = _login_as(client, seed_user, "update@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn, image_version="1.0.0")
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+    instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
+
+    conn = connect(app_settings.db_path)
+    antiga = conn.execute(
+        "SELECT container_id, container_name, volume_name FROM instances WHERE id = ?",
+        (instance_id,),
+    ).fetchone()
+    conn.close()
+    container_antigo = antiga["container_id"]
+    volume_name = antiga["volume_name"]
+    assert volume_name in fake_runtime._volumes
+
+    # o catálogo ganhou uma versão nova (update-image concluído)
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET image_version = '2.0.0' WHERE id = ?", (image_id,))
+    conn.close()
+
+    resp = client.post(f"/api/instances/{instance_id}/update")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["state"] == "running"
+    assert body["image_version"] == "2.0.0"  # snapshot atualizado na recriação
+    assert body["image_catalog_version"] == "2.0.0"
+
+    conn = connect(app_settings.db_path)
+    nova = conn.execute(
+        "SELECT container_id, volume_name FROM instances WHERE id = ?", (instance_id,)
+    ).fetchone()
+    conn.close()
+
+    assert nova["container_id"] != container_antigo
+    assert container_antigo not in fake_runtime._containers  # container antigo removido
+    assert nova["volume_name"] == volume_name  # volume preservado
+    assert volume_name in fake_runtime._volumes  # e não removido do runtime
+
+    # container recriado do repositório/tag atual da imagem
+    spec = fake_runtime._containers[nova["container_id"]]["spec"]
+    assert spec.repository == "lscr.io/linuxserver/webtop"
+    assert spec.tag == "latest"
+
+
+def test_atualizacao_fecha_o_run_antigo_e_abre_run_novo(client, seed_user, app_settings):
+    user_id = _login_as(client, seed_user, "runs@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn)
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+    instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
+
+    resp = client.post(f"/api/instances/{instance_id}/update")
+    assert resp.status_code == 200
+
+    conn = connect(app_settings.db_path)
+    runs = conn.execute(
+        "SELECT started_at, ended_at, ended_reason FROM instance_runs"
+        " WHERE instance_id = ? ORDER BY id",
+        (instance_id,),
+    ).fetchall()
+    conn.close()
+    assert len(runs) == 2
+    assert runs[0]["ended_at"] is not None
+    assert runs[0]["ended_reason"] == "instance_update"
+    assert runs[1]["ended_at"] is None  # run novo em aberto
+
+
+def test_atualizacao_de_instancia_parada_recria_ao_iniciar(client, seed_user, app_settings, fake_runtime):
+    user_id = _login_as(client, seed_user, "parada@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn)
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+    instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
+    client.post(f"/api/instances/{instance_id}/stop")
+
+    resp = client.post(f"/api/instances/{instance_id}/update")
+
+    assert resp.status_code == 200
+    assert resp.json()["state"] == "running"
+
+
+def test_atualizacao_recusada_quando_a_imagem_nao_esta_pronta(client, seed_user, app_settings):
+    user_id = _login_as(client, seed_user, "naopronta@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn)
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+    instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
+
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET pull_state = 'pulling' WHERE id = ?", (image_id,))
+    conn.close()
+
+    resp = client.post(f"/api/instances/{instance_id}/update")
+    assert resp.status_code == 400
+
+
+def test_atualizacao_por_nao_dono_e_404_anonimo(client, seed_user, app_settings):
+    dono_id = _login_as(client, seed_user, "donoupdate@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn)
+    group_id = insert_group(conn)
+    add_user_to_group(conn, dono_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+    instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
+
+    from fastapi.testclient import TestClient
+
+    with TestClient(client.app, base_url="http://testserver") as outro_client:
+        _login_as(outro_client, seed_user, "outroupdate@exemplo.test")
+        resp = outro_client.post(f"/api/instances/{instance_id}/update")
+        assert resp.status_code == 404
+
+
+def test_recriacao_religa_snapshot_da_versao_do_catalogo(client, seed_user, app_settings, fake_runtime):
+    """2.3: instância cujo container foi recriado passa a registrar a
+    versão atual do catálogo. Mera religada (start do mesmo container) não
+    é recriação — o snapshot permanece o da criação do container."""
+    user_id = _login_as(client, seed_user, "snapshot@exemplo.test")
+    conn = connect(app_settings.db_path)
+    image_id = insert_image(conn, image_version="1.0.0")
+    group_id = insert_group(conn)
+    add_user_to_group(conn, user_id, group_id)
+    grant_image_to_group(conn, group_id, image_id)
+    conn.close()
+    instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
+
+    conn = connect(app_settings.db_path)
+    container_id = conn.execute(
+        "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
+    ).fetchone()["container_id"]
+    conn.close()
+    client.post(f"/api/instances/{instance_id}/stop")
+    fake_runtime._containers.pop(container_id)  # container sumiu do runtime
+
+    # o catálogo avançou de versão antes da recriação
+    conn = connect(app_settings.db_path)
+    conn.execute("UPDATE images SET image_version = '3.0.0' WHERE id = ?", (image_id,))
+    conn.close()
+
+    resp = client.post("/api/instances", json={"image_id": image_id})
+    assert resp.status_code == 201  # devolve a instância existente, recriada
+    assert resp.json()["image_version"] == "3.0.0"

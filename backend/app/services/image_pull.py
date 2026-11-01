@@ -3,7 +3,13 @@ from pathlib import Path
 from app.db import connect
 from app.runtime.errors import RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime
-from app.services.images import mark_pull_failed, mark_pull_progress, mark_pull_ready
+from app.services.images import (
+    mark_pull_failed,
+    mark_pull_progress,
+    mark_pull_ready,
+    set_image_version,
+    version_from_image_info,
+)
 
 
 async def run_pull(
@@ -19,6 +25,16 @@ async def run_pull(
         async for progress in runtime.pull_image(repository, tag):
             if progress.detail:
                 mark_pull_progress(conn, image_id, progress.detail)
+        # Best-effort: o download em si já concluiu — uma falha na
+        # inspeção deixa a entrada pronta, só sem versão nova registrada.
+        # `Exception` de propósito: um erro inesperado aqui não pode deixar
+        # a entrada presa em "pulling" para sempre (o download concluiu).
+        try:
+            version = version_from_image_info(await runtime.inspect_image(repository, tag))
+            if version:
+                set_image_version(conn, image_id, version)
+        except Exception:
+            pass
         mark_pull_ready(conn, image_id)
     except RuntimeOperationError as exc:
         mark_pull_failed(conn, image_id, str(exc))

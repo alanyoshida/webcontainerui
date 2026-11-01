@@ -6,7 +6,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { ExternalLink, Play, Square, Trash2 } from "lucide-react";
+import { ExternalLink, Play, RefreshCw, Square, Trash2 } from "lucide-react";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { MONO_FONT_FAMILY } from "../../theme";
 
@@ -25,6 +25,21 @@ export const STATE_COLOR = {
 };
 
 /**
+ * Desatualização por snapshot (design D2): a instância guarda a versão da
+ * imagem com que foi criada; a entrada do catálogo carrega a versão atual.
+ * Só há comparação quando as duas existem — versão ausente (instâncias
+ * anteriores ao registro de versão) nunca é "desatualizada". Com tag móvel
+ * (`latest`), versão diferente significa conteúdo mais recente no catálogo.
+ */
+export function isOutdated(instance) {
+  return (
+    instance.image_version != null &&
+    instance.image_catalog_version != null &&
+    instance.image_version !== instance.image_catalog_version
+  );
+}
+
+/**
  * Uma linha por instância na tabela de "Minhas instâncias" (ver
  * InstancesSection.jsx). Substitui o antigo InstanceCard — sem caixa de
  * preview, sem toggle de sessão embutida: "Abrir sessão" só avisa o pai
@@ -40,9 +55,11 @@ export default function InstanceTableRow({
   onStart,
   onStop,
   onDelete,
+  onUpdate,
 }) {
   const [confirmingStop, setConfirmingStop] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
   const [busy, setBusy] = useState(false);
 
   async function run(action) {
@@ -62,6 +79,13 @@ export default function InstanceTableRow({
       </TableCell>
       <TableCell>
         <Chip size="small" label={STATE_LABEL[instance.state] ?? instance.state} color={STATE_COLOR[instance.state]} />
+        {isOutdated(instance) && (
+          <Tooltip
+            title={`Instância criada com a versão ${instance.image_version}; a imagem do catálogo está na versão ${instance.image_catalog_version}.`}
+          >
+            <Chip size="small" label="Desatualizada" color="warning" sx={{ ml: 0.5 }} />
+          </Tooltip>
+        )}
         {instance.state === "error" && instance.error_message && (
           <Typography variant="caption" color="error" component="div" sx={{ mt: 0.5 }}>
             {instance.error_message}
@@ -98,6 +122,14 @@ export default function InstanceTableRow({
             </Tooltip>
           )}
 
+          {(instance.state === "running" || instance.state === "stopped") && (
+            <Tooltip title="Atualizar para a versão atual da imagem">
+              <IconButton size="small" disabled={busy} onClick={() => setConfirmingUpdate(true)}>
+                <RefreshCw size={18} />
+              </IconButton>
+            </Tooltip>
+          )}
+
           <Tooltip title="Excluir">
             <IconButton size="small" color="error" disabled={busy} onClick={() => setConfirmingDelete(true)}>
               <Trash2 size={18} />
@@ -115,6 +147,19 @@ export default function InstanceTableRow({
           onConfirm={async () => {
             setConfirmingStop(false);
             await run(() => onStop(instance.id));
+          }}
+        />
+
+        <ConfirmDialog
+          open={confirmingUpdate}
+          title="Atualizar instância?"
+          description={`A instância é recriada com a versão atual da imagem de ${instance.image_display_name}. Os processos em andamento na sessão são perdidos; os arquivos permanecem salvos.`}
+          confirmLabel="Atualizar"
+          confirmIcon={<RefreshCw size={16} />}
+          onCancel={() => setConfirmingUpdate(false)}
+          onConfirm={async () => {
+            setConfirmingUpdate(false);
+            await run(() => onUpdate(instance.id));
           }}
         />
 

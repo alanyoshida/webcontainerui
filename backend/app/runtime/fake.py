@@ -15,13 +15,14 @@ import tarfile
 from collections.abc import AsyncIterator, Mapping
 
 from app.runtime.errors import ContainerNotFoundError
-from app.runtime.protocol import ContainerSpec, ContainerState, PullProgress
+from app.runtime.protocol import ContainerSpec, ContainerState, ImageInfo, PullProgress
 
 
 class FakeContainerRuntime:
     def __init__(self) -> None:
         self._containers: dict[str, dict] = {}
         self._volumes: set[str] = set()
+        self._images: dict[str, ImageInfo] = {}
         self._ids = itertools.count(1)
         self._delays: dict[str, float] = {}
         self._failures: dict[str, Exception] = {}
@@ -45,6 +46,12 @@ class FakeContainerRuntime:
     def set_build_progress(self, progress: list[PullProgress]) -> None:
         self._build_progress = progress
 
+    def set_image_info(
+        self, repository: str, tag: str, *, labels: Mapping[str, str] | None = None, digest: str | None = None
+    ) -> None:
+        """Configura o que `inspect_image` devolve para a referência dada."""
+        self._images[f"{repository}:{tag}"] = ImageInfo(labels=dict(labels or {}), digest=digest)
+
     async def _simulate(self, operation: str) -> None:
         delay = self._delays.get(operation, 0)
         if delay:
@@ -67,6 +74,9 @@ class FakeContainerRuntime:
     async def pull_image(self, repository: str, tag: str) -> AsyncIterator[PullProgress]:
         self.pull_calls.append({"repository": repository, "tag": tag})
         await self._simulate("pull_image")
+        # Registra a imagem como presente no host após o pull bem-sucedido,
+        # imitando o Docker: `inspect_image` só funciona para o que foi baixado.
+        self._images.setdefault(f"{repository}:{tag}", ImageInfo(labels={}))
         yield PullProgress(status="pronta", completed=True)
 
     async def build_image(
@@ -142,6 +152,13 @@ class FakeContainerRuntime:
     async def inspect_container(self, container_id: str) -> ContainerState:
         await self._simulate("inspect_container")
         return self._require(container_id)["state"]
+
+    async def inspect_image(self, repository: str, tag: str) -> ImageInfo:
+        await self._simulate("inspect_image")
+        try:
+            return self._images[f"{repository}:{tag}"]
+        except KeyError:
+            raise ContainerNotFoundError(f"{repository}:{tag}") from None
 
     def _require(self, container_id: str) -> dict:
         try:

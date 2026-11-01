@@ -4,11 +4,12 @@ import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import { ArrowLeft, Maximize, Minimize, Square, Trash2 } from "lucide-react";
+import { ArrowLeft, Maximize, Minimize, RefreshCw, Square, Trash2 } from "lucide-react";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import InstanceSession from "./InstanceSession";
-import { STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
+import { isOutdated, STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
 import { useFullscreen } from "./useFullscreen";
 
 /**
@@ -17,9 +18,10 @@ import { useFullscreen } from "./useFullscreen";
  * InstanceSession.jsx sem alterá-lo — aqui ele só ganha uma área mais alta
  * em vez da caixa 16:9 fixa que tinha dentro do antigo InstanceCard.
  */
-export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBack, onStop, onDelete }) {
+export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBack, onStop, onDelete, onUpdate }) {
   const [confirmingStop, setConfirmingStop] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
   const [busy, setBusy] = useState(false);
   const sessionAreaRef = useRef(null);
   const { isFullscreen, enter: enterFullscreen, exit: exitFullscreen } = useFullscreen(sessionAreaRef);
@@ -62,7 +64,19 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
           {instance.image_display_name}
         </Typography>
         <Chip label={STATE_LABEL[instance.state] ?? instance.state} color={STATE_COLOR[instance.state]} />
+        {isOutdated(instance) && (
+          <Tooltip
+            title={`Instância criada com a versão ${instance.image_version}; a imagem do catálogo está na versão ${instance.image_catalog_version}.`}
+          >
+            <Chip label="Desatualizada" color="warning" />
+          </Tooltip>
+        )}
 
+        {(instance.state === "running" || instance.state === "stopped") && (
+          <Button startIcon={<RefreshCw size={18} />} disabled={busy} onClick={() => setConfirmingUpdate(true)}>
+            Atualizar
+          </Button>
+        )}
         {instance.state === "running" && (
           <Button startIcon={<Maximize size={18} />} onClick={enterFullscreen}>
             Tela cheia
@@ -138,6 +152,19 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         onConfirm={async () => {
           setConfirmingStop(false);
           await run(() => onStop(instance.id));
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmingUpdate}
+        title="Atualizar instância?"
+        description={`A instância é recriada com a versão atual da imagem de ${instance.image_display_name}. Os processos em andamento na sessão são perdidos; os arquivos permanecem salvos.`}
+        confirmLabel="Atualizar"
+        confirmIcon={<RefreshCw size={16} />}
+        onCancel={() => setConfirmingUpdate(false)}
+        onConfirm={async () => {
+          setConfirmingUpdate(false);
+          await run(() => onUpdate(instance.id));
         }}
       />
 

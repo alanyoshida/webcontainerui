@@ -17,7 +17,7 @@ import InstanceTableRow from "./InstanceTableRow";
  * quem usa este componente (ver HomePage.jsx), por isso só repassa
  * onOpenSession para cada linha em vez de guardar esse estado aqui.
  */
-export default function InstancesSection({ instances, loading, error, onOpenSession, onStart, onStop, onDelete }) {
+export default function InstancesSection({ instances, loading, error, onOpenSession, onStart, onStop, onDelete, onUpdate }) {
   const [idleTimeoutMinutes, setIdleTimeoutMinutes] = useState(null);
 
   useEffect(() => {
@@ -61,6 +61,7 @@ export default function InstancesSection({ instances, loading, error, onOpenSess
                   onStart={onStart}
                   onStop={onStop}
                   onDelete={onDelete}
+                  onUpdate={onUpdate}
                 />
               ))}
             </TableBody>

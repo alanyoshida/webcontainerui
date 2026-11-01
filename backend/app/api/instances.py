@@ -6,7 +6,13 @@ from pydantic import BaseModel
 
 from app.deps import get_current_user, get_db
 from app.services.errors import NotFoundError, PermissionDeniedError, ValidationFailedError
-from app.services.instances import create_instance, delete_instance, list_instances_for_user, stop_instance
+from app.services.instances import (
+    create_instance,
+    delete_instance,
+    list_instances_for_user,
+    stop_instance,
+    update_instance,
+)
 from app.services.sessions import AuthenticatedUser
 
 router = APIRouter()
@@ -25,6 +31,11 @@ class InstanceResponse(BaseModel):
     state: str
     error_message: str | None
     mcp_validation_errors: list[str] = []
+    # Versão da imagem com que o container foi criado (snapshot do
+    # catálogo na criação/recriação) e a versão atual do catálogo, para a
+    # interface indicar desatualização. NULL = versão desconhecida.
+    image_version: str | None
+    image_catalog_version: str | None
 
 
 def _to_response(row: sqlite3.Row) -> InstanceResponse:
@@ -39,6 +50,8 @@ def _to_response(row: sqlite3.Row) -> InstanceResponse:
         mcp_validation_errors=json.loads(row["mcp_validation_errors"])
         if row["mcp_validation_errors"]
         else [],
+        image_version=row["image_version"],
+        image_catalog_version=row["image_catalog_version"],
     )
 
 
@@ -67,6 +80,25 @@ def list_instances_endpoint(
     user: AuthenticatedUser = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)
 ) -> list[InstanceResponse]:
     return [_to_response(row) for row in list_instances_for_user(db, user.id)]
+
+
+@router.post("/instances/{instance_id}/update", response_model=InstanceResponse)
+async def update_instance_endpoint(
+    instance_id: str,
+    request: Request,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+) -> InstanceResponse:
+    try:
+        row = await update_instance(
+            db, request.app.state.runtime, request.app.state.settings, instance_id, user.id
+        )
+    except NotFoundError as exc:
+        # instância inexistente e instância de outro usuário são o mesmo 404
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationFailedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    return _to_response(row)
 
 
 @router.post("/instances/{instance_id}/stop", status_code=status.HTTP_204_NO_CONTENT)

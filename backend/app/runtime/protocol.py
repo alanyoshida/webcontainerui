@@ -42,6 +42,14 @@ class PullProgress:
     completed: bool = False
 
 
+@dataclass(frozen=True)
+class ImageInfo:
+    """Dados de inspeção de uma imagem (labels, digest de repositório)."""
+
+    labels: Mapping[str, str]
+    digest: str | None = None
+
+
 @runtime_checkable
 class ContainerRuntime(Protocol):
     async def ensure_volume(self, name: str) -> None: ...
@@ -74,3 +82,5 @@ class ContainerRuntime(Protocol):
     async def remove_container(self, container_id: str) -> None: ...
 
     async def inspect_container(self, container_id: str) -> ContainerState: ...
+
+    async def inspect_image(self, repository: str, tag: str) -> ImageInfo: ...
