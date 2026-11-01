@@ -54,11 +54,11 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
 
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 128px)" }}>
-      <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
+      <Stack direction="row" alignItems="center" flexWrap="wrap" useFlexGap spacing={1} sx={{ mb: 2 }}>
         <Button startIcon={<ArrowLeft size={18} />} onClick={handleBack}>
           Voltar
         </Button>
-        <Typography variant="h5" component="h2" sx={{ flexGrow: 1 }}>
+        <Typography variant="h5" component="h2" noWrap sx={{ flexGrow: 1, minWidth: 0 }}>
           {instance.image_display_name}
         </Typography>
         <Chip label={STATE_LABEL[instance.state] ?? instance.state} color={STATE_COLOR[instance.state]} />
