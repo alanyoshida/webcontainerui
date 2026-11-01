@@ -71,10 +71,14 @@ documento.
 
 ### Requirement: Documento vinculado é injetado na criação da instância
 
-Ao criar ou reiniciar uma instância cuja imagem tem documento vinculado, o
-sistema DEVE gravar o conteúdo como `/config/AGENTS.md` no container, com o
-dono adequado ao tipo de imagem, sem impedir a instância de ficar pronta em
-caso de falha da injeção.
+Ao criar uma instância cuja imagem tem documento vinculado, o sistema DEVE
+gravar o conteúdo como `/config/AGENTS.md` no container, com o dono adequado
+ao tipo de imagem, sem impedir a instância de ficar pronta em caso de falha
+da injeção. Retomar uma instância parada (parar e iniciar de novo) reaproveita
+o container existente e NÃO repete essa injeção — a instância só recebe uma
+versão nova do documento se for recriada (excluída e criada de novo) ou se
+estiver viva quando o documento for editado ou revinculado (ver "Salvar
+documento reescreve nas instâncias vivas").
 
 #### Scenario: Instância de imagem com documento
 
