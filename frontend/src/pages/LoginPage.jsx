@@ -7,6 +7,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
+import { LOGO_FONT_FAMILY } from "../theme";
 
 export default function LoginPage() {
   const { user, loading, login } = useAuth();
@@ -49,8 +50,8 @@ export default function LoginPage() {
       }}
     >
       <Paper component="form" onSubmit={handleSubmit} sx={{ p: 4, width: 360 }}>
-        <Typography variant="h5" component="h1" gutterBottom>
-          webcontainerui
+        <Typography component="h1" gutterBottom sx={{ fontFamily: LOGO_FONT_FAMILY, fontSize: "2.4rem", lineHeight: 1 }}>
+          WebContainerUI
         </Typography>
         <Typography variant="body2" color="text.secondary" gutterBottom>
           Entre com sua conta para acessar seus desktops.

@@ -16,7 +16,7 @@ import { ChevronDown, KeyRound, LogOut, Palette } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
 import { ADMIN_SECTIONS } from "../features/admin/adminSections";
-import { THEME_MODES } from "../theme";
+import { LOGO_FONT_FAMILY, THEME_MODES } from "../theme";
 import { useThemeMode } from "../theme/ThemeModeContext";
 import { emailInitials } from "../utils/initials";
 
@@ -43,13 +43,22 @@ export default function TopBar() {
       <Toolbar sx={{ gap: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexGrow: 1 }}>
           <Typography
-            variant="h6"
             component={RouterLink}
             to="/"
             noWrap
-            sx={{ color: "inherit", textDecoration: "none", minWidth: 0, flexShrink: 1, overflow: "hidden", textOverflow: "ellipsis" }}
+            sx={{
+              color: "inherit",
+              textDecoration: "none",
+              minWidth: 0,
+              flexShrink: 1,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              fontFamily: LOGO_FONT_FAMILY,
+              fontSize: "1.9rem",
+              lineHeight: 1,
+            }}
           >
-            webcontainerui
+            WebContainerUI
           </Typography>
 
           {user?.is_admin && (

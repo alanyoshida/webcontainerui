@@ -35,6 +35,8 @@ const SHAPE = {
 // acesso à internet"). JetBrains Mono fica reservada para conteúdo técnico
 // (chave SSH, referência de imagem, saídas de log — ver MONO_FONT_FAMILY).
 export const MONO_FONT_FAMILY = '"JetBrains Mono Variable", ui-monospace, monospace';
+// Reservada à logo "WebContainerUI" na TopBar — não usar em texto de leitura.
+export const LOGO_FONT_FAMILY = '"Caveat", cursive';
 const SANS_FONT_FAMILY =
   '"Inter Variable", "Roboto", "Helvetica", "Arial", sans-serif';
 

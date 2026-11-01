@@ -13,6 +13,6 @@ test("rota raiz redireciona para o login quando não autenticado", async () => {
 
   render(<App />);
 
-  expect(await screen.findByText("webcontainerui")).toBeInTheDocument();
+  expect(await screen.findByText("WebContainerUI")).toBeInTheDocument();
   expect(await screen.findByLabelText(/E-mail/)).toBeInTheDocument();
 });
