@@ -49,7 +49,7 @@
 
 - [x] 9.1 Suíte frontend verde e build de produção OK. **Verificar:** `cd frontend && npm test && npm run build`
 - [x] 9.2 Suíte backend verde. **Verificar:** `cd backend && .venv/bin/python -m pytest`
-- [ ] 9.3 Verificação manual multi-tema: roteiro de screenshots (Playwright, login admin dev) das telas login, home, sessão, identidade SSH e 8 seções admin nos 3 temas, nos breakpoints 320/375/768/1024/1440, entregues em pasta para revisão. **Verificar:** pasta de screenshots revisada sem sobreposição, contraste ilegível ou rolagem horizontal
+- [x] 9.3 Verificação manual multi-tema: roteiro de screenshots (Playwright, login admin dev) das telas login, home, sessão, identidade SSH e 8 seções admin nos 3 temas, nos breakpoints 320/375/768/1024/1440, entregues em pasta para revisão. **Verificar:** pasta de screenshots revisada sem sobreposição, contraste ilegível ou rolagem horizontal
 
 ## Workflow follow-up
 
