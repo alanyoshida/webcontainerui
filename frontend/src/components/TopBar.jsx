@@ -23,12 +23,13 @@ import { emailInitials } from "../utils/initials";
 const THEME_LABEL = { light: "Light", dark: "Dark", pastel: "Pastel" };
 
 /**
- * Barra superior em três zonas (ver design.md D4): à esquerda o menu
- * "Administração" (só para admins), ao centro a logo, à direita o seletor
- * de tema e o menu do usuário (avatar). O e-mail nunca fica solto na barra
- * — vive só no cabeçalho do menu do usuário — e todo filho usa
- * `minWidth: 0`/`noWrap`, o que elimina a causa-raiz do transbordo em
- * telas estreitas (antes, 611px de largura mínima).
+ * Barra superior em três zonas (ver design.md D4): à esquerda a logo e o
+ * menu "Administração" (só para admins), à direita o seletor de tema e o
+ * menu do usuário (avatar). O e-mail nunca fica solto na barra — vive só
+ * no cabeçalho do menu do usuário — e todo filho usa `minWidth: 0`/
+ * `noWrap`, o que elimina a causa-raiz do transbordo em telas estreitas
+ * (antes, 611px de largura mínima). A logo é o elemento que trunca
+ * quando falta espaço; o botão "Administração" nunca encolhe.
  */
 export default function TopBar() {
   const { user, logout } = useAuth();
@@ -40,14 +41,24 @@ export default function TopBar() {
   return (
     <AppBar position="static" color="primary" enableColorOnDark>
       <Toolbar sx={{ gap: 1 }}>
-        <Box sx={{ flexShrink: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexGrow: 1 }}>
+          <Typography
+            variant="h6"
+            component={RouterLink}
+            to="/"
+            noWrap
+            sx={{ color: "inherit", textDecoration: "none", minWidth: 0, flexShrink: 1, overflow: "hidden", textOverflow: "ellipsis" }}
+          >
+            webcontainerui
+          </Typography>
+
           {user?.is_admin && (
             <>
               <Button
                 color="inherit"
                 endIcon={<ChevronDown size={16} />}
                 onClick={(event) => setAdminMenuAnchor(event.currentTarget)}
-                sx={{ minWidth: 0, px: { xs: 1, sm: 2 }, fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
+                sx={{ minWidth: 0, flexShrink: 0, px: { xs: 1, sm: 2 }, fontSize: { xs: "0.75rem", sm: "0.875rem" } }}
               >
                 Administração
               </Button>
@@ -66,16 +77,6 @@ export default function TopBar() {
             </>
           )}
         </Box>
-
-        <Typography
-          variant="h6"
-          component={RouterLink}
-          to="/"
-          noWrap
-          sx={{ color: "inherit", textDecoration: "none", minWidth: 0, flexGrow: 1, overflow: "hidden", textOverflow: "ellipsis" }}
-        >
-          webcontainerui
-        </Typography>
 
         {user && (
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, flexShrink: 0 }}>
