@@ -7,6 +7,7 @@ import Divider from "@mui/material/Divider";
 import IconButton from "@mui/material/IconButton";
 import ListItemIcon from "@mui/material/ListItemIcon";
 import ListItemText from "@mui/material/ListItemText";
+import ListSubheader from "@mui/material/ListSubheader";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import Toolbar from "@mui/material/Toolbar";
@@ -15,7 +16,7 @@ import Typography from "@mui/material/Typography";
 import { ChevronDown, KeyRound, LogOut, Palette, Shield } from "lucide-react";
 import { Link as RouterLink } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext";
-import { ADMIN_SECTIONS } from "../features/admin/adminSections";
+import { ADMIN_SECTIONS, ADMIN_SECTION_GROUPS } from "../features/admin/adminSections";
 import { LOGO_FONT_FAMILY, THEME_MODES } from "../theme";
 import { useThemeMode } from "../theme/ThemeModeContext";
 import { emailInitials } from "../utils/initials";
@@ -73,16 +74,31 @@ export default function TopBar() {
                 Administração
               </Button>
               <Menu anchorEl={adminMenuAnchor} open={Boolean(adminMenuAnchor)} onClose={() => setAdminMenuAnchor(null)}>
-                {ADMIN_SECTIONS.map((section) => (
-                  <MenuItem
-                    key={section.path}
-                    component={RouterLink}
-                    to={`/admin/${section.path}`}
-                    onClick={() => setAdminMenuAnchor(null)}
-                  >
-                    {section.label}
-                  </MenuItem>
-                ))}
+                {ADMIN_SECTIONS.flatMap((section, index) => {
+                  const previousGroup = ADMIN_SECTIONS[index - 1]?.group;
+                  const nodes = [];
+                  if (section.group !== previousGroup) {
+                    if (index > 0) nodes.push(<Divider key={`divider-${section.group}`} />);
+                    const groupLabel = ADMIN_SECTION_GROUPS[section.group];
+                    if (groupLabel) {
+                      nodes.push(<ListSubheader key={`heading-${section.group}`}>{groupLabel}</ListSubheader>);
+                    }
+                  }
+                  nodes.push(
+                    <MenuItem
+                      key={section.path}
+                      component={RouterLink}
+                      to={`/admin/${section.path}`}
+                      onClick={() => setAdminMenuAnchor(null)}
+                    >
+                      <ListItemIcon>
+                        <section.Icon size={18} />
+                      </ListItemIcon>
+                      <ListItemText>{section.label}</ListItemText>
+                    </MenuItem>
+                  );
+                  return nodes;
+                })}
               </Menu>
             </>
           )}
