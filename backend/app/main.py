@@ -1,9 +1,11 @@
 from collections.abc import Callable
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, status
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.datastructures import MutableHeaders
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from app.api.access_control import router as access_control_router
 from app.api.admin import router as admin_router
@@ -32,6 +34,51 @@ from app.services.image_covers import seed_image_covers
 from app.services.instances import backfill_open_runs
 from app.services.login_throttle import LoginThrottle
 from app.services.reaper import reconcile_instance_states, run_reaper
+
+# Cabeçalhos de segurança das respostas geradas pelo próprio portal (change
+# http-hardening). `style-src 'unsafe-inline'` é requisito do MUI/Emotion,
+# que injeta <style> inline; fontes, scripts e conexões são todas de origem
+# própria (sem CDN), e `frame-src 'self'` cobre o iframe same-origin da
+# sessão embutida.
+_SECURITY_HEADERS: dict[str, str] = {
+    "X-Content-Type-Options": "nosniff",
+    "Referrer-Policy": "no-referrer",
+    "X-Frame-Options": "SAMEORIGIN",
+    "Content-Security-Policy": (
+        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; font-src 'self'; connect-src 'self' ws: wss:; "
+        "frame-src 'self'; frame-ancestors 'self'; object-src 'none'; base-uri 'self'"
+    ),
+}
+
+
+class SecurityHeadersMiddleware:
+    """Aplica `_SECURITY_HEADERS` às respostas do portal.
+
+    O caminho do encaminhamento de sessão (`/i/...`) fica de fora: ali a
+    resposta vem do container do usuário (streaming do proxy), e impor a
+    política do portal ao conteúdo embutido poderia quebrar as UIs de
+    desktop/terminal. `X-Frame-Options: SAMEORIGIN` (não DENY) porque o
+    próprio portal embute esse iframe; `frame-ancestors 'self'` na CSP
+    reforça o mesmo limite para navegadores modernos.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http" or scope.get("path", "").startswith("/i/"):
+            await self.app(scope, receive, send)
+            return
+
+        async def send_with_headers(message) -> None:
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                for key, value in _SECURITY_HEADERS.items():
+                    headers.append(key, value)
+            await send(message)
+
+        await self.app(scope, receive, send_with_headers)
 
 
 def create_app(
@@ -119,7 +166,16 @@ def create_app(
         if close is not None:
             await close()
 
-    app = FastAPI(title="webcontainerui", lifespan=lifespan)
+    # Documentação interativa desligada por padrão (change http-hardening):
+    # /docs, /redoc e /openapi.json expostos entregam o mapa completo da API
+    # a anônimos; desenvolvimento liga com WCUI_DOCS_ENABLED=true.
+    docs_kwargs = (
+        {}
+        if resolved_settings.docs_enabled
+        else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    )
+    app = FastAPI(title="webcontainerui", lifespan=lifespan, **docs_kwargs)
+    app.add_middleware(SecurityHeadersMiddleware)
     app.include_router(auth_router, prefix="/api/auth", tags=["auth"])
     app.include_router(admin_router, prefix="/api/admin", tags=["admin"])
     app.include_router(images_admin_router, prefix="/api/admin", tags=["admin", "images"])
@@ -158,8 +214,15 @@ def create_app(
 
         index_path = resolved_settings.frontend_dist / "index.html"
 
+        # Com a documentação interativa desligada, os paths dela não podem
+        # cair no catch-all do SPA (serviriam index.html com 200); respondem
+        # 404 como se não existissem (change http-hardening).
+        _docs_paths = {"docs", "docs/oauth2-redirect", "redoc", "openapi.json"}
+
         @app.get("/{full_path:path}", include_in_schema=False)
         async def serve_spa(full_path: str) -> FileResponse:
+            if full_path in _docs_paths and not resolved_settings.docs_enabled:
+                raise HTTPException(status_code=status.HTTP_404_NOT_FOUND)
             return FileResponse(index_path)
 
     return app

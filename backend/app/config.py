@@ -40,6 +40,11 @@ class Settings(BaseSettings):
     # sessão expirada ou revogada só é removida do banco após este período.
     session_purge_grace_hours: int = Field(default=24, ge=1)
 
+    # Documentação interativa da API (/docs, /redoc, /openapi.json). Padrão
+    # desligado: em produção não entregam o mapa da API a anônimos (change
+    # http-hardening).
+    docs_enabled: bool = False
+
     idle_timeout_minutes: int = Field(default=30, gt=0)
     reaper_interval_seconds: int = Field(default=60, gt=0)
     activity_debounce_seconds: int = Field(default=30, gt=0)

@@ -82,6 +82,20 @@ precisam ser tocadas se você trocar a subnet da rede:
 O compose de desenvolvimento não define essas variáveis: sem proxy à frente,
 cabeçalhos encaminhados seguem sendo ignorados (origem não confiável).
 
+### Cabeçalhos de segurança e documentação interativa
+
+O portal adiciona a toda resposta própria (`X-Content-Type-Options`,
+`Referrer-Policy`, `X-Frame-Options: SAMEORIGIN` e uma Content-Security-Policy
+restritiva com `default-src 'self'`) — exceto ao caminho de sessão `/i/...`,
+cujo conteúdo vem do container do usuário e não deve receber a política do
+portal. O `style-src 'unsafe-inline'` da CSP é requisito do MUI/Emotion
+(estilos injetados inline); scripts, fontes e conexões são todos de origem
+própria.
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `WCUI_DOCS_ENABLED` | `false` | Liga `/docs`, `/redoc` e `/openapi.json` (desligados por padrão para não entregar o mapa da API a anônimos; útil em desenvolvimento) |
+
 ### Limitação de tentativas de login
 
 O portal limita tentativas de login com falha por conta (e-mail) e por

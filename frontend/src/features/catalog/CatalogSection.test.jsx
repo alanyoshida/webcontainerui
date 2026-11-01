@@ -93,3 +93,22 @@ test("entrada sem versão registrada não mostra linha de versão", async () => 
 
   expect(screen.queryByText(/^versão /)).not.toBeInTheDocument();
 });
+
+test("icon_url de origem externa não vira requisição e cai no fallback", async () => {
+  api.getCatalog.mockResolvedValue([
+    {
+      id: 2,
+      display_name: "Externa",
+      repository: "lscr.io/linuxserver/webtop",
+      tag: "latest",
+      icon_url: "https://evil.example/cover.png",
+    },
+  ]);
+
+  render(<CatalogSection onStart={vi.fn()} />);
+  await screen.findByText("Externa");
+
+  // capa externa é tratada como capa ausente: sem <img> com aquela src
+  const imgs = screen.queryAllByRole("img", { name: "Externa" });
+  expect(imgs).toHaveLength(0);
+});

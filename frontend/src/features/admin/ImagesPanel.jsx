@@ -18,6 +18,7 @@ import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SectionTitle from "../../components/SectionTitle";
 import { MONO_FONT_FAMILY } from "../../theme";
+import { localCoverUrl } from "../../utils/iconUrl";
 
 const STATE_LABEL = { pulling: "Baixando", ready: "Pronta", failed: "Falhou" };
 const STATE_COLOR = { pulling: "info", ready: "success", failed: "error" };
@@ -156,8 +157,8 @@ export default function ImagesPanel() {
             {images.map((image) => (
               <TableRow key={image.id}>
                 <TableCell>
-                  <Avatar src={image.icon_url ?? undefined} variant="rounded">
-                    {!image.icon_url && <ImageIcon size={20} />}
+                  <Avatar src={localCoverUrl(image.icon_url) ?? undefined} variant="rounded">
+                    {!localCoverUrl(image.icon_url) && <ImageIcon size={20} />}
                   </Avatar>
                 </TableCell>
                 <TableCell>{image.display_name}</TableCell>

@@ -13,6 +13,7 @@ import { Image as ImageIcon, Play } from "lucide-react";
 import { api } from "../../api/client";
 import SectionTitle from "../../components/SectionTitle";
 import { MONO_FONT_FAMILY } from "../../theme";
+import { localCoverUrl } from "../../utils/iconUrl";
 
 const COVER_HEIGHT = 140;
 
@@ -59,10 +60,10 @@ export default function CatalogSection({ onStart }) {
         {images.map((image) => (
           <Grid item xs={12} sm={6} md={4} key={image.id}>
             <Card variant="outlined">
-              {image.icon_url ? (
+              {localCoverUrl(image.icon_url) ? (
                 <CardMedia
                   component="img"
-                  src={image.icon_url}
+                  src={localCoverUrl(image.icon_url)}
                   alt={image.display_name}
                   sx={{ height: COVER_HEIGHT, objectFit: "contain" }}
                 />

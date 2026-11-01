@@ -13,6 +13,10 @@
 	# de reverter — cada deploy decide se quer ir além.
 	header Strict-Transport-Security "max-age=31536000"
 
+	# Remove o cabeçalho Server do uvicorn encaminhado (change
+	# http-hardening, I3): a borda não anuncia a stack.
+	header -Server
+
 	reverse_proxy portal:8000 {
 		# Sessões de desktop são conexões longas (D1); sem isto, o padrão
 		# do Caddy cortaria uma sessão ociosa bem antes dos 3600s que o
