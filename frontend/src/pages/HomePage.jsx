@@ -5,6 +5,7 @@ import { api } from "../api/client";
 import CatalogSection from "../features/catalog/CatalogSection";
 import InstanceSessionView from "../features/instances/InstanceSessionView";
 import InstancesSection from "../features/instances/InstancesSection";
+import RunningNowCard from "../features/instances/RunningNowCard";
 import { useInstances } from "../features/instances/useInstances";
 
 export default function HomePage() {
@@ -43,6 +44,7 @@ export default function HomePage() {
         />
       ) : (
         <Stack spacing={4}>
+          {!loading && !error && <RunningNowCard instances={instances} onOpenSession={setOpenInstanceId} />}
           <CatalogSection onStart={create} />
           <InstancesSection
             instances={instances}

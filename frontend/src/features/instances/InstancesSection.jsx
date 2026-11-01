@@ -46,7 +46,7 @@ export default function InstancesSection({ instances, loading, error, onOpenSess
             <TableHead>
               <TableRow>
                 <TableCell>Imagem</TableCell>
-                <TableCell>Referência</TableCell>
+                <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>Referência</TableCell>
                 <TableCell>Estado</TableCell>
                 <TableCell align="right">Ações</TableCell>
               </TableRow>

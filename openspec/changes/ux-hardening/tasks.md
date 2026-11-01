@@ -23,8 +23,8 @@
 
 ## 4. Home e listagem de instâncias
 
-- [ ] 4.1 Card "Em execução agora" no topo da `HomePage` com atalho "Abrir sessão" por instância rodando e mensagem quando não há nenhuma, visível sem rolagem. **Verificar:** teste vitest
-- [ ] 4.2 Listagem responsiva: coluna "Referência" oculta em `xs`, ações como `IconButton` com `Tooltip`; documento sem rolagem horizontal em 375px. **Verificar:** teste vitest + inspeção manual em 375px
+- [x] 4.1 Card "Em execução agora" no topo da `HomePage` com atalho "Abrir sessão" por instância rodando e mensagem quando não há nenhuma, visível sem rolagem. **Verificar:** teste vitest
+- [x] 4.2 Listagem responsiva: coluna "Referência" oculta em `xs`, ações como `IconButton` com `Tooltip`; documento sem rolagem horizontal em 375px. **Verificar:** teste vitest + inspeção manual em 375px
 
 ## 5. Sessão
 

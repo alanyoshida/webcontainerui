@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, vi } from "vitest";
 import HomePage from "./HomePage";
@@ -53,9 +53,9 @@ test("abrir sessão troca a listagem pela visão dedicada; voltar restaura a lis
   const user = userEvent.setup();
 
   render(<HomePage />);
-  await screen.findByRole("table");
+  const table = await screen.findByRole("table");
 
-  await user.click(screen.getByRole("button", { name: /abrir sessão/i }));
+  await user.click(within(table).getByRole("button", { name: /abrir sessão/i }));
 
   expect(await screen.findByTitle(/Sessão da instância inst-1/)).toBeInTheDocument();
   expect(screen.queryByRole("table")).not.toBeInTheDocument();
@@ -66,6 +66,25 @@ test("abrir sessão troca a listagem pela visão dedicada; voltar restaura a lis
   expect(await screen.findByRole("table")).toBeInTheDocument();
   expect(screen.getByText("Catálogo")).toBeInTheDocument();
   expect(screen.queryByTitle(/Sessão da instância/)).not.toBeInTheDocument();
+});
+
+test("resumo 'Em execução agora' lista a instância em execução com atalho para abrir a sessão", async () => {
+  api.listInstances.mockResolvedValue([instance()]);
+
+  render(<HomePage />);
+
+  const card = await screen.findByRole("region", { name: "Em execução agora" });
+  expect(within(card).getByText("Webtop")).toBeInTheDocument();
+  expect(within(card).getByRole("button", { name: /abrir sessão/i })).toBeInTheDocument();
+});
+
+test("resumo sem instâncias em execução indica que não há nenhuma", async () => {
+  api.listInstances.mockResolvedValue([instance({ state: "stopped" })]);
+
+  render(<HomePage />);
+
+  const card = await screen.findByRole("region", { name: "Em execução agora" });
+  expect(within(card).getByText("Nenhuma instância em execução agora.")).toBeInTheDocument();
 });
 
 test("se a instância aberta sumir da lista (ex.: excluída em outro lugar), volta sozinho para a listagem", async () => {
@@ -80,9 +99,9 @@ test("se a instância aberta sumir da lista (ex.: excluída em outro lugar), vol
   await act(async () => {
     await Promise.resolve();
   });
-  expect(screen.getByRole("table")).toBeInTheDocument();
+  const table = screen.getByRole("table");
 
-  fireEvent.click(screen.getByRole("button", { name: /abrir sessão/i }));
+  fireEvent.click(within(table).getByRole("button", { name: /abrir sessão/i }));
   await act(async () => {
     await Promise.resolve();
   });

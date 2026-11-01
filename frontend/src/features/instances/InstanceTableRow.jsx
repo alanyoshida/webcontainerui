@@ -1,9 +1,15 @@
 import { useState } from "react";
-import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
+import IconButton from "@mui/material/IconButton";
+import Stack from "@mui/material/Stack";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
+import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
+import DeleteIcon from "@mui/icons-material/Delete";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import PlayArrowIcon from "@mui/icons-material/PlayArrow";
+import StopIcon from "@mui/icons-material/Stop";
 import ConfirmDialog from "../../components/ConfirmDialog";
 
 export const STATE_LABEL = {
@@ -25,7 +31,9 @@ export const STATE_COLOR = {
  * InstancesSection.jsx). Substitui o antigo InstanceCard — sem caixa de
  * preview, sem toggle de sessão embutida: "Abrir sessão" só avisa o pai
  * (onOpenSession), que decide trocar para a visão dedicada
- * (InstanceSessionView).
+ * (InstanceSessionView). Ações em `IconButton` com `Tooltip` (ver
+ * design.md D9) — alvo de toque melhor e cabe em janelas estreitas sem
+ * empurrar a coluna de ações para fora da viewport.
  */
 export default function InstanceTableRow({
   instance,
@@ -51,7 +59,7 @@ export default function InstanceTableRow({
   return (
     <TableRow>
       <TableCell>{instance.image_display_name}</TableCell>
-      <TableCell>
+      <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
         {instance.image_repository}:{instance.image_tag}
       </TableCell>
       <TableCell>
@@ -68,26 +76,36 @@ export default function InstanceTableRow({
         )}
       </TableCell>
       <TableCell align="right">
-        {instance.state === "running" && (
-          <>
-            <Button size="small" onClick={() => onOpenSession(instance.id)}>
-              Abrir sessão
-            </Button>
-            <Button size="small" disabled={busy} onClick={() => setConfirmingStop(true)}>
-              Parar
-            </Button>
-          </>
-        )}
+        <Stack direction="row" justifyContent="flex-end">
+          {instance.state === "running" && (
+            <>
+              <Tooltip title="Abrir sessão">
+                <IconButton size="small" onClick={() => onOpenSession(instance.id)}>
+                  <OpenInNewIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+              <Tooltip title="Parar">
+                <IconButton size="small" disabled={busy} onClick={() => setConfirmingStop(true)}>
+                  <StopIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            </>
+          )}
 
-        {(instance.state === "stopped" || instance.state === "error") && (
-          <Button size="small" disabled={busy} onClick={() => run(() => onStart(instance.image_id))}>
-            Iniciar
-          </Button>
-        )}
+          {(instance.state === "stopped" || instance.state === "error") && (
+            <Tooltip title="Iniciar">
+              <IconButton size="small" disabled={busy} onClick={() => run(() => onStart(instance.image_id))}>
+                <PlayArrowIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
 
-        <Button size="small" color="error" disabled={busy} onClick={() => setConfirmingDelete(true)}>
-          Excluir
-        </Button>
+          <Tooltip title="Excluir">
+            <IconButton size="small" color="error" disabled={busy} onClick={() => setConfirmingDelete(true)}>
+              <DeleteIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
 
         <ConfirmDialog
           open={confirmingStop}
