@@ -30,6 +30,14 @@ const SHAPE = {
   pastel: { borderRadius: 16 },
 };
 
+// Fontes próprias, carregadas por `@fontsource-variable/*` em main.jsx —
+// sem depender de serviço externo (ver theming spec: "funcionamento sem
+// acesso à internet"). JetBrains Mono fica reservada para conteúdo técnico
+// (chave SSH, referência de imagem, saídas de log — ver MONO_FONT_FAMILY).
+export const MONO_FONT_FAMILY = '"JetBrains Mono Variable", ui-monospace, monospace';
+const SANS_FONT_FAMILY =
+  '"Inter Variable", "Roboto", "Helvetica", "Arial", sans-serif';
+
 /**
  * Um tema por modo (ver design.md D1) — light, dark (carvão) e pastel
  * (pêssego). `ThemeModeProvider` (abaixo) decide qual construir e aplica
@@ -40,6 +48,7 @@ export function buildTheme(mode) {
     palette: PALETTES[mode],
     shape: SHAPE[mode],
     typography: {
+      fontFamily: SANS_FONT_FAMILY,
       h5: { fontWeight: 600 },
       h6: { fontWeight: 600 },
     },

@@ -11,6 +11,7 @@ import OpenInNewIcon from "@mui/icons-material/OpenInNew";
 import PlayArrowIcon from "@mui/icons-material/PlayArrow";
 import StopIcon from "@mui/icons-material/Stop";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { MONO_FONT_FAMILY } from "../../theme";
 
 export const STATE_LABEL = {
   running: "Em execução",
@@ -59,7 +60,7 @@ export default function InstanceTableRow({
   return (
     <TableRow>
       <TableCell>{instance.image_display_name}</TableCell>
-      <TableCell sx={{ display: { xs: "none", sm: "table-cell" } }}>
+      <TableCell sx={{ display: { xs: "none", sm: "table-cell" }, fontFamily: MONO_FONT_FAMILY }}>
         {instance.image_repository}:{instance.image_tag}
       </TableCell>
       <TableCell>

@@ -7,6 +7,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../api/client";
 import ConfirmDialog from "../components/ConfirmDialog";
+import { MONO_FONT_FAMILY } from "../theme";
 
 /**
  * Chave SSH própria do usuário, gerada e guardada pelo portal — nunca uma
@@ -75,7 +76,7 @@ export default function SshIdentityPage() {
           value={publicKey}
           multiline
           fullWidth
-          slotProps={{ input: { readOnly: true } }}
+          slotProps={{ input: { readOnly: true, sx: { fontFamily: MONO_FONT_FAMILY } } }}
         />
         <Button onClick={handleCopy} sx={{ whiteSpace: "nowrap" }}>
           {copied ? "Copiado!" : "Copiar"}

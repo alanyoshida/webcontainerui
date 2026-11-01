@@ -11,6 +11,7 @@ import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 import ImageIcon from "@mui/icons-material/Image";
 import { api } from "../../api/client";
+import { MONO_FONT_FAMILY } from "../../theme";
 
 const COVER_HEIGHT = 140;
 
@@ -79,7 +80,7 @@ export default function CatalogSection({ onStart }) {
               )}
               <CardContent>
                 <Typography variant="h6">{image.display_name}</Typography>
-                <Typography variant="body2" color="text.secondary">
+                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: MONO_FONT_FAMILY }}>
                   {image.repository}:{image.tag}
                 </Typography>
               </CardContent>

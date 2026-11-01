@@ -15,6 +15,7 @@ import Typography from "@mui/material/Typography";
 import ImageIcon from "@mui/icons-material/Image";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { MONO_FONT_FAMILY } from "../../theme";
 
 const STATE_LABEL = { pulling: "Baixando", ready: "Pronta", failed: "Falhou" };
 const STATE_COLOR = { pulling: "info", ready: "success", failed: "error" };
@@ -149,7 +150,7 @@ export default function ImagesPanel() {
                 </Avatar>
               </TableCell>
               <TableCell>{image.display_name}</TableCell>
-              <TableCell>
+              <TableCell sx={{ fontFamily: MONO_FONT_FAMILY }}>
                 {image.repository}:{image.tag}
               </TableCell>
               <TableCell>
