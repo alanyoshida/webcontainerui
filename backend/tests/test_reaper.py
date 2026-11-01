@@ -265,3 +265,43 @@ async def test_falha_injetada_no_reaper_nao_encerra_o_loop(app_settings, fake_ru
         pass
 
     assert len(chamadas) >= 2  # sobreviveu à falha e seguiu rodando
+
+
+async def test_run_reaper_purga_sessoes_mortas(client, seed_user, app_settings, fake_runtime):
+    """A purga roda dentro do ciclo do reaper (change login-account-hygiene):
+    uma sessão expirada há mais que a carência some do banco só por
+    `run_reaper` rodar, sem chamada direta."""
+    import asyncio
+
+    from app.db import init_db
+    from app.services.passwords import hash_password
+
+    seed_user("rebeca@exemplo.test", "senha-correta-123")
+    conn = connect(app_settings.db_path)
+    init_db(conn)
+    conn.execute(
+        "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('h-morto', 1, '2020-01-01 00:00:00')"
+    )
+    conn.commit()
+    conn.close()
+
+    task = asyncio.create_task(
+        run_reaper(
+            app_settings.db_path,
+            fake_runtime,
+            idle_timeout_minutes=30,
+            interval_seconds=0.01,
+            session_purge_grace_hours=24,
+        )
+    )
+    await asyncio.sleep(0.05)
+    task.cancel()
+    try:
+        await task
+    except asyncio.CancelledError:
+        pass
+
+    conn = connect(app_settings.db_path)
+    restantes = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    conn.close()
+    assert restantes == 0

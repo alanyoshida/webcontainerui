@@ -20,6 +20,7 @@ def test_valores_omitidos_usam_o_padrao():
     assert s.login_max_failures == 10
     assert s.login_window_seconds == 300
     assert s.login_lock_seconds == 300
+    assert s.session_purge_grace_hours == 24
 
 
 def test_ambiente_sobrepoe_o_padrao(monkeypatch):
@@ -29,6 +30,7 @@ def test_ambiente_sobrepoe_o_padrao(monkeypatch):
     monkeypatch.setenv("WCUI_LOGIN_MAX_FAILURES", "3")
     monkeypatch.setenv("WCUI_LOGIN_WINDOW_SECONDS", "60")
     monkeypatch.setenv("WCUI_LOGIN_LOCK_SECONDS", "120")
+    monkeypatch.setenv("WCUI_SESSION_PURGE_GRACE_HOURS", "48")
 
     s = Settings()
 
@@ -38,6 +40,7 @@ def test_ambiente_sobrepoe_o_padrao(monkeypatch):
     assert s.login_max_failures == 3
     assert s.login_window_seconds == 60
     assert s.login_lock_seconds == 120
+    assert s.session_purge_grace_hours == 48
 
 
 @pytest.mark.parametrize(

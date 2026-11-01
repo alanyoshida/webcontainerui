@@ -74,11 +74,15 @@ def login(
         throttle.record_failure(*keys)
         raise _INVALID_CREDENTIALS
 
-    if row["disabled_at"] is not None:
+    # O hash é verificado antes da checagem de desabilitação: o Argon2 roda
+    # em todo ramo de falha (hash dummy cobre e-mail inexistente), para que
+    # o tempo de resposta não distinga conta desabilitada de senha errada
+    # (anti-enumeração por timing, achado B1 do pentest).
+    if not verify_password(body.password, row["password_hash"]):
         throttle.record_failure(*keys)
         raise _INVALID_CREDENTIALS
 
-    if not verify_password(body.password, row["password_hash"]):
+    if row["disabled_at"] is not None:
         throttle.record_failure(*keys)
         raise _INVALID_CREDENTIALS
 

@@ -8,6 +8,7 @@ from app.db import connect
 from app.runtime.errors import ContainerNotFoundError
 from app.runtime.protocol import ContainerRuntime, ContainerState
 from app.services.instances import _close_run, stop_instance
+from app.services.sessions import purge_sessions
 
 
 def _cutoff_iso(idle_timeout_minutes: int) -> str:
@@ -68,17 +69,25 @@ async def reconcile_instance_states(conn: sqlite3.Connection, runtime: Container
     return reconciled
 
 
-async def run_reaper(db_path: Path, runtime: ContainerRuntime, idle_timeout_minutes: int, interval_seconds: int) -> None:
-    """Loop periódico de ociosidade e reconciliação de estado. Uma falha
-    numa iteração não encerra o loop (D-risco "um worker é ponto único de
-    falha", design.md) — a próxima iteração tenta de novo.
+async def run_reaper(
+    db_path: Path,
+    runtime: ContainerRuntime,
+    idle_timeout_minutes: int,
+    interval_seconds: int,
+    session_purge_grace_hours: int = 24,
+) -> None:
+    """Loop periódico de ociosidade, reconciliação de estado e purga de
+    sessões. Uma falha numa iteração não encerra o loop (D-risco "um worker
+    é ponto único de falha", design.md) — a próxima iteração tenta de novo.
 
     Reconcilia antes de reaper: um container encerrado por fora (sem
     passar por `stop_instance`) precisa virar "stopped" no registro antes
     da checagem de ociosidade rodar sobre ele, senão a instância seria
     tratada como candidata a "parar por ociosidade" quando na verdade já
     parou por outro motivo — `reap_idle_instances` só considera
-    `state = 'running'`, então a ordem é o que garante isso.
+    `state = 'running'`, então a ordem é o que garante isso. A purga de
+    sessões (change login-account-hygiene) fecha o ciclo: remove as linhas
+    expiradas/revogadas além da carência, mantendo a tabela limitada.
     """
     logger = logging.getLogger(__name__)
     while True:
@@ -88,6 +97,9 @@ async def run_reaper(db_path: Path, runtime: ContainerRuntime, idle_timeout_minu
             try:
                 await reconcile_instance_states(conn, runtime)
                 await reap_idle_instances(conn, runtime, idle_timeout_minutes)
+                removidas = purge_sessions(conn, session_purge_grace_hours)
+                if removidas:
+                    logger.info("purga de sessões: %d linha(s) removida(s)", removidas)
             finally:
                 conn.close()
         except Exception:

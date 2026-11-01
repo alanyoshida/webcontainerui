@@ -192,3 +192,90 @@ def test_variacao_de_caixa_do_email_conta_no_mesmo_limite(client, seed_user):
     resp = client.post("/api/auth/login", json={"email": "olga@exemplo.test", "password": "senha-correta-123"})
 
     assert resp.status_code == 429
+
+
+def test_conta_desabilitada_passa_pelo_hash(client, seed_user, monkeypatch):
+    """A checagem de desabilitação vem depois do Argon2: o tempo de resposta
+    de uma conta desabilitada não a distingue das demais falhas."""
+    seed_user("pia@exemplo.test", "senha-correta-123", disabled=True)
+
+    from app.api import auth as auth_module
+
+    chamadas = []
+    original = auth_module.verify_password
+
+    def spy(senha, hash_):
+        chamadas.append(hash_)
+        return original(senha, hash_)
+
+    monkeypatch.setattr(auth_module, "verify_password", spy)
+
+    resp = client.post("/api/auth/login", json={"email": "pia@exemplo.test", "password": "senha-correta-123"})
+
+    assert resp.status_code == 401
+    assert "wcui_session" not in resp.cookies
+    # o hash da conta rodou (não o dummy): a verificação precede a checagem
+    assert len(chamadas) == 1 and chamadas[0].startswith("$argon2")
+
+
+def test_conta_desabilitada_registra_falha_no_limitador(client, seed_user):
+    seed_user("quim@exemplo.test", "senha-correta-123", disabled=True)
+
+    for _ in range(10):
+        client.post("/api/auth/login", json={"email": "quim@exemplo.test", "password": "senha-correta-123"})
+
+    resp = client.post("/api/auth/login", json={"email": "quim@exemplo.test", "password": "senha-correta-123"})
+
+    assert resp.status_code == 429
+
+
+def _insert_session(conn, token_hash, *, user_id=1, expires_at, revoked_at=None):
+    conn.execute(
+        "INSERT INTO sessions (token_hash, user_id, expires_at, revoked_at) VALUES (?, ?, ?, ?)",
+        (token_hash, user_id, expires_at, revoked_at),
+    )
+
+
+def test_purga_remove_expirada_alem_da_carencia(db_conn):
+    from app.services.sessions import purge_sessions
+
+    db_conn.execute("INSERT INTO users (email, password_hash) VALUES ('a@x.test', 'hash')")
+    _insert_session(db_conn, "h-expirada", expires_at="2020-01-01 00:00:00")
+
+    removidas = purge_sessions(db_conn, grace_hours=24)
+
+    assert removidas == 1
+    assert db_conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 0
+
+
+def test_purga_preserva_revogada_recente(db_conn):
+    from datetime import datetime, timedelta, timezone
+
+    from app.services.sessions import purge_sessions
+
+    db_conn.execute("INSERT INTO users (email, password_hash) VALUES ('a@x.test', 'hash')")
+    revogada_ha_1h = (datetime.now(timezone.utc) - timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    _insert_session(
+        db_conn, "h-revogada",
+        expires_at="2099-01-01 00:00:00", revoked_at=revogada_ha_1h,
+    )
+
+    removidas = purge_sessions(db_conn, grace_hours=24)
+
+    assert removidas == 0
+    assert db_conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0] == 1
+
+
+def test_purga_nunca_remove_ativa(db_conn):
+    from app.services.sessions import purge_sessions
+
+    db_conn.execute("INSERT INTO users (email, password_hash) VALUES ('a@x.test', 'hash')")
+    _insert_session(db_conn, "h-ativa", expires_at="2099-01-01 00:00:00")
+
+    removidas = purge_sessions(db_conn, grace_hours=24)
+
+    assert removidas == 0
+    row = db_conn.execute(
+        "SELECT token_hash FROM sessions"
+    ).fetchone()
+    assert row["token_hash"] == "h-ativa"

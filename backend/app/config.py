@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     login_window_seconds: int = Field(default=300, gt=0)
     login_lock_seconds: int = Field(default=300, gt=0)
 
+    # Carência da purga de sessões (change login-account-hygiene, I5): uma
+    # sessão expirada ou revogada só é removida do banco após este período.
+    session_purge_grace_hours: int = Field(default=24, ge=1)
+
     idle_timeout_minutes: int = Field(default=30, gt=0)
     reaper_interval_seconds: int = Field(default=60, gt=0)
     activity_debounce_seconds: int = Field(default=30, gt=0)

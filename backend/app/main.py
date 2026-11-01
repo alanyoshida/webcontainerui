@@ -108,6 +108,7 @@ def create_app(
                 resolved_runtime,
                 resolved_settings.idle_timeout_minutes,
                 resolved_settings.reaper_interval_seconds,
+                resolved_settings.session_purge_grace_hours,
             ),
         )
 

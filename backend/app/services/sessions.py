@@ -79,3 +79,22 @@ def revoke_all_sessions_for_user(conn: sqlite3.Connection, user_id: int) -> None
         "UPDATE sessions SET revoked_at = ? WHERE user_id = ? AND revoked_at IS NULL",
         (_iso(_now()), user_id),
     )
+
+
+def purge_sessions(conn: sqlite3.Connection, grace_hours: int) -> int:
+    """Remove sessões expiradas ou revogadas há mais que a carência.
+
+    A carência preserva o rastro recente de revogação/expiração para
+    depuração e auditoria; sessões ativas nunca são tocadas (elas não
+    autenticam desde a expiração/revogação — a purga só limpa linha morta).
+    Devolve o número de linhas removidas. O corte segue a convenção das
+    demais colunas de timestamp: UTC sem offset, `YYYY-MM-DD HH:MM:SS`.
+    """
+    cutoff = (_now() - timedelta(hours=grace_hours)).strftime("%Y-%m-%d %H:%M:%S")
+    cur = conn.execute(
+        """DELETE FROM sessions
+           WHERE expires_at < ?
+              OR (revoked_at IS NOT NULL AND revoked_at < ?)""",
+        (cutoff, cutoff),
+    )
+    return cur.rowcount
