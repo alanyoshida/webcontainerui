@@ -9,7 +9,7 @@ import CardMedia from "@mui/material/CardMedia";
 import CircularProgress from "@mui/material/CircularProgress";
 import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
-import ImageIcon from "@mui/icons-material/Image";
+import { Image as ImageIcon } from "lucide-react";
 import { api } from "../../api/client";
 import { MONO_FONT_FAMILY } from "../../theme";
 
@@ -73,9 +73,10 @@ export default function CatalogSection({ onStart }) {
                     alignItems: "center",
                     justifyContent: "center",
                     bgcolor: "action.hover",
+                    color: "text.disabled",
                   }}
                 >
-                  <ImageIcon color="disabled" sx={{ fontSize: 48 }} />
+                  <ImageIcon size={48} />
                 </Box>
               )}
               <CardContent>

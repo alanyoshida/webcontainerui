@@ -6,10 +6,7 @@ import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
 import Typography from "@mui/material/Typography";
-import DeleteIcon from "@mui/icons-material/Delete";
-import OpenInNewIcon from "@mui/icons-material/OpenInNew";
-import PlayArrowIcon from "@mui/icons-material/PlayArrow";
-import StopIcon from "@mui/icons-material/Stop";
+import { ExternalLink, Play, Square, Trash2 } from "lucide-react";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { MONO_FONT_FAMILY } from "../../theme";
 
@@ -82,12 +79,12 @@ export default function InstanceTableRow({
             <>
               <Tooltip title="Abrir sessão">
                 <IconButton size="small" onClick={() => onOpenSession(instance.id)}>
-                  <OpenInNewIcon fontSize="small" />
+                  <ExternalLink size={18} />
                 </IconButton>
               </Tooltip>
               <Tooltip title="Parar">
                 <IconButton size="small" disabled={busy} onClick={() => setConfirmingStop(true)}>
-                  <StopIcon fontSize="small" />
+                  <Square size={18} />
                 </IconButton>
               </Tooltip>
             </>
@@ -96,14 +93,14 @@ export default function InstanceTableRow({
           {(instance.state === "stopped" || instance.state === "error") && (
             <Tooltip title="Iniciar">
               <IconButton size="small" disabled={busy} onClick={() => run(() => onStart(instance.image_id))}>
-                <PlayArrowIcon fontSize="small" />
+                <Play size={18} />
               </IconButton>
             </Tooltip>
           )}
 
           <Tooltip title="Excluir">
             <IconButton size="small" color="error" disabled={busy} onClick={() => setConfirmingDelete(true)}>
-              <DeleteIcon fontSize="small" />
+              <Trash2 size={18} />
             </IconButton>
           </Tooltip>
         </Stack>

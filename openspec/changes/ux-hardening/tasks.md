@@ -43,7 +43,7 @@
 
 ## 8. Ícones
 
-- [ ] 8.1 Adicionar `lucide-react`, substituir todos os imports de `@mui/icons-material` pelos equivalentes Lucide e remover a dependência antiga do `package.json`. **Verificar:** `grep` sem imports de `@mui/icons-material` + `npm run build` + `npm test`
+- [x] 8.1 Adicionar `lucide-react`, substituir todos os imports de `@mui/icons-material` pelos equivalentes Lucide e remover a dependência antiga do `package.json`. **Verificar:** `grep` sem imports de `@mui/icons-material` + `npm run build` + `npm test`
 
 ## 9. Verificação integrada
 

@@ -12,7 +12,7 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import ImageIcon from "@mui/icons-material/Image";
+import { Image as ImageIcon } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import { MONO_FONT_FAMILY } from "../../theme";
@@ -146,7 +146,7 @@ export default function ImagesPanel() {
             <TableRow key={image.id}>
               <TableCell>
                 <Avatar src={image.icon_url ?? undefined} variant="rounded">
-                  {!image.icon_url && <ImageIcon fontSize="small" />}
+                  {!image.icon_url && <ImageIcon size={20} />}
                 </Avatar>
               </TableCell>
               <TableCell>{image.display_name}</TableCell>

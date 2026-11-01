@@ -5,9 +5,7 @@ import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
-import FullscreenIcon from "@mui/icons-material/Fullscreen";
-import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
+import { ArrowLeft, Maximize, Minimize } from "lucide-react";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import InstanceSession from "./InstanceSession";
 import { STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
@@ -57,7 +55,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
   return (
     <Box sx={{ display: "flex", flexDirection: "column", height: "calc(100vh - 128px)" }}>
       <Stack direction="row" alignItems="center" spacing={1} sx={{ mb: 2 }}>
-        <Button startIcon={<ArrowBackIcon />} onClick={handleBack}>
+        <Button startIcon={<ArrowLeft size={18} />} onClick={handleBack}>
           Voltar
         </Button>
         <Typography variant="h5" component="h2" sx={{ flexGrow: 1 }}>
@@ -66,7 +64,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         <Chip label={STATE_LABEL[instance.state] ?? instance.state} color={STATE_COLOR[instance.state]} />
 
         {instance.state === "running" && (
-          <Button startIcon={<FullscreenIcon />} onClick={enterFullscreen}>
+          <Button startIcon={<Maximize size={18} />} onClick={enterFullscreen}>
             Tela cheia
           </Button>
         )}
@@ -116,7 +114,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         {isFullscreen && (
           <Button
             variant="contained"
-            startIcon={<FullscreenExitIcon />}
+            startIcon={<Minimize size={18} />}
             onClick={exitFullscreen}
             sx={{ position: "absolute", top: 8, right: 8, zIndex: 1 }}
           >
