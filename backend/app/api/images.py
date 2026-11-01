@@ -14,10 +14,13 @@ from app.services.agent_images import (
 from app.services.background import spawn
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 from app.services.image_pull import run_pull
+from app.services.audit_log import audit
 from app.services.images import (
     create_image,
     disable_image,
+    enable_image,
     get_image,
+    update_image,
     list_catalog_for_admin,
     list_catalog_for_user,
     reopen_for_retry,
@@ -37,7 +40,14 @@ class CreateImageRequest(BaseModel):
     shm_size_mb: int | None = None
     mem_limit_mb: int | None = None
     cpu_limit: float | None = None
-    harden_desktop: bool = False
+
+
+class UpdateImageRequest(BaseModel):
+    display_name: str | None = None
+    shm_size_mb: int | None = None
+    mem_limit_mb: int | None = None
+    cpu_limit: float | None = None
+    port: int | None = None
 
 
 class ImageResponse(BaseModel):
@@ -48,7 +58,6 @@ class ImageResponse(BaseModel):
     shm_size_mb: int
     mem_limit_mb: int
     cpu_limit: float
-    harden_desktop: bool
     enabled: bool
     pull_state: str
     pull_progress: str | None
@@ -69,7 +78,6 @@ def _to_response(row: sqlite3.Row) -> ImageResponse:
         shm_size_mb=row["shm_size_mb"],
         mem_limit_mb=row["mem_limit_mb"],
         cpu_limit=row["cpu_limit"],
-        harden_desktop=bool(row["harden_desktop"]),
         enabled=bool(row["enabled"]),
         pull_state=row["pull_state"],
         pull_progress=row["pull_progress"],
@@ -102,7 +110,6 @@ async def create_image_endpoint(
             shm_size_mb=body.shm_size_mb,
             mem_limit_mb=body.mem_limit_mb,
             cpu_limit=body.cpu_limit,
-            harden_desktop=body.harden_desktop,
         )
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
@@ -248,6 +255,47 @@ def disable_image_endpoint(
     audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
           ip=request.client.host if request.client else None, target=f"imagem {image_id}",
           outcome="success", detail="op=desabilitar")
+
+
+@admin_router.post("/images/{image_id}/enable", status_code=status.HTTP_204_NO_CONTENT)
+async def enable_image_endpoint(
+    image_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
+) -> None:
+    try:
+        enable_image(db, image_id)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail="op=reativar")
+
+
+@admin_router.patch("/images/{image_id}", response_model=ImageResponse)
+async def edit_image_endpoint(
+    image_id: int,
+    body: UpdateImageRequest,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
+) -> ImageResponse:
+    campos = body.model_dump(exclude_unset=True)
+    if not campos:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="nenhum campo para editar"
+        )
+    try:
+        row = update_image(db, image_id, **campos)
+    except NotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ValidationFailedError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail="op=editar")
+    return _to_response(row)
 
 
 @admin_router.get("/images", response_model=list[ImageResponse])

@@ -11,9 +11,22 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import Dialog from "@mui/material/Dialog";
+import DialogActions from "@mui/material/DialogActions";
+import DialogContent from "@mui/material/DialogContent";
+import DialogTitle from "@mui/material/DialogTitle";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
-import { CloudDownload, Ban, Image as ImageIcon, Plus, RefreshCw, Upload } from "lucide-react";
+import {
+  CloudDownload,
+  Ban,
+  Image as ImageIcon,
+  Pencil,
+  Plus,
+  RefreshCw,
+  RotateCcw,
+  Upload,
+} from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import SectionTitle from "../../components/SectionTitle";
@@ -28,7 +41,10 @@ function elapsedLabel(createdAt) {
   // HH:MM:SS"); sem o "Z", o JS interpretaria como hora local e erraria
   // o cálculo — por isso o replace abaixo.
   const started = new Date(createdAt.replace(" ", "T") + "Z");
-  const minutes = Math.max(0, Math.round((Date.now() - started.getTime()) / 60000));
+  const minutes = Math.max(
+    0,
+    Math.round((Date.now() - started.getTime()) / 60000),
+  );
   if (minutes < 1) return "há poucos segundos";
   if (minutes === 1) return "há 1 minuto";
   return `há ${minutes} minutos`;
@@ -41,11 +57,20 @@ export default function ImagesPanel() {
   const [tag, setTag] = useState("latest");
   const [error, setError] = useState("");
   const [disableTarget, setDisableTarget] = useState(null);
+  const [editTarget, setEditTarget] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editShm, setEditShm] = useState("");
+  const [editMem, setEditMem] = useState("");
+  const [editCpu, setEditCpu] = useState("");
+  const [editPort, setEditPort] = useState("");
   const fileInputRef = useRef(null);
   const uploadTargetId = useRef(null);
 
   function reload() {
-    api.adminListImages().then(setImages).catch(() => {});
+    api
+      .adminListImages()
+      .then(setImages)
+      .catch(() => {});
   }
 
   useEffect(() => {
@@ -58,11 +83,19 @@ export default function ImagesPanel() {
     event.preventDefault();
     setError("");
     try {
-      await api.adminCreateImage({ display_name: displayName, repository, tag });
+      await api.adminCreateImage({
+        display_name: displayName,
+        repository,
+        tag,
+      });
       setDisplayName("");
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "Não foi possível registrar a imagem.");
+      setError(
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível registrar a imagem.",
+      );
     }
   }
 
@@ -77,7 +110,60 @@ export default function ImagesPanel() {
       await api.adminUpdateImage(imageId);
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "Não foi possível atualizar a imagem.");
+      setError(
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível atualizar a imagem.",
+      );
+    }
+  }
+
+  function handleEditClick(image) {
+    setEditTarget(image);
+    setEditName(image.display_name);
+    setEditShm(String(image.shm_size_mb));
+    setEditMem(String(image.mem_limit_mb));
+    setEditCpu(String(image.cpu_limit));
+    setEditPort(String(image.port));
+  }
+
+  async function handleEditSubmit(event) {
+    event.preventDefault();
+    setError("");
+    const original = editTarget;
+    const payload = {};
+    if (editName !== original.display_name) payload.display_name = editName;
+    if (Number(editShm) !== original.shm_size_mb)
+      payload.shm_size_mb = Number(editShm);
+    if (Number(editMem) !== original.mem_limit_mb)
+      payload.mem_limit_mb = Number(editMem);
+    if (Number(editCpu) !== original.cpu_limit)
+      payload.cpu_limit = Number(editCpu);
+    if (Number(editPort) !== original.port) payload.port = Number(editPort);
+    try {
+      await api.adminEditImage(original.id, payload);
+      setEditTarget(null);
+      reload();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível editar a imagem.",
+      );
+    }
+  }
+
+  async function handleEnable(imageId) {
+    setError("");
+    try {
+      await api.adminEnableImage(imageId);
+      reload();
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível reativar a imagem.",
+      );
     }
   }
 
@@ -103,7 +189,11 @@ export default function ImagesPanel() {
       await api.adminUploadImageIcon(imageId, file);
       reload();
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "Não foi possível enviar a imagem de capa.");
+      setError(
+        err instanceof ApiError
+          ? err.detail
+          : "Não foi possível enviar a imagem de capa.",
+      );
     }
   }
 
@@ -119,7 +209,11 @@ export default function ImagesPanel() {
       />
       <Box component="form" onSubmit={handleCreate}>
         <SectionTitle>Registrar imagem</SectionTitle>
-        {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+        {error && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {error}
+          </Alert>
+        )}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <TextField
             label="Nome de exibição"
@@ -135,8 +229,18 @@ export default function ImagesPanel() {
             onChange={(e) => setRepository(e.target.value)}
             required
           />
-          <TextField label="Tag" size="small" value={tag} onChange={(e) => setTag(e.target.value)} required />
-          <Button type="submit" variant="contained" startIcon={<Plus size={16} />}>
+          <TextField
+            label="Tag"
+            size="small"
+            value={tag}
+            onChange={(e) => setTag(e.target.value)}
+            required
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            startIcon={<Plus size={16} />}
+          >
             Registrar
           </Button>
         </Stack>
@@ -157,7 +261,10 @@ export default function ImagesPanel() {
             {images.map((image) => (
               <TableRow key={image.id}>
                 <TableCell>
-                  <Avatar src={localCoverUrl(image.icon_url) ?? undefined} variant="rounded">
+                  <Avatar
+                    src={localCoverUrl(image.icon_url) ?? undefined}
+                    variant="rounded"
+                  >
                     {!localCoverUrl(image.icon_url) && <ImageIcon size={20} />}
                   </Avatar>
                 </TableCell>
@@ -165,46 +272,96 @@ export default function ImagesPanel() {
                 <TableCell sx={{ fontFamily: MONO_FONT_FAMILY }}>
                   {image.repository}:{image.tag}
                   {image.image_version && (
-                    <Typography variant="caption" color="text.secondary" component="div">
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      component="div"
+                    >
                       versão {image.image_version}
                     </Typography>
                   )}
                 </TableCell>
                 <TableCell>
-                  <Chip size="small" label={STATE_LABEL[image.pull_state] ?? image.pull_state} color={STATE_COLOR[image.pull_state]} />
-                  {!image.enabled && <Chip size="small" label="Desabilitada" sx={{ ml: 1 }} />}
+                  <Chip
+                    size="small"
+                    label={STATE_LABEL[image.pull_state] ?? image.pull_state}
+                    color={STATE_COLOR[image.pull_state]}
+                  />
+                  {!image.enabled && (
+                    <Chip size="small" label="Desabilitada" sx={{ ml: 1 }} />
+                  )}
                   {image.pull_state === "pulling" && (
-                    <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      component="div"
+                      sx={{ mt: 0.5 }}
+                    >
                       Iniciado {elapsedLabel(image.created_at)}
                       {image.pull_progress && ` — ${image.pull_progress}`}
                     </Typography>
                   )}
                   {image.pull_state === "failed" && image.pull_error && (
-                    <Typography variant="caption" color="error" component="div" sx={{ mt: 0.5 }}>
+                    <Typography
+                      variant="caption"
+                      color="error"
+                      component="div"
+                      sx={{ mt: 0.5 }}
+                    >
                       {image.pull_error}
                     </Typography>
                   )}
                 </TableCell>
                 <TableCell align="right">
-                  <Button size="small" startIcon={<Upload size={16} />} onClick={() => handleUploadIconClick(image.id)}>
+                  <Button
+                    size="small"
+                    startIcon={<Pencil size={16} />}
+                    onClick={() => handleEditClick(image)}
+                  >
+                    Editar
+                  </Button>
+                  {!image.enabled && (
+                    <Button
+                      size="small"
+                      startIcon={<RotateCcw size={16} />}
+                      onClick={() => handleEnable(image.id)}
+                    >
+                      Reativar
+                    </Button>
+                  )}
+                  <Button
+                    size="small"
+                    startIcon={<Upload size={16} />}
+                    onClick={() => handleUploadIconClick(image.id)}
+                  >
                     Enviar capa
                   </Button>
                   {image.pull_state === "failed" && (
-                    <Button size="small" startIcon={<RefreshCw size={16} />} onClick={() => handleRetry(image.id)}>
+                    <Button
+                      size="small"
+                      startIcon={<RefreshCw size={16} />}
+                      onClick={() => handleRetry(image.id)}
+                    >
                       Tentar de novo
                     </Button>
                   )}
-                  {image.pull_state === "ready" && image.provision_kind === "pull" && (
+                  {image.pull_state === "ready" &&
+                    image.provision_kind === "pull" && (
+                      <Button
+                        size="small"
+                        startIcon={<CloudDownload size={16} />}
+                        onClick={() => handleUpdateImage(image.id)}
+                      >
+                        Atualizar imagem
+                      </Button>
+                    )}
+                  {image.enabled && (
                     <Button
                       size="small"
-                      startIcon={<CloudDownload size={16} />}
-                      onClick={() => handleUpdateImage(image.id)}
+                      color="error"
+                      startIcon={<Ban size={16} />}
+                      onClick={() => setDisableTarget(image)}
                     >
-                      Atualizar imagem
-                    </Button>
-                  )}
-                  {image.enabled && (
-                    <Button size="small" color="error" startIcon={<Ban size={16} />} onClick={() => setDisableTarget(image)}>
                       Desabilitar
                     </Button>
                   )}
@@ -214,6 +371,74 @@ export default function ImagesPanel() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog
+        open={editTarget !== null}
+        onClose={() => setEditTarget(null)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <Box component="form" onSubmit={handleEditSubmit}>
+          <DialogTitle>Editar {editTarget?.display_name}</DialogTitle>
+          <DialogContent>
+            <Stack spacing={2} sx={{ mt: 1 }}>
+              <TextField
+                label="Nome de exibição"
+                size="small"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                required
+              />
+              <TextField
+                label="Memória compartilhada — shm (MB)"
+                size="small"
+                type="number"
+                value={editShm}
+                onChange={(e) => setEditShm(e.target.value)}
+                inputProps={{ min: 1 }}
+                required
+              />
+              <TextField
+                label="Limite de memória (MB)"
+                size="small"
+                type="number"
+                value={editMem}
+                onChange={(e) => setEditMem(e.target.value)}
+                inputProps={{ min: 1 }}
+                required
+              />
+              <TextField
+                label="Limite de CPU (núcleos)"
+                size="small"
+                type="number"
+                value={editCpu}
+                onChange={(e) => setEditCpu(e.target.value)}
+                inputProps={{ min: 0.1, step: 0.1 }}
+                required
+              />
+              <TextField
+                label="Porta interna"
+                size="small"
+                type="number"
+                value={editPort}
+                onChange={(e) => setEditPort(e.target.value)}
+                inputProps={{ min: 1, max: 65535 }}
+                required
+              />
+              <Typography variant="caption" color="text.secondary">
+                Instâncias existentes aplicam os novos valores quando o dono as
+                atualiza ("Atualizar imagem").
+              </Typography>
+            </Stack>
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setEditTarget(null)}>Cancelar</Button>
+            <Button type="submit" variant="contained">
+              Salvar
+            </Button>
+          </DialogActions>
+        </Box>
+      </Dialog>
 
       <ConfirmDialog
         open={disableTarget !== null}

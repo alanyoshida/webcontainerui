@@ -11,6 +11,8 @@ vi.mock("../../api/client", () => ({
     adminRetryPull: vi.fn(),
     adminUpdateImage: vi.fn(),
     adminDisableImage: vi.fn(),
+    adminEnableImage: vi.fn(),
+    adminEditImage: vi.fn(),
     adminUploadImageIcon: vi.fn(),
   },
   ApiError: class ApiError extends Error {
@@ -201,4 +203,42 @@ test("versão registrada aparece junto à referência da entrada", async () => {
   render(<ImagesPanel />);
 
   expect(await screen.findByText(/versão 1\.143\.1-ls31/)).toBeInTheDocument();
+});
+
+test("editar abre diálogo preenchido e submete só os campos alterados", async () => {
+  api.adminListImages.mockResolvedValue([
+    imagemBase({ shm_size_mb: 1024, mem_limit_mb: 2048, cpu_limit: 2, port: 3000 }),
+  ]);
+  api.adminEditImage.mockResolvedValue({ id: 1 });
+
+  render(<ImagesPanel />);
+  await screen.findByText("Webtop");
+
+  await userEvent.click(screen.getByRole("button", { name: /editar/i }));
+  const dialog = await screen.findByRole("dialog");
+  const nome = within(dialog).getByLabelText(/nome de exibição/i);
+  expect(nome).toHaveValue("Webtop");
+
+  await userEvent.clear(nome);
+  await userEvent.type(nome, "Webtop Editado");
+  await userEvent.click(within(dialog).getByRole("button", { name: /salvar/i }));
+
+  await waitFor(() => {
+    expect(api.adminEditImage).toHaveBeenCalledWith(1, { display_name: "Webtop Editado" });
+  });
+});
+
+test("entrada desabilitada oferece reativar que chama a API", async () => {
+  api.adminListImages.mockResolvedValue([imagemBase({ enabled: false })]);
+  api.adminEnableImage.mockResolvedValue(null);
+
+  render(<ImagesPanel />);
+  await screen.findByText("Webtop");
+
+  expect(screen.queryByRole("button", { name: /desabilitar/i })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole("button", { name: /reativar/i }));
+
+  await waitFor(() => {
+    expect(api.adminEnableImage).toHaveBeenCalledWith(1);
+  });
 });

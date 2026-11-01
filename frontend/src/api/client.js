@@ -82,6 +82,8 @@ export const api = {
   adminRetryPull: (imageId) => request("POST", `/admin/images/${imageId}/retry-pull`),
   adminUpdateImage: (imageId) => request("POST", `/admin/images/${imageId}/update-image`),
   adminDisableImage: (imageId) => request("POST", `/admin/images/${imageId}/disable`),
+  adminEnableImage: (imageId) => request("POST", `/admin/images/${imageId}/enable`),
+  adminEditImage: (imageId, payload) => request("PATCH", `/admin/images/${imageId}`, payload),
   adminUploadImageIcon: (imageId, file) => {
     const formData = new FormData();
     formData.append("file", file);

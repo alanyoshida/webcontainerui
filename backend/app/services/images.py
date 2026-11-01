@@ -35,7 +35,6 @@ def create_image(
     shm_size_mb: int | None = None,
     mem_limit_mb: int | None = None,
     cpu_limit: float | None = None,
-    harden_desktop: bool = False,
     port: int | None = None,
     provision_kind: str = "pull",
 ) -> int:
@@ -50,8 +49,8 @@ def create_image(
         cur = conn.execute(
             """INSERT INTO images
                    (display_name, repository, tag, shm_size_mb, mem_limit_mb,
-                    cpu_limit, harden_desktop, pull_state, port, provision_kind)
-               VALUES (?, ?, ?, ?, ?, ?, ?, 'pulling', ?, ?)""",
+                    cpu_limit, pull_state, port, provision_kind)
+               VALUES (?, ?, ?, ?, ?, ?, 'pulling', ?, ?)""",
             (
                 display_name,
                 repository,
@@ -59,7 +58,6 @@ def create_image(
                 shm_size_mb or settings.default_shm_size_mb,
                 mem_limit_mb or settings.default_mem_limit_mb,
                 cpu_limit or settings.default_cpu_limit,
-                int(harden_desktop),
                 port if port is not None else 3000,
                 provision_kind,
             ),
@@ -157,6 +155,64 @@ def reopen_for_update(conn: sqlite3.Connection, image_id: int) -> None:
 
 def disable_image(conn: sqlite3.Connection, image_id: int) -> None:
     conn.execute("UPDATE images SET enabled = 0 WHERE id = ?", (image_id,))
+
+
+def enable_image(conn: sqlite3.Connection, image_id: int) -> None:
+    """Reativa uma entrada desabilitada (idempotente: ativar ativa é no-op)."""
+    get_image(conn, image_id)  # NotFoundError se inexistente
+    conn.execute("UPDATE images SET enabled = 1 WHERE id = ?", (image_id,))
+
+
+def update_image(
+    conn: sqlite3.Connection,
+    image_id: int,
+    *,
+    display_name: str | None = None,
+    shm_size_mb: int | None = None,
+    mem_limit_mb: int | None = None,
+    cpu_limit: float | None = None,
+    port: int | None = None,
+) -> sqlite3.Row:
+    """Edita só os campos recebidos (change edit-catalog-image).
+
+    A identidade de provisionamento (repositório, tag, provision_kind), o
+    estado de pull e a habilitação ficam fora da edição — têm fluxos
+    próprios. Limites/porta devem ser estritamente positivos; porta até
+    65535. Sem nenhum campo recebido é erro do cliente (ValidationFailedError).
+    """
+    get_image(conn, image_id)  # NotFoundError se inexistente
+
+    positivos = {
+        "shm_size_mb": shm_size_mb,
+        "mem_limit_mb": mem_limit_mb,
+        "cpu_limit": cpu_limit,
+    }
+    alteracoes: list[str] = []
+    params: list[int | float | str] = []
+    for campo, valor in positivos.items():
+        if valor is None:
+            continue
+        if valor <= 0:
+            raise ValidationFailedError(f"{campo} deve ser maior que zero")
+        alteracoes.append(f"{campo} = ?")
+        params.append(valor)
+    if port is not None:
+        if not (1 <= port <= 65535):
+            raise ValidationFailedError("port deve estar entre 1 e 65535")
+        alteracoes.append("port = ?")
+        params.append(port)
+    if display_name is not None:
+        if not display_name.strip():
+            raise ValidationFailedError("nome de exibição não pode ser vazio")
+        alteracoes.append("display_name = ?")
+        params.append(display_name.strip())
+
+    if not alteracoes:
+        raise ValidationFailedError("nenhum campo para editar")
+
+    params.append(image_id)
+    conn.execute(f"UPDATE images SET {', '.join(alteracoes)} WHERE id = ?", tuple(params))
+    return get_image(conn, image_id)
 
 
 def set_image_icon(
