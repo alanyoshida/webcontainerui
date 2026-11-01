@@ -30,6 +30,12 @@ class Settings(BaseSettings):
     session_ttl_hours: int = Field(default=12, gt=0)
     password_min_length: int = Field(default=12, gt=0)
 
+    # Limitação de tentativas de login com falha (change harden-login,
+    # services/login_throttle.py): janela deslizante por conta e por IP.
+    login_max_failures: int = Field(default=10, gt=0)
+    login_window_seconds: int = Field(default=300, gt=0)
+    login_lock_seconds: int = Field(default=300, gt=0)
+
     idle_timeout_minutes: int = Field(default=30, gt=0)
     reaper_interval_seconds: int = Field(default=60, gt=0)
     activity_debounce_seconds: int = Field(default=30, gt=0)

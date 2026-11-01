@@ -39,6 +39,13 @@ services:
       # Cifra as chaves SSH dos usuários em repouso (ssh-identity). Gere com:
       # python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
       WCUI_SSH_KEY_ENCRYPTION_KEY: ${WCUI_SSH_KEY_ENCRYPTION_KEY:?defina WCUI_SSH_KEY_ENCRYPTION_KEY (gere com Fernet.generate_key())}
+      # Honra os cabeçalhos encaminhados pelo Caddy (X-Forwarded-Proto/For)
+      # vindos da rede interna: sem isto o portal sempre se vê como http e o
+      # cookie de sessão nasce sem a flag Secure, e o limitador de login só
+      # enxerga o IP do Caddy. A allowlist precisa casar com a subnet fixada
+      # no IPAM de `wcui_net` abaixo (change harden-login, M1/M2).
+      UVICORN_PROXY_HEADERS: "true"
+      UVICORN_FORWARDED_ALLOW_IPS: ${WCUI_FORWARDED_ALLOW_IPS:-10.213.0.0/24}
     volumes:
       - wcui_db:/data
       # O portal precisa do socket do Docker para criar os containers de
@@ -57,8 +64,13 @@ networks:
   # Os containers webtop criados pelo portal entram nesta mesma rede, sem
   # publicar porta nenhuma no host (D1/D2 em design.md) — o isolamento
   # entre usuários depende disso, não só da checagem de propriedade no proxy.
+  # A subnet é fixada para que UVICORN_FORWARDED_ALLOW_IPS (acima) possa
+  # allowlistar a rede interna de forma estável entre deploys.
   wcui_net:
     name: wcui_net
+    ipam:
+      config:
+        - subnet: 10.213.0.0/24
 
 volumes:
   wcui_db:

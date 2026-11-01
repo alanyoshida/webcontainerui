@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
 from app.deps import SESSION_COOKIE_NAME, get_current_user, get_db
+from app.services.login_throttle import LoginThrottle
 from app.services.passwords import hash_password, verify_password
 from app.services.sessions import (
     AuthenticatedUser,
@@ -16,6 +17,14 @@ router = APIRouter()
 _INVALID_CREDENTIALS = HTTPException(
     status_code=status.HTTP_401_UNAUTHORIZED, detail="credenciais inválidas"
 )
+
+
+def _throttle_keys(body: "LoginRequest", request: Request) -> tuple[str, str]:
+    """Chaves do limitador para esta tentativa: a conta (e-mail normalizado,
+    para não bifurcar o contador com variações de caixa) e a origem (IP do
+    cliente — atrás de proxy confiável, o IP real via X-Forwarded-For)."""
+    client_host = request.client.host if request.client is not None else "desconhecido"
+    return (f"email:{body.email.strip().lower()}", f"ip:{client_host}")
 
 # Hash de referência usado quando o e-mail não existe, para que o tempo de
 # resposta não varie entre "e-mail inexistente" e "senha incorreta" — a
@@ -42,6 +51,19 @@ def login(
     response: Response,
     db: sqlite3.Connection = Depends(get_db),
 ) -> SessionUserResponse:
+    # Limite consultado antes de qualquer acesso ao banco ou Argon2: a recusa
+    # é idêntica para conta existente e inexistente (anti-enumeração) e poupa
+    # a CPU do hash, que é o vetor de exaustão apontado no pentest.
+    throttle: LoginThrottle = request.app.state.login_throttle
+    keys = _throttle_keys(body, request)
+    retry_after = throttle.retry_after_seconds(*keys)
+    if retry_after is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="muitas tentativas de login; tente novamente mais tarde",
+            headers={"Retry-After": str(retry_after)},
+        )
+
     row = db.execute(
         "SELECT id, email, password_hash, is_admin, disabled_at FROM users WHERE email = ?",
         (body.email,),
@@ -49,16 +71,22 @@ def login(
 
     if row is None:
         verify_password(body.password, _DUMMY_HASH)
+        throttle.record_failure(*keys)
         raise _INVALID_CREDENTIALS
 
     if row["disabled_at"] is not None:
+        throttle.record_failure(*keys)
         raise _INVALID_CREDENTIALS
 
     if not verify_password(body.password, row["password_hash"]):
+        throttle.record_failure(*keys)
         raise _INVALID_CREDENTIALS
 
     settings = request.app.state.settings
     token = create_session(db, row["id"], settings.session_ttl_hours)
+    # Sucesso zera a chave da conta; a de origem permanece, para conter o
+    # spraying de várias contas de um mesmo IP.
+    throttle.record_success(keys[0])
 
     response.set_cookie(
         key=SESSION_COOKIE_NAME,

@@ -6,6 +6,13 @@
 # repassa upgrades de conexão por padrão, diferente do Nginx.
 
 {$WCUI_DOMAIN} {
+	# HSTS (change harden-login, M1): com o cookie de sessão agora marcado
+	# Secure, isto elimina o downgrade para HTTP como vetor de roubo do
+	# cookie por um atacante na rede. Sem includeSubdomains/preload:
+	# o domínio pode receber outros serviços e HSTS agressivo é difícil
+	# de reverter — cada deploy decide se quer ir além.
+	header Strict-Transport-Security "max-age=31536000"
+
 	reverse_proxy portal:8000 {
 		# Sessões de desktop são conexões longas (D1); sem isto, o padrão
 		# do Caddy cortaria uma sessão ociosa bem antes dos 3600s que o

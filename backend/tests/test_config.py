@@ -17,18 +17,27 @@ def test_valores_omitidos_usam_o_padrao():
     assert s.bootstrap_admin is False
     assert str(s.uploads_dir) == "/data/uploads/images"
     assert s.max_icon_upload_mb == 5
+    assert s.login_max_failures == 10
+    assert s.login_window_seconds == 300
+    assert s.login_lock_seconds == 300
 
 
 def test_ambiente_sobrepoe_o_padrao(monkeypatch):
     monkeypatch.setenv("WCUI_DOCKER_NETWORK", "outra_rede")
     monkeypatch.setenv("WCUI_IDLE_TIMEOUT_MINUTES", "5")
     monkeypatch.setenv("WCUI_DEFAULT_CPU_LIMIT", "0.5")
+    monkeypatch.setenv("WCUI_LOGIN_MAX_FAILURES", "3")
+    monkeypatch.setenv("WCUI_LOGIN_WINDOW_SECONDS", "60")
+    monkeypatch.setenv("WCUI_LOGIN_LOCK_SECONDS", "120")
 
     s = Settings()
 
     assert s.docker_network == "outra_rede"
     assert s.idle_timeout_minutes == 5
     assert s.default_cpu_limit == 0.5
+    assert s.login_max_failures == 3
+    assert s.login_window_seconds == 60
+    assert s.login_lock_seconds == 120
 
 
 @pytest.mark.parametrize(

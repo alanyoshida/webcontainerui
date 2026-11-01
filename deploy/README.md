@@ -23,10 +23,36 @@ A composição cria a rede `wcui_net` e o volume do banco automaticamente. O
 inicialização (ver `specs/user-management/spec.md`); o `caddy` depende do
 `portal` já estar de pé antes de começar a aceitar tráfego externo.
 
+> **Atualizando um deploy existente**: a subnet da `wcui_net` é fixada por
+> IPAM (ver variáveis abaixo), e o Docker não aplica IPAM novo em rede já
+> criada — o `docker compose up -d` recria a rede, o que desconecta os
+> containers de instância conectados a ela. Planeje janela de manutenção,
+> como para qualquer atualização que recria rede; o portal reconcilia o
+> estado das instâncias no próprio start.
+
 Depois de subir, entre com `WCUI_ADMIN_EMAIL`/`WCUI_ADMIN_PASSWORD`, registre
 as imagens do catálogo, crie grupos e usuários, e conceda acesso. O download
 de cada imagem roda em segundo plano — acompanhe o estado na aba Catálogo do
 painel administrativo antes de esperar que um usuário consiga iniciá-la.
+
+### Checklist pós-deploy
+
+Duas checagens de dois minutos que pegam as duas falhas silenciosas desta
+área (change `harden-login`):
+
+```bash
+# 1. HSTS presente na borda (resposta do Caddy)
+curl -sI https://$WCUI_DOMAIN | grep -i strict-transport-security
+
+# 2. Cookie de sessão com Secure via HTTPS (fazer login e inspecionar o header)
+curl -sD - -o /dev/null -X POST https://$WCUI_DOMAIN/api/auth/login \
+  -H 'Content-Type: application/json' \
+  -d "{\"email\":\"$WCUI_ADMIN_EMAIL\",\"password\":\"...\"}" | grep -i set-cookie
+```
+
+Se o `Set-Cookie` vier sem `Secure`, o `UVICORN_FORWARDED_ALLOW_IPS` não está
+casando com a subnet real da `wcui_net` — confira com
+`docker network inspect wcui_net` (o IPAM da composição é a fonte da verdade).
 
 ## Variáveis de ambiente
 
@@ -39,6 +65,35 @@ quebrar na inicialização).
 | `WCUI_DOMAIN` | Domínio público; o Caddy obtém certificado Let's Encrypt para ele |
 | `WCUI_ADMIN_EMAIL` | E-mail do primeiro administrador |
 | `WCUI_ADMIN_PASSWORD` | Senha inicial dele (mínimo 12 caracteres) |
+
+### Proxy TLS e cookie `Secure`
+
+Atrás do Caddy, o portal só vê o esquema real da requisição (`https`) e o IP
+real do cliente se confiar nos cabeçalhos encaminhados — sem isso, o cookie
+de sessão nasce sem a flag `Secure` e o limitador de login só enxerga o IP
+do próprio Caddy. A composição de produção já liga isso; as variáveis só
+precisam ser tocadas se você trocar a subnet da rede:
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `WCUI_FORWARDED_ALLOW_IPS` | `10.213.0.0/24` | Subnet confiável (a da `wcui_net` no IPAM) aceita falar `X-Forwarded-*`; alimenta o uvicorn via `UVICORN_FORWARDED_ALLOW_IPS` |
+| `UVICORN_PROXY_HEADERS` | `true` (composição) | Liga o `ProxyHeadersMiddleware` do uvicorn |
+
+O compose de desenvolvimento não define essas variáveis: sem proxy à frente,
+cabeçalhos encaminhados seguem sendo ignorados (origem não confiável).
+
+### Limitação de tentativas de login
+
+O portal limita tentativas de login com falha por conta (e-mail) e por
+origem (IP), com recusa temporária (`429` + `Retry-After`) — estado em
+memória, zerado por restart (janelas curtas; ver
+`backend/app/services/login_throttle.py`):
+
+| Variável | Padrão | Uso |
+|---|---|---|
+| `WCUI_LOGIN_MAX_FAILURES` | `10` | Falhas que disparam a recusa, por chave, dentro da janela |
+| `WCUI_LOGIN_WINDOW_SECONDS` | `300` | Janela deslizante de contagem |
+| `WCUI_LOGIN_LOCK_SECONDS` | `300` | Duração da recusa depois do limiar |
 
 As demais têm padrão razoável e só precisam ser tocadas para calibração —
 ver `app/config.py` no backend para a lista completa (limite de

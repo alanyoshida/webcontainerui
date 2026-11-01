@@ -30,6 +30,7 @@ from app.services.agent_images import seed_agent_images
 from app.services.background import cancel_all, spawn
 from app.services.image_covers import seed_image_covers
 from app.services.instances import backfill_open_runs
+from app.services.login_throttle import LoginThrottle
 from app.services.reaper import reconcile_instance_states, run_reaper
 
 
@@ -59,6 +60,11 @@ def create_app(
         app.state.runtime = resolved_runtime
         app.state.background_tasks = set()
         app.state.activity_tracker = ActivityTracker()
+        app.state.login_throttle = LoginThrottle(
+            max_failures=resolved_settings.login_max_failures,
+            window_seconds=resolved_settings.login_window_seconds,
+            lock_seconds=resolved_settings.login_lock_seconds,
+        )
         if backend_resolver is not None:
             app.state.backend_resolver = backend_resolver
 
