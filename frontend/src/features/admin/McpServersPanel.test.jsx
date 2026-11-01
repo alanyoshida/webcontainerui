@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { api, ApiError } from "../../api/client";
@@ -118,11 +118,17 @@ test("cria servidor remoto com URL e headers condicionais", async () => {
   });
 });
 
-test("remove servidor da biblioteca", async () => {
+test("remover exige confirmação informando o efeito imediato nas instâncias vivas", async () => {
   const user = userEvent.setup();
   render(<McpServersPanel />);
 
   await user.click(await screen.findByRole("button", { name: "Remover" }));
+
+  expect(api.adminDeleteMcpServer).not.toHaveBeenCalled();
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText(/instâncias em execução/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: "Remover" }));
 
   await waitFor(() => expect(api.adminDeleteMcpServer).toHaveBeenCalledWith(1));
 });

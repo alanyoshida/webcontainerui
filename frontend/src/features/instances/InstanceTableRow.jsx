@@ -1,14 +1,10 @@
 import { useState } from "react";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 export const STATE_LABEL = {
   running: "Em execução",
@@ -39,6 +35,7 @@ export default function InstanceTableRow({
   onStop,
   onDelete,
 }) {
+  const [confirmingStop, setConfirmingStop] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
 
@@ -76,7 +73,7 @@ export default function InstanceTableRow({
             <Button size="small" onClick={() => onOpenSession(instance.id)}>
               Abrir sessão
             </Button>
-            <Button size="small" disabled={busy} onClick={() => run(() => onStop(instance.id))}>
+            <Button size="small" disabled={busy} onClick={() => setConfirmingStop(true)}>
               Parar
             </Button>
           </>
@@ -92,28 +89,29 @@ export default function InstanceTableRow({
           Excluir
         </Button>
 
-        <Dialog open={confirmingDelete} onClose={() => setConfirmingDelete(false)}>
-          <DialogTitle>Excluir instância?</DialogTitle>
-          <DialogContent>
-            <DialogContentText>
-              Isto remove o container e o volume de {instance.image_display_name}. Os arquivos salvos
-              dentro dessa instância serão perdidos de forma definitiva.
-            </DialogContentText>
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => setConfirmingDelete(false)}>Cancelar</Button>
-            <Button
-              color="error"
-              disabled={busy}
-              onClick={async () => {
-                setConfirmingDelete(false);
-                await run(() => onDelete(instance.id));
-              }}
-            >
-              Excluir
-            </Button>
-          </DialogActions>
-        </Dialog>
+        <ConfirmDialog
+          open={confirmingStop}
+          title="Parar instância?"
+          description="Os processos em execução são interrompidos; os arquivos permanecem salvos."
+          confirmLabel="Parar"
+          onCancel={() => setConfirmingStop(false)}
+          onConfirm={async () => {
+            setConfirmingStop(false);
+            await run(() => onStop(instance.id));
+          }}
+        />
+
+        <ConfirmDialog
+          open={confirmingDelete}
+          title="Excluir instância?"
+          description={`Isto remove o container e o volume de ${instance.image_display_name}. Os arquivos salvos dentro dessa instância serão perdidos de forma definitiva.`}
+          confirmLabel="Excluir"
+          onCancel={() => setConfirmingDelete(false)}
+          onConfirm={async () => {
+            setConfirmingDelete(false);
+            await run(() => onDelete(instance.id));
+          }}
+        />
       </TableCell>
     </TableRow>
   );

@@ -18,6 +18,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const BUILD_STATE_LABEL = { pulling: "Reconstruindo", ready: "Pronta", failed: "Falhou" };
 const BUILD_STATE_COLOR = { pulling: "info", ready: "success", failed: "error" };
@@ -31,6 +32,7 @@ export default function SkillsPanel() {
   const [repoName, setRepoName] = useState("");
   const [subpath, setSubpath] = useState("");
   const [error, setError] = useState("");
+  const [linkTarget, setLinkTarget] = useState(null);
 
   function reload() {
     api.adminListAgentSkills().then((rows) => setSkills(rows)).catch(() => {});
@@ -97,7 +99,8 @@ export default function SkillsPanel() {
     }
   }
 
-  async function handleToggleLink(imageId, skillId, linked) {
+  async function confirmToggleLink() {
+    const { imageId, skillId, linked } = linkTarget;
     setError("");
     try {
       if (linked) {
@@ -105,8 +108,10 @@ export default function SkillsPanel() {
       } else {
         await api.adminLinkAgentSkill(imageId, skillId);
       }
+      setLinkTarget(null);
       reload();
     } catch (err) {
+      setLinkTarget(null);
       setError(err instanceof ApiError ? err.detail : "Não foi possível alterar o vínculo.");
     }
   }
@@ -217,7 +222,15 @@ export default function SkillsPanel() {
                                 size="small"
                                 checked={linked}
                                 disabled={building}
-                                onChange={() => handleToggleLink(image.id, skill.id, linked)}
+                                onChange={() =>
+                                  setLinkTarget({
+                                    imageId: image.id,
+                                    skillId: skill.id,
+                                    linked,
+                                    imageDisplayName: image.display_name,
+                                    skillDisplayName: skill.display_name,
+                                  })
+                                }
                               />
                             }
                             label={skill.display_name}
@@ -279,6 +292,17 @@ export default function SkillsPanel() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={linkTarget !== null}
+        title={linkTarget?.linked ? "Desvincular skill?" : "Vincular skill?"}
+        description={`Isto dispara um novo build de ${linkTarget?.imageDisplayName} para ${
+          linkTarget?.linked ? "remover" : "instalar"
+        } a skill ${linkTarget?.skillDisplayName}. O progresso pode ser acompanhado como em qualquer outro build.`}
+        confirmLabel={linkTarget?.linked ? "Desvincular" : "Vincular"}
+        onCancel={() => setLinkTarget(null)}
+        onConfirm={confirmToggleLink}
+      />
     </Stack>
   );
 }

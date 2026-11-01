@@ -53,7 +53,7 @@ test("botão voltar chama onBack", async () => {
   expect(onBack).toHaveBeenCalledTimes(1);
 });
 
-test("parar chama onStop e permanece na visão (não chama onBack)", async () => {
+test("parar exige confirmação e, confirmado, chama onStop e permanece na visão (não chama onBack)", async () => {
   const onStop = vi.fn();
   const onBack = vi.fn();
   const user = userEvent.setup();
@@ -62,9 +62,27 @@ test("parar chama onStop e permanece na visão (não chama onBack)", async () =>
   );
 
   await user.click(screen.getByRole("button", { name: "Parar" }));
+  expect(onStop).not.toHaveBeenCalled();
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText(/processos em execução são interrompidos/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: "Parar" }));
 
   expect(onStop).toHaveBeenCalledWith("inst-1");
   expect(onBack).not.toHaveBeenCalled();
+});
+
+test("cancelar a parada não chama onStop", async () => {
+  const onStop = vi.fn();
+  const user = userEvent.setup();
+  render(
+    <InstanceSessionView instance={instance()} idleTimeoutMinutes={30} onBack={vi.fn()} onStop={onStop} onDelete={vi.fn()} />
+  );
+
+  await user.click(screen.getByRole("button", { name: "Parar" }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+
+  expect(onStop).not.toHaveBeenCalled();
 });
 
 test("excluir pede confirmação e, confirmado, chama onDelete seguido de onBack", async () => {

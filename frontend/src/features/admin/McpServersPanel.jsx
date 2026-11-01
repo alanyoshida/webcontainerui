@@ -19,6 +19,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 // Campos condicionais por transporte (mesma regra de validação do backend:
 // stdio exige comando; http/sse exige URL).
@@ -38,6 +39,7 @@ export default function McpServersPanel() {
   const [enabled, setEnabled] = useState(true);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   function reload() {
     api.adminListMcpServers().then((rows) => setServers(rows)).catch(() => {});
@@ -135,14 +137,16 @@ export default function McpServersPanel() {
     }
   }
 
-  async function handleDelete(server) {
+  async function handleDeleteConfirmed() {
     setError("");
     setWarning("");
     try {
-      const resp = await api.adminDeleteMcpServer(server.id);
+      const resp = await api.adminDeleteMcpServer(deleteTarget.id);
       reportValidationErrors(resp);
+      setDeleteTarget(null);
       reload();
     } catch (err) {
+      setDeleteTarget(null);
       setError(err instanceof ApiError ? err.detail : "Não foi possível remover o servidor MCP.");
     }
   }
@@ -222,7 +226,7 @@ export default function McpServersPanel() {
                     <Button size="small" onClick={() => openEdit(server)}>
                       Editar
                     </Button>
-                    <Button size="small" color="error" onClick={() => handleDelete(server)}>
+                    <Button size="small" color="error" onClick={() => setDeleteTarget(server)}>
                       Remover
                     </Button>
                   </TableCell>
@@ -380,6 +384,15 @@ export default function McpServersPanel() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`Remover ${deleteTarget?.display_name}?`}
+        description="O efeito alcança imediatamente as instâncias em execução das imagens vinculadas a este servidor — elas deixam de ter esse servidor configurado."
+        confirmLabel="Remover"
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={handleDeleteConfirmed}
+      />
     </Stack>
   );
 }

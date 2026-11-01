@@ -14,6 +14,7 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import ImageIcon from "@mui/icons-material/Image";
 import { api, ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const STATE_LABEL = { pulling: "Baixando", ready: "Pronta", failed: "Falhou" };
 const STATE_COLOR = { pulling: "info", ready: "success", failed: "error" };
@@ -35,6 +36,7 @@ export default function ImagesPanel() {
   const [repository, setRepository] = useState("lscr.io/linuxserver/webtop");
   const [tag, setTag] = useState("latest");
   const [error, setError] = useState("");
+  const [disableTarget, setDisableTarget] = useState(null);
   const fileInputRef = useRef(null);
   const uploadTargetId = useRef(null);
 
@@ -65,8 +67,9 @@ export default function ImagesPanel() {
     reload();
   }
 
-  async function handleDisable(imageId) {
-    await api.adminDisableImage(imageId);
+  async function handleDisableConfirmed() {
+    await api.adminDisableImage(disableTarget.id);
+    setDisableTarget(null);
     reload();
   }
 
@@ -174,7 +177,7 @@ export default function ImagesPanel() {
                   </Button>
                 )}
                 {image.enabled && (
-                  <Button size="small" color="error" onClick={() => handleDisable(image.id)}>
+                  <Button size="small" color="error" onClick={() => setDisableTarget(image)}>
                     Desabilitar
                   </Button>
                 )}
@@ -183,6 +186,15 @@ export default function ImagesPanel() {
           ))}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={disableTarget !== null}
+        title={`Desabilitar ${disableTarget?.display_name}?`}
+        description="A entrada deixa de aparecer no catálogo oferecido aos usuários e novas instâncias a partir dela passam a ser recusadas. O registro é preservado."
+        confirmLabel="Desabilitar"
+        onCancel={() => setDisableTarget(null)}
+        onConfirm={handleDisableConfirmed}
+      />
     </Stack>
   );
 }

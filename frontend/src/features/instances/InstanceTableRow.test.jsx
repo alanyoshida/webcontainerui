@@ -62,6 +62,45 @@ test("excluir pede confirmação antes de chamar onDelete", async () => {
   expect(onDelete).toHaveBeenCalledWith("inst-1");
 });
 
+test("parar exige confirmação antes de chamar onStop", async () => {
+  const onStop = vi.fn();
+  const user = userEvent.setup();
+  renderRow({
+    instance: instance(),
+    idleTimeoutMinutes: 30,
+    onOpenSession: vi.fn(),
+    onStart: vi.fn(),
+    onStop,
+    onDelete: vi.fn(),
+  });
+
+  await user.click(screen.getByRole("button", { name: "Parar" }));
+  expect(onStop).not.toHaveBeenCalled();
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText(/processos em execução são interrompidos/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: "Parar" }));
+  expect(onStop).toHaveBeenCalledWith("inst-1");
+});
+
+test("cancelar a parada não chama onStop", async () => {
+  const onStop = vi.fn();
+  const user = userEvent.setup();
+  renderRow({
+    instance: instance(),
+    idleTimeoutMinutes: 30,
+    onOpenSession: vi.fn(),
+    onStart: vi.fn(),
+    onStop,
+    onDelete: vi.fn(),
+  });
+
+  await user.click(screen.getByRole("button", { name: "Parar" }));
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Cancelar" }));
+
+  expect(onStop).not.toHaveBeenCalled();
+});
+
 test("cancelar a exclusão não chama onDelete", async () => {
   const onDelete = vi.fn();
   const user = userEvent.setup();

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { vi } from "vitest";
 import { api, ApiError } from "../../api/client";
@@ -136,4 +136,22 @@ test("erro no envio de capa é exibido ao administrador", async () => {
   await user.upload(screen.getByTestId("icon-file-input"), arquivo);
 
   expect(await screen.findByText("arquivo enviado não é uma imagem reconhecida")).toBeInTheDocument();
+});
+
+test("desabilitar exige confirmação descrevendo a retirada da oferta", async () => {
+  const user = userEvent.setup();
+  api.adminListImages.mockResolvedValue([imagemBase()]);
+  api.adminDisableImage.mockResolvedValue();
+
+  render(<ImagesPanel />);
+  await user.click(await screen.findByRole("button", { name: /desabilitar/i }));
+
+  expect(api.adminDisableImage).not.toHaveBeenCalled();
+  const dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText("Desabilitar Webtop?")).toBeInTheDocument();
+  expect(within(dialog).getByText(/deixa de aparecer no catálogo/)).toBeInTheDocument();
+
+  await user.click(within(dialog).getByRole("button", { name: /^desabilitar$/i }));
+
+  expect(api.adminDisableImage).toHaveBeenCalledWith(1);
 });

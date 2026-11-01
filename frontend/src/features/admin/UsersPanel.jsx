@@ -14,13 +14,17 @@ import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
+import { useAuth } from "../../auth/AuthContext";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function UsersPanel() {
+  const { user: currentUser } = useAuth();
   const [users, setUsers] = useState([]);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isAdmin, setIsAdmin] = useState(false);
   const [error, setError] = useState("");
+  const [disableTarget, setDisableTarget] = useState(null);
 
   function reload() {
     api.adminListUsers().then(setUsers).catch(() => {});
@@ -42,9 +46,15 @@ export default function UsersPanel() {
     }
   }
 
-  async function handleDisable(userId) {
-    await api.adminDisableUser(userId);
-    reload();
+  async function handleDisableConfirmed() {
+    setError("");
+    try {
+      await api.adminDisableUser(disableTarget.id);
+      setDisableTarget(null);
+      reload();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "Não foi possível desabilitar a conta.");
+    }
   }
 
   return (
@@ -89,8 +99,8 @@ export default function UsersPanel() {
                 />
               </TableCell>
               <TableCell align="right">
-                {!user.disabled && (
-                  <Button size="small" color="error" onClick={() => handleDisable(user.id)}>
+                {!user.disabled && user.id !== currentUser?.id && (
+                  <Button size="small" color="error" onClick={() => setDisableTarget(user)}>
                     Desabilitar
                   </Button>
                 )}
@@ -99,6 +109,15 @@ export default function UsersPanel() {
           ))}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={disableTarget !== null}
+        title={`Desabilitar ${disableTarget?.email}?`}
+        description={`A conta ${disableTarget?.email} perde acesso imediatamente; o registro e os dados dela são preservados.`}
+        confirmLabel="Desabilitar"
+        onCancel={() => setDisableTarget(null)}
+        onConfirm={handleDisableConfirmed}
+      />
     </Stack>
   );
 }

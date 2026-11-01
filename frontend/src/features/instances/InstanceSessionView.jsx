@@ -3,16 +3,12 @@ import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import FullscreenIcon from "@mui/icons-material/Fullscreen";
 import FullscreenExitIcon from "@mui/icons-material/FullscreenExit";
+import ConfirmDialog from "../../components/ConfirmDialog";
 import InstanceSession from "./InstanceSession";
 import { STATE_COLOR, STATE_LABEL } from "./InstanceTableRow";
 import { useFullscreen } from "./useFullscreen";
@@ -24,6 +20,7 @@ import { useFullscreen } from "./useFullscreen";
  * em vez da caixa 16:9 fixa que tinha dentro do antigo InstanceCard.
  */
 export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBack, onStop, onDelete }) {
+  const [confirmingStop, setConfirmingStop] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState(false);
   const sessionAreaRef = useRef(null);
@@ -74,7 +71,7 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
           </Button>
         )}
         {instance.state === "running" && (
-          <Button disabled={busy} onClick={() => run(() => onStop(instance.id))}>
+          <Button disabled={busy} onClick={() => setConfirmingStop(true)}>
             Parar
           </Button>
         )}
@@ -128,21 +125,26 @@ export default function InstanceSessionView({ instance, idleTimeoutMinutes, onBa
         )}
       </Box>
 
-      <Dialog open={confirmingDelete} onClose={() => setConfirmingDelete(false)}>
-        <DialogTitle>Excluir instância?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Isto remove o container e o volume de {instance.image_display_name}. Os arquivos salvos
-            dentro dessa instância serão perdidos de forma definitiva.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmingDelete(false)}>Cancelar</Button>
-          <Button color="error" disabled={busy} onClick={handleDeleteConfirmed}>
-            Excluir
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingStop}
+        title="Parar instância?"
+        description="Os processos em execução são interrompidos; os arquivos permanecem salvos."
+        confirmLabel="Parar"
+        onCancel={() => setConfirmingStop(false)}
+        onConfirm={async () => {
+          setConfirmingStop(false);
+          await run(() => onStop(instance.id));
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmingDelete}
+        title="Excluir instância?"
+        description={`Isto remove o container e o volume de ${instance.image_display_name}. Os arquivos salvos dentro dessa instância serão perdidos de forma definitiva.`}
+        confirmLabel="Excluir"
+        onCancel={() => setConfirmingDelete(false)}
+        onConfirm={handleDeleteConfirmed}
+      />
     </Box>
   );
 }

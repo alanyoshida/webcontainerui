@@ -17,6 +17,7 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 export default function GroupsPanel() {
   const [groups, setGroups] = useState([]);
@@ -26,6 +27,8 @@ export default function GroupsPanel() {
   const [managingGroup, setManagingGroup] = useState(null);
   const [members, setMembers] = useState([]);
   const [selectedUserId, setSelectedUserId] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteTargetMemberCount, setDeleteTargetMemberCount] = useState(null);
 
   function reloadGroups() {
     api.adminListGroups().then(setGroups).catch(() => {});
@@ -48,8 +51,16 @@ export default function GroupsPanel() {
     }
   }
 
-  async function handleDeleteGroup(groupId) {
-    await api.adminDeleteGroup(groupId);
+  async function openDeleteDialog(group) {
+    setDeleteTarget(group);
+    const groupMembers = await api.adminListMembers(group.id);
+    setDeleteTargetMemberCount(groupMembers.length);
+  }
+
+  async function confirmDeleteGroup() {
+    await api.adminDeleteGroup(deleteTarget.id);
+    setDeleteTarget(null);
+    setDeleteTargetMemberCount(null);
     reloadGroups();
   }
 
@@ -108,7 +119,7 @@ export default function GroupsPanel() {
                 <Button size="small" onClick={() => openManageMembers(group)}>
                   Membros
                 </Button>
-                <Button size="small" color="error" onClick={() => handleDeleteGroup(group.id)}>
+                <Button size="small" color="error" onClick={() => openDeleteDialog(group)}>
                   Excluir
                 </Button>
               </TableCell>
@@ -156,6 +167,25 @@ export default function GroupsPanel() {
           <Button onClick={() => setManagingGroup(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>
+
+      <ConfirmDialog
+        open={deleteTarget !== null}
+        title={`Excluir ${deleteTarget?.name}?`}
+        description={
+          deleteTargetMemberCount === null
+            ? "Calculando impacto..."
+            : deleteTargetMemberCount === 0
+              ? "Este grupo não tem membros. As contas dos usuários não são afetadas."
+              : `Este grupo tem ${deleteTargetMemberCount} membro(s). As contas deles são preservadas; só o grupo e suas concessões de imagem deixam de existir.`
+        }
+        confirmLabel="Excluir"
+        confirmDisabled={deleteTargetMemberCount === null}
+        onCancel={() => {
+          setDeleteTarget(null);
+          setDeleteTargetMemberCount(null);
+        }}
+        onConfirm={confirmDeleteGroup}
+      />
     </Stack>
   );
 }

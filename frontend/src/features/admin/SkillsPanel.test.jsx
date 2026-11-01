@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, expect, test, vi } from "vitest";
 import { api, ApiError } from "../../api/client";
@@ -104,7 +104,7 @@ test("remove uma skill com erro mostra a mensagem do backend", async () => {
   expect(api.adminDeleteAgentSkill).toHaveBeenCalledWith(1);
 });
 
-test("alterna o vínculo pelo checkbox", async () => {
+test("alterar o vínculo pelo checkbox exige confirmação do rebuild antes de chamar a API", async () => {
   const user = userEvent.setup();
   render(<SkillsPanel />);
 
@@ -114,14 +114,33 @@ test("alterna o vínculo pelo checkbox", async () => {
   expect(checkboxes[1]).not.toBeChecked();
 
   await user.click(checkboxes[1]);
+  expect(api.adminLinkAgentSkill).not.toHaveBeenCalled();
+  let dialog = screen.getByRole("dialog");
+  expect(within(dialog).getByText(/dispara um novo build/)).toBeInTheDocument();
+  await user.click(within(dialog).getByRole("button", { name: "Vincular" }));
   await waitFor(() => {
     expect(api.adminLinkAgentSkill).toHaveBeenCalledWith(8, 1);
   });
 
   await user.click(checkboxes[0]);
+  dialog = screen.getByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "Desvincular" }));
   await waitFor(() => {
     expect(api.adminUnlinkAgentSkill).toHaveBeenCalledWith(7, 1);
   });
+});
+
+test("cancelar o diálogo de vínculo não chama a API e mantém o checkbox inalterado", async () => {
+  const user = userEvent.setup();
+  render(<SkillsPanel />);
+
+  const checkboxes = await screen.findAllByRole("checkbox", { name: "Vercel Optimize" });
+  await user.click(checkboxes[1]);
+  const dialog = screen.getByRole("dialog");
+  await user.click(within(dialog).getByRole("button", { name: "Cancelar" }));
+
+  expect(api.adminLinkAgentSkill).not.toHaveBeenCalled();
+  expect(checkboxes[1]).not.toBeChecked();
 });
 
 test("após vincular, mostra o estado de build em andamento", async () => {
@@ -156,6 +175,7 @@ test("após vincular, mostra o estado de build em andamento", async () => {
 
   const checkboxes = await screen.findAllByRole("checkbox", { name: "Vercel Optimize" });
   await user.click(checkboxes[1]); // vincula na imagem OpenCode (segunda linha)
+  await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Vincular" }));
 
   expect(await screen.findByText("Reconstruindo")).toBeInTheDocument();
 

@@ -2,15 +2,11 @@ import { useEffect, useState } from "react";
 import Alert from "@mui/material/Alert";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
-import Dialog from "@mui/material/Dialog";
-import DialogActions from "@mui/material/DialogActions";
-import DialogContent from "@mui/material/DialogContent";
-import DialogContentText from "@mui/material/DialogContentText";
-import DialogTitle from "@mui/material/DialogTitle";
 import Stack from "@mui/material/Stack";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api } from "../api/client";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 /**
  * Chave SSH própria do usuário, gerada e guardada pelo portal — nunca uma
@@ -90,22 +86,14 @@ export default function SshIdentityPage() {
         Regenerar identidade
       </Button>
 
-      <Dialog open={confirmingRegenerate} onClose={() => setConfirmingRegenerate(false)}>
-        <DialogTitle>Regenerar identidade SSH?</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            Isto substitui sua chave SSH por uma nova. A chave antiga para de
-            funcionar — se você a cadastrou em algum git host, precisará
-            cadastrar a nova lá também.
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setConfirmingRegenerate(false)}>Cancelar</Button>
-          <Button color="error" onClick={handleRegenerateConfirmed}>
-            Regenerar
-          </Button>
-        </DialogActions>
-      </Dialog>
+      <ConfirmDialog
+        open={confirmingRegenerate}
+        title="Regenerar identidade SSH?"
+        description="Isto substitui sua chave SSH por uma nova. A chave antiga para de funcionar — se você a cadastrou em algum git host, precisará cadastrar a nova lá também."
+        confirmLabel="Regenerar"
+        onCancel={() => setConfirmingRegenerate(false)}
+        onConfirm={handleRegenerateConfirmed}
+      />
     </Box>
   );
 }

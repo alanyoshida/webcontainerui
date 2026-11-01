@@ -6,14 +6,14 @@
 
 ## 2. Diálogo de confirmação reutilizável
 
-- [ ] 2.1 Criar `ConfirmDialog` compartilhado no padrão do `AccessPanel` (título, impacto, botão de confirmação `color="error"` `variant="contained"`, estado de busy, foco no cancelar) com teste vitest de render, confirmação e busy. **Verificar:** `cd frontend && npm test`
-- [ ] 2.2 Parar instância exige confirmação na tabela (`InstanceTableRow`) e na visão de sessão (`InstanceSessionView`), com texto "processos são interrompidos; arquivos permanecem salvos". **Verificar:** teste vitest de que a ação só dispara após confirmar
-- [ ] 2.3 Desabilitar usuário exige diálogo com o e-mail da conta, e a própria linha do admin logado não oferece a ação (além da recusa do backend 1.1). **Verificar:** teste vitest
-- [ ] 2.4 Excluir grupo (`GroupsPanel`) com diálogo citando o número de membros. **Verificar:** teste vitest
-- [ ] 2.5 Desabilitar imagem (`ImagesPanel`) com diálogo descrevendo a retirada da oferta. **Verificar:** teste vitest
-- [ ] 2.6 Vínculo/desvínculo de skill (`SkillsPanel`) com diálogo informando que um build será disparado; checkbox só reflete estado após confirmação. **Verificar:** teste vitest
-- [ ] 2.7 Remover servidor MCP (`McpServersPanel`) com diálogo informando propagação imediata às instâncias vivas. **Verificar:** teste vitest
-- [ ] 2.8 Migrar os diálogos existentes (excluir instância em `InstanceTableRow`/`InstanceSessionView`, regenerar SSH) para `ConfirmDialog`, preservando os textos atuais. **Verificar:** testes existentes seguem verdes
+- [x] 2.1 Criar `ConfirmDialog` compartilhado no padrão do `AccessPanel` (título, impacto, botão de confirmação `color="error"` `variant="contained"`, estado de busy, foco no cancelar) com teste vitest de render, confirmação e busy. **Verificar:** `cd frontend && npm test`
+- [x] 2.2 Parar instância exige confirmação na tabela (`InstanceTableRow`) e na visão de sessão (`InstanceSessionView`), com texto "processos são interrompidos; arquivos permanecem salvos". **Verificar:** teste vitest de que a ação só dispara após confirmar
+- [x] 2.3 Desabilitar usuário exige diálogo com o e-mail da conta, e a própria linha do admin logado não oferece a ação (além da recusa do backend 1.1). **Verificar:** teste vitest
+- [x] 2.4 Excluir grupo (`GroupsPanel`) com diálogo citando o número de membros. **Verificar:** teste vitest
+- [x] 2.5 Desabilitar imagem (`ImagesPanel`) com diálogo descrevendo a retirada da oferta. **Verificar:** teste vitest
+- [x] 2.6 Vínculo/desvínculo de skill (`SkillsPanel`) com diálogo informando que um build será disparado; checkbox só reflete estado após confirmação. **Verificar:** teste vitest
+- [x] 2.7 Remover servidor MCP (`McpServersPanel`) com diálogo informando propagação imediata às instâncias vivas. **Verificar:** teste vitest
+- [x] 2.8 Migrar os diálogos existentes (excluir instância em `InstanceTableRow`/`InstanceSessionView`, regenerar SSH) para `ConfirmDialog`, preservando os textos atuais. **Verificar:** testes existentes seguem verdes
 
 ## 3. Console administrativo em seções
 
