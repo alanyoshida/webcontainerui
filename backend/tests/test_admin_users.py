@@ -94,6 +94,17 @@ def test_desabilitar_conta_revoga_sessao_existente(client, seed_user):
     assert row["disabled_at"] is not None
 
 
+def test_administrador_nao_pode_se_autodesabilitar(client, seed_user):
+    login = _login(client, seed_user)
+    admin_id = login.json()["id"]
+
+    resp = client.post(f"/api/admin/users/{admin_id}/disable")
+    assert resp.status_code == 409
+
+    ainda_ativo = client.get("/api/auth/me")
+    assert ainda_ativo.status_code == 200
+
+
 def test_conflito_de_nome_de_grupo(client, seed_user):
     _login(client, seed_user)
     client.post("/api/admin/groups", json={"name": "devs"})

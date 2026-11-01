@@ -5,6 +5,7 @@ from pydantic import BaseModel
 
 from app.deps import get_db, require_admin
 from app.services.errors import ConflictError, ValidationFailedError
+from app.services.sessions import AuthenticatedUser
 from app.services.groups import (
     add_member,
     create_group,
@@ -103,9 +104,15 @@ def list_users_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[UserLi
 
 @router.post("/users/{user_id}/disable", status_code=status.HTTP_204_NO_CONTENT)
 async def disable_user_endpoint(
-    user_id: int, request: Request, db: sqlite3.Connection = Depends(get_db)
+    user_id: int,
+    request: Request,
+    db: sqlite3.Connection = Depends(get_db),
+    admin: AuthenticatedUser = Depends(require_admin),
 ) -> None:
-    disable_user(db, user_id)
+    try:
+        disable_user(db, user_id, requester_id=admin.id)
+    except ConflictError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     await stop_all_running_for_user(db, request.app.state.runtime, user_id)
 
 

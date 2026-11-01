@@ -2,7 +2,7 @@
 
 ## 1. Backend: recusa de auto-desabilitação
 
-- [ ] 1.1 Em `POST /api/admin/users/{id}/disable`, recusar com erro de conflito quando o alvo é o próprio administrador autenticado; adicionar teste pytest cobrindo a recusa e o caso normal de desabilitar outro usuário. **Verificar:** `cd backend && .venv/bin/python -m pytest`
+- [x] 1.1 Em `POST /api/admin/users/{id}/disable`, recusar com erro de conflito quando o alvo é o próprio administrador autenticado; adicionar teste pytest cobrindo a recusa e o caso normal de desabilitar outro usuário. **Verificar:** `cd backend && .venv/bin/python -m pytest`
 
 ## 2. Diálogo de confirmação reutilizável
 

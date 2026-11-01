@@ -27,11 +27,14 @@ def create_user(
     return cur.lastrowid
 
 
-def disable_user(conn: sqlite3.Connection, user_id: int) -> None:
+def disable_user(conn: sqlite3.Connection, user_id: int, *, requester_id: int) -> None:
     """Desabilita a conta e revoga todas as sessões existentes dela.
 
-    O registro do usuário é preservado; apenas o acesso é bloqueado.
+    O registro do usuário é preservado; apenas o acesso é bloqueado. Um
+    administrador não pode desabilitar a própria conta.
     """
+    if requester_id == user_id:
+        raise ConflictError("um administrador não pode desabilitar a própria conta")
     conn.execute(
         "UPDATE users SET disabled_at = datetime('now') WHERE id = ? AND disabled_at IS NULL",
         (user_id,),
