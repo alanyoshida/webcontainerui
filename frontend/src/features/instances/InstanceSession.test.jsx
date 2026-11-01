@@ -19,7 +19,7 @@ test("o endereço usado é relativo à própria origem, não um host de containe
   const iframe = await screen.findByTitle(/Sessão da instância abc-123/);
   const src = iframe.getAttribute("src");
 
-  expect(src).toBe("/i/abc-123/");
+  expect(src).toBe("/i/abc-123/?resize=scale");
   expect(src).not.toMatch(/^https?:\/\//); // nunca aponta para outra origem
 });
 

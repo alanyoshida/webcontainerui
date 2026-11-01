@@ -28,7 +28,7 @@
 
 ## 5. Sessão
 
-- [ ] 5.1 Adicionar parâmetro de dimensionamento ao `src` do iframe (`/i/{id}/?resize=scale`) e envolvê-lo em caixa com centralização e fundo escuro de terminal (fixo) como fallback para conteúdos que ignoram o parâmetro. **Verificar:** inspeção manual e2e com imagem de agente (ttyd) e webtop (Selkies), redimensionando a janela
+- [x] 5.1 Adicionar parâmetro de dimensionamento ao `src` do iframe (`/i/{id}/?resize=scale`) e envolvê-lo em caixa com centralização e fundo escuro de terminal (fixo) como fallback para conteúdos que ignoram o parâmetro. **Verificar:** inspeção manual e2e com imagem de agente (ttyd) e webtop (Selkies), redimensionando a janela
 
 ## 6. Temas e tipografia
 

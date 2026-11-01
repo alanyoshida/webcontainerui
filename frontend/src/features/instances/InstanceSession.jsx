@@ -92,12 +92,28 @@ export default function InstanceSession({ instanceId }) {
     );
   }
 
+  // O parâmetro de dimensionamento (`?resize=scale`) pede ao conteúdo
+  // embutido (ttyd dos agentes) que acompanhe a área disponível; quando o
+  // conteúdo ignora o parâmetro (ex.: Selkies/webtop), a caixa externa
+  // centralizada com o fundo do tema ativo evita a aparência de faixa morta
+  // (ver session-view spec — "fundo coerente com o tema ativo").
   return (
     <Box
-      component="iframe"
-      title={`Sessão da instância ${instanceId}`}
-      src={`/i/${instanceId}/`}
-      sx={{ width: "100%", height: "100%", border: 0, display: "block" }}
-    />
+      sx={{
+        width: "100%",
+        height: "100%",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: "background.default",
+      }}
+    >
+      <Box
+        component="iframe"
+        title={`Sessão da instância ${instanceId}`}
+        src={`/i/${instanceId}/?resize=scale`}
+        sx={{ width: "100%", height: "100%", border: 0, display: "block" }}
+      />
+    </Box>
   );
 }
