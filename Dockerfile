@@ -14,7 +14,10 @@ WORKDIR /app
 
 COPY backend/pyproject.toml ./
 COPY backend/app ./app
-RUN pip install --no-cache-dir .
+# pip e setuptools da base carregam CVEs conhecidos na instalação de
+# wheels/sdists; o upgrade os elimina antes de qualquer install (scan
+# trivy 2026-11-01).
+RUN pip install --no-cache-dir --upgrade pip setuptools && pip install --no-cache-dir .
 
 # Contextos de build das imagens de agente: o seed roda dentro deste
 # container e envia o contexto para o daemon do host via docker.sock.

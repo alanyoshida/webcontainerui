@@ -7,6 +7,9 @@ dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "aiodocker>=0.23",
+    # Piso de segurança: dependência transitiva do aiodocker com CVEs de
+    # desserialização corrigidos em 1.2.1+ (scan trivy 2026-11-01).
+    "msgpack>=1.2.3",
     "argon2-cffi>=23.1",
     "pydantic-settings>=2.6",
     "httpx>=0.28",
