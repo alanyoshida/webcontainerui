@@ -10,7 +10,7 @@ const PALETTES = {
   // Carvão, não preto puro (ver theming spec: "Identificação do dark").
   dark: {
     mode: "dark",
-    primary: { main: "#5b9bd9" },
+    primary: { main: "#fb7185" },
     secondary: { main: "#90a4ae" },
     background: { default: "#121417", paper: "#1a1d21" },
   },
