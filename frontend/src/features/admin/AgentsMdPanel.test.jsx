@@ -38,7 +38,7 @@ test("lista documentos e imagens com vínculo atual", async () => {
   render(<AgentsMdPanel />);
 
   expect((await screen.findAllByText("Padrão")).length).toBeGreaterThan(0);
-  expect(screen.getByText("1 imagem(ns)")).toBeInTheDocument();
+  expect(screen.getByText("1 imagem")).toBeInTheDocument();
   expect(screen.getByText(/Claude Code/)).toBeInTheDocument();
   expect(screen.getByText(/Webtop/)).toBeInTheDocument();
 });
@@ -92,6 +92,17 @@ test("vincula documento a uma imagem pelo seletor", async () => {
   await waitFor(() => {
     expect(api.adminSetImageAgentsMd).toHaveBeenCalledWith(9, 1);
   });
+});
+
+test("vincular com sucesso mostra confirmação visual distinta de erro", async () => {
+  const user = userEvent.setup();
+  render(<AgentsMdPanel />);
+
+  const seletores = await screen.findAllByRole("combobox");
+  await user.click(seletores[1]);
+  await user.click(await screen.findByRole("option", { name: "Padrão" }));
+
+  expect(await screen.findByText("Vínculo salvo.")).toBeInTheDocument();
 });
 
 test("remover documento com erro mostra a mensagem do backend", async () => {

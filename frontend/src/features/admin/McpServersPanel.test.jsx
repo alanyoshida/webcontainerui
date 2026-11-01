@@ -71,7 +71,7 @@ test("lista servidores e imagens com vínculo atual", async () => {
   render(<McpServersPanel />);
 
   expect((await screen.findAllByText("Contexto")).length).toBeGreaterThan(0);
-  expect(screen.getByText("1 imagem(ns)")).toBeInTheDocument();
+  expect(screen.getByText("1 imagem")).toBeInTheDocument();
   expect(screen.getByText(/Claude Code/)).toBeInTheDocument();
   expect(screen.getByText(/OpenCode/)).toBeInTheDocument();
 });
@@ -145,6 +145,7 @@ test("alterna vínculo de imagem com checkbox", async () => {
   await waitFor(() =>
     expect(api.adminUnlinkMcpServer).toHaveBeenCalledWith(7, 1)
   );
+  expect(await screen.findByText("Vínculo salvo.")).toBeInTheDocument();
 });
 
 test("alerta quebra de contrato nomeando MCP e campo", async () => {

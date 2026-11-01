@@ -20,6 +20,8 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SuccessSnackbar from "../../components/SuccessSnackbar";
+import { imageCountLabel } from "../../utils/pluralize";
 
 // Campos condicionais por transporte (mesma regra de validação do backend:
 // stdio exige comando; http/sse exige URL).
@@ -39,6 +41,7 @@ export default function McpServersPanel() {
   const [enabled, setEnabled] = useState(true);
   const [error, setError] = useState("");
   const [warning, setWarning] = useState("");
+  const [success, setSuccess] = useState("");
   const [deleteTarget, setDeleteTarget] = useState(null);
 
   function reload() {
@@ -162,6 +165,8 @@ export default function McpServersPanel() {
         setError(
           `${resp.propagation_failures.length} instância(s) em execução não puderam ser atualizadas.`
         );
+      } else {
+        setSuccess("Vínculo salvo.");
       }
       reportValidationErrors(resp);
       reload();
@@ -220,7 +225,7 @@ export default function McpServersPanel() {
                   </TableCell>
                   <TableCell>{transportLabel(server)}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={`${server.linked_images} imagem(ns)`} />
+                    <Chip size="small" label={imageCountLabel(server.linked_images)} />
                   </TableCell>
                   <TableCell align="right">
                     <Button size="small" onClick={() => openEdit(server)}>
@@ -393,6 +398,8 @@ export default function McpServersPanel() {
         onCancel={() => setDeleteTarget(null)}
         onConfirm={handleDeleteConfirmed}
       />
+
+      <SuccessSnackbar message={success} onClose={() => setSuccess("")} />
     </Stack>
   );
 }

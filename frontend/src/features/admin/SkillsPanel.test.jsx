@@ -66,7 +66,7 @@ test("lista skills e imagens com vínculo atual", async () => {
   render(<SkillsPanel />);
 
   expect((await screen.findAllByText("Vercel Optimize")).length).toBeGreaterThan(0);
-  expect(screen.getByText("1 imagem(ns)")).toBeInTheDocument();
+  expect(screen.getByText("1 imagem")).toBeInTheDocument();
   expect(screen.getByText(/Claude Code/)).toBeInTheDocument();
   expect(screen.getByText(/OpenCode/)).toBeInTheDocument();
   expect(screen.getByText("vercel-labs/agent-skills:vercel-optimize")).toBeInTheDocument();
@@ -121,6 +121,7 @@ test("alterar o vínculo pelo checkbox exige confirmação do rebuild antes de c
   await waitFor(() => {
     expect(api.adminLinkAgentSkill).toHaveBeenCalledWith(8, 1);
   });
+  expect(await screen.findByText("Skill vinculada; build disparado.")).toBeInTheDocument();
 
   await user.click(checkboxes[0]);
   dialog = screen.getByRole("dialog");
@@ -128,6 +129,7 @@ test("alterar o vínculo pelo checkbox exige confirmação do rebuild antes de c
   await waitFor(() => {
     expect(api.adminUnlinkAgentSkill).toHaveBeenCalledWith(7, 1);
   });
+  expect(await screen.findByText("Skill desvinculada; build disparado.")).toBeInTheDocument();
 });
 
 test("cancelar o diálogo de vínculo não chama a API e mantém o checkbox inalterado", async () => {

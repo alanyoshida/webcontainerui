@@ -19,6 +19,8 @@ import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SuccessSnackbar from "../../components/SuccessSnackbar";
+import { imageCountLabel } from "../../utils/pluralize";
 
 const BUILD_STATE_LABEL = { pulling: "Reconstruindo", ready: "Pronta", failed: "Falhou" };
 const BUILD_STATE_COLOR = { pulling: "info", ready: "success", failed: "error" };
@@ -32,6 +34,7 @@ export default function SkillsPanel() {
   const [repoName, setRepoName] = useState("");
   const [subpath, setSubpath] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
   const [linkTarget, setLinkTarget] = useState(null);
 
   function reload() {
@@ -109,6 +112,7 @@ export default function SkillsPanel() {
         await api.adminLinkAgentSkill(imageId, skillId);
       }
       setLinkTarget(null);
+      setSuccess(linked ? "Skill desvinculada; build disparado." : "Skill vinculada; build disparado.");
       reload();
     } catch (err) {
       setLinkTarget(null);
@@ -152,7 +156,7 @@ export default function SkillsPanel() {
                   <TableCell>{skill.display_name}</TableCell>
                   <TableCell>{repoLabel(skill)}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={`${skill.linked_images} imagem(ns)`} />
+                    <Chip size="small" label={imageCountLabel(skill.linked_images)} />
                   </TableCell>
                   <TableCell align="right">
                     <Button size="small" onClick={() => openEdit(skill)}>
@@ -303,6 +307,8 @@ export default function SkillsPanel() {
         onCancel={() => setLinkTarget(null)}
         onConfirm={confirmToggleLink}
       />
+
+      <SuccessSnackbar message={success} onClose={() => setSuccess("")} />
     </Stack>
   );
 }

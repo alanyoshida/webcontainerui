@@ -17,9 +17,9 @@
 
 ## 3. Console administrativo em seções
 
-- [ ] 3.1 Rotas `/admin/usuarios`, `/admin/grupos`, `/admin/catalogo`, `/admin/agents-md`, `/admin/skills`, `/admin/mcp`, `/admin/acessos`, `/admin/metricas` com redirect de `/admin`; cada seção renderiza seu painel atual sob título `h4` com o nome da seção (ex.: "MCP"). **Verificar:** teste vitest de rota/título e de recarregar mantendo a seção
-- [ ] 3.2 Snackbar de confirmação (sucesso) e alerta de erro distintos nas alterações de vínculo de AGENTS.md, Skills e MCP. **Verificar:** teste vitest
-- [ ] 3.3 Instrução fixa na seção Acessos enquanto nenhum grupo está selecionado; pluralização correta "1 imagem / N imagens" nos três painéis de vínculo. **Verificar:** teste vitest
+- [x] 3.1 Rotas `/admin/usuarios`, `/admin/grupos`, `/admin/catalogo`, `/admin/agents-md`, `/admin/skills`, `/admin/mcp`, `/admin/acessos`, `/admin/metricas` com redirect de `/admin`; cada seção renderiza seu painel atual sob título `h4` com o nome da seção (ex.: "MCP"). **Verificar:** teste vitest de rota/título e de recarregar mantendo a seção
+- [x] 3.2 Snackbar de confirmação (sucesso) e alerta de erro distintos nas alterações de vínculo de AGENTS.md, Skills e MCP. **Verificar:** teste vitest
+- [x] 3.3 Instrução fixa na seção Acessos enquanto nenhum grupo está selecionado; pluralização correta "1 imagem / N imagens" nos três painéis de vínculo. **Verificar:** teste vitest
 
 ## 4. Home e listagem de instâncias
 

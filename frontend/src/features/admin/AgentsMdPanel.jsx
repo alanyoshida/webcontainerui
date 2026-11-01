@@ -17,6 +17,8 @@ import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
 import Typography from "@mui/material/Typography";
 import { api, ApiError } from "../../api/client";
+import SuccessSnackbar from "../../components/SuccessSnackbar";
+import { imageCountLabel } from "../../utils/pluralize";
 
 export default function AgentsMdPanel() {
   const [documents, setDocuments] = useState([]);
@@ -25,6 +27,7 @@ export default function AgentsMdPanel() {
   const [name, setName] = useState("");
   const [content, setContent] = useState("");
   const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   function reload() {
     api.adminListAgentsMd().then((docs) => setDocuments(docs)).catch(() => {});
@@ -83,6 +86,8 @@ export default function AgentsMdPanel() {
         setError(
           `${resp.propagation_failures.length} instância(s) em execução não puderam ser atualizadas.`
         );
+      } else {
+        setSuccess("Vínculo salvo.");
       }
       reload();
     } catch (err) {
@@ -119,7 +124,7 @@ export default function AgentsMdPanel() {
                 <TableRow key={doc.id}>
                   <TableCell>{doc.name}</TableCell>
                   <TableCell>
-                    <Chip size="small" label={`${doc.linked_images} imagem(ns)`} />
+                    <Chip size="small" label={imageCountLabel(doc.linked_images)} />
                   </TableCell>
                   <TableCell align="right">
                     <Button size="small" onClick={() => openEdit(doc)}>
@@ -210,6 +215,8 @@ export default function AgentsMdPanel() {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <SuccessSnackbar message={success} onClose={() => setSuccess("")} />
     </Stack>
   );
 }

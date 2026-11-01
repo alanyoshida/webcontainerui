@@ -25,6 +25,14 @@ beforeEach(() => {
   ]);
 });
 
+test("sem grupo selecionado, instrui a selecionar um grupo", async () => {
+  render(<AccessPanel />);
+
+  expect(
+    await screen.findByText("Selecione um grupo para ver e editar as permissões.")
+  ).toBeInTheDocument();
+});
+
 test("revogação mostra o impacto antes de confirmar, e nada muda sem confirmar", async () => {
   api.adminRevokePreview.mockResolvedValue({ affected_instance_count: 3 });
   const user = userEvent.setup();

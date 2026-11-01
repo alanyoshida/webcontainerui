@@ -79,6 +79,12 @@ export default function AccessPanel() {
         ))}
       </TextField>
 
+      {!selectedGroupId && (
+        <Typography variant="body2" color="text.secondary">
+          Selecione um grupo para ver e editar as permissões.
+        </Typography>
+      )}
+
       {selectedGroupId && (
         <>
           <Stack direction="row" spacing={1}>
