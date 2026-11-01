@@ -7,6 +7,7 @@ export default defineConfig({
   plugins: [react()],
   build: { outDir: "dist" },
   server: {
+    port: Number(process.env.PORT) || 5173,
     proxy: {
       // Em dev, o Vite faz o papel da origem única que em produção é o
       // FastAPI: tudo sob /api, /i e /uploads precisa parecer same-origin (D1).
