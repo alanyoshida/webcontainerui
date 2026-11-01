@@ -8,6 +8,7 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
@@ -131,62 +132,64 @@ export default function ImagesPanel() {
         </Stack>
       </Box>
 
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Capa</TableCell>
-            <TableCell>Imagem</TableCell>
-            <TableCell>Referência</TableCell>
-            <TableCell>Estado</TableCell>
-            <TableCell align="right">Ações</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {images.map((image) => (
-            <TableRow key={image.id}>
-              <TableCell>
-                <Avatar src={image.icon_url ?? undefined} variant="rounded">
-                  {!image.icon_url && <ImageIcon size={20} />}
-                </Avatar>
-              </TableCell>
-              <TableCell>{image.display_name}</TableCell>
-              <TableCell sx={{ fontFamily: MONO_FONT_FAMILY }}>
-                {image.repository}:{image.tag}
-              </TableCell>
-              <TableCell>
-                <Chip size="small" label={STATE_LABEL[image.pull_state] ?? image.pull_state} color={STATE_COLOR[image.pull_state]} />
-                {!image.enabled && <Chip size="small" label="Desabilitada" sx={{ ml: 1 }} />}
-                {image.pull_state === "pulling" && (
-                  <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
-                    Iniciado {elapsedLabel(image.created_at)}
-                    {image.pull_progress && ` — ${image.pull_progress}`}
-                  </Typography>
-                )}
-                {image.pull_state === "failed" && image.pull_error && (
-                  <Typography variant="caption" color="error" component="div" sx={{ mt: 0.5 }}>
-                    {image.pull_error}
-                  </Typography>
-                )}
-              </TableCell>
-              <TableCell align="right">
-                <Button size="small" onClick={() => handleUploadIconClick(image.id)}>
-                  Enviar capa
-                </Button>
-                {image.pull_state === "failed" && (
-                  <Button size="small" onClick={() => handleRetry(image.id)}>
-                    Tentar de novo
-                  </Button>
-                )}
-                {image.enabled && (
-                  <Button size="small" color="error" onClick={() => setDisableTarget(image)}>
-                    Desabilitar
-                  </Button>
-                )}
-              </TableCell>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Capa</TableCell>
+              <TableCell>Imagem</TableCell>
+              <TableCell>Referência</TableCell>
+              <TableCell>Estado</TableCell>
+              <TableCell align="right">Ações</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {images.map((image) => (
+              <TableRow key={image.id}>
+                <TableCell>
+                  <Avatar src={image.icon_url ?? undefined} variant="rounded">
+                    {!image.icon_url && <ImageIcon size={20} />}
+                  </Avatar>
+                </TableCell>
+                <TableCell>{image.display_name}</TableCell>
+                <TableCell sx={{ fontFamily: MONO_FONT_FAMILY }}>
+                  {image.repository}:{image.tag}
+                </TableCell>
+                <TableCell>
+                  <Chip size="small" label={STATE_LABEL[image.pull_state] ?? image.pull_state} color={STATE_COLOR[image.pull_state]} />
+                  {!image.enabled && <Chip size="small" label="Desabilitada" sx={{ ml: 1 }} />}
+                  {image.pull_state === "pulling" && (
+                    <Typography variant="caption" color="text.secondary" component="div" sx={{ mt: 0.5 }}>
+                      Iniciado {elapsedLabel(image.created_at)}
+                      {image.pull_progress && ` — ${image.pull_progress}`}
+                    </Typography>
+                  )}
+                  {image.pull_state === "failed" && image.pull_error && (
+                    <Typography variant="caption" color="error" component="div" sx={{ mt: 0.5 }}>
+                      {image.pull_error}
+                    </Typography>
+                  )}
+                </TableCell>
+                <TableCell align="right">
+                  <Button size="small" onClick={() => handleUploadIconClick(image.id)}>
+                    Enviar capa
+                  </Button>
+                  {image.pull_state === "failed" && (
+                    <Button size="small" onClick={() => handleRetry(image.id)}>
+                      Tentar de novo
+                    </Button>
+                  )}
+                  {image.enabled && (
+                    <Button size="small" color="error" onClick={() => setDisableTarget(image)}>
+                      Desabilitar
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       <ConfirmDialog
         open={disableTarget !== null}

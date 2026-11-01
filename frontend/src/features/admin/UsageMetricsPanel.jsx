@@ -7,6 +7,7 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
@@ -77,24 +78,26 @@ export default function UsageMetricsPanel() {
             Nenhuma instância em execução no momento.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Usuário</TableCell>
-                <TableCell>Imagem</TableCell>
-                <TableCell>Em execução há</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {live.map((row) => (
-                <TableRow key={row.instance_id}>
-                  <TableCell>{row.user_email}</TableCell>
-                  <TableCell>{row.image_display_name}</TableCell>
-                  <TableCell>{formatDuration(row.duration_seconds)}</TableCell>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Usuário</TableCell>
+                  <TableCell>Imagem</TableCell>
+                  <TableCell>Em execução há</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {live.map((row) => (
+                  <TableRow key={row.instance_id}>
+                    <TableCell>{row.user_email}</TableCell>
+                    <TableCell>{row.image_display_name}</TableCell>
+                    <TableCell>{formatDuration(row.duration_seconds)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 
@@ -108,30 +111,32 @@ export default function UsageMetricsPanel() {
           </Typography>
         ) : (
           <>
-            <Table size="small">
-              <TableHead>
-                <TableRow>
-                  <TableCell>Usuário</TableCell>
-                  <TableCell>Imagem</TableCell>
-                  <TableCell>Início</TableCell>
-                  <TableCell>Fim</TableCell>
-                  <TableCell>Duração</TableCell>
-                  <TableCell>Motivo</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {runsPage.items.map((run) => (
-                  <TableRow key={run.id}>
-                    <TableCell>{run.user_email}</TableCell>
-                    <TableCell>{run.image_display_name}</TableCell>
-                    <TableCell>{formatDateTime(run.started_at)}</TableCell>
-                    <TableCell>{run.ended_at ? formatDateTime(run.ended_at) : "em execução"}</TableCell>
-                    <TableCell>{formatDuration(run.duration_seconds)}</TableCell>
-                    <TableCell>{run.ended_reason ? REASON_LABEL[run.ended_reason] ?? run.ended_reason : "—"}</TableCell>
+            <TableContainer>
+              <Table size="small">
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Usuário</TableCell>
+                    <TableCell>Imagem</TableCell>
+                    <TableCell>Início</TableCell>
+                    <TableCell>Fim</TableCell>
+                    <TableCell>Duração</TableCell>
+                    <TableCell>Motivo</TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                </TableHead>
+                <TableBody>
+                  {runsPage.items.map((run) => (
+                    <TableRow key={run.id}>
+                      <TableCell>{run.user_email}</TableCell>
+                      <TableCell>{run.image_display_name}</TableCell>
+                      <TableCell>{formatDateTime(run.started_at)}</TableCell>
+                      <TableCell>{run.ended_at ? formatDateTime(run.ended_at) : "em execução"}</TableCell>
+                      <TableCell>{formatDuration(run.duration_seconds)}</TableCell>
+                      <TableCell>{run.ended_reason ? REASON_LABEL[run.ended_reason] ?? run.ended_reason : "—"}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
             <Pagination
               sx={{ mt: 2 }}
               count={pageCount}
@@ -160,44 +165,48 @@ export default function UsageMetricsPanel() {
               <Typography variant="h6" gutterBottom>
                 Horas por usuário
               </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Usuário</TableCell>
-                    <TableCell align="right">Horas</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {summary.by_user.map((entry) => (
-                    <TableRow key={entry.user_id}>
-                      <TableCell>{entry.email}</TableCell>
-                      <TableCell align="right">{(entry.seconds / 3600).toFixed(1)}</TableCell>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Usuário</TableCell>
+                      <TableCell align="right">Horas</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {summary.by_user.map((entry) => (
+                      <TableRow key={entry.user_id}>
+                        <TableCell>{entry.email}</TableCell>
+                        <TableCell align="right">{(entry.seconds / 3600).toFixed(1)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
 
             <Box sx={{ flex: 1 }}>
               <Typography variant="h6" gutterBottom>
                 Horas por grupo
               </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Grupo</TableCell>
-                    <TableCell align="right">Horas</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {summary.by_group.map((entry) => (
-                    <TableRow key={entry.group_id}>
-                      <TableCell>{entry.name}</TableCell>
-                      <TableCell align="right">{(entry.seconds / 3600).toFixed(1)}</TableCell>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Grupo</TableCell>
+                      <TableCell align="right">Horas</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {summary.by_group.map((entry) => (
+                      <TableRow key={entry.group_id}>
+                        <TableCell>{entry.name}</TableCell>
+                        <TableCell align="right">{(entry.seconds / 3600).toFixed(1)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
           </Stack>
 
@@ -206,24 +215,26 @@ export default function UsageMetricsPanel() {
               <Typography variant="h6" gutterBottom>
                 Imagens mais usadas
               </Typography>
-              <Table size="small">
-                <TableHead>
-                  <TableRow>
-                    <TableCell>Imagem</TableCell>
-                    <TableCell align="right">Execuções</TableCell>
-                    <TableCell align="right">Horas</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {summary.image_ranking.map((entry) => (
-                    <TableRow key={entry.image_id}>
-                      <TableCell>{entry.display_name}</TableCell>
-                      <TableCell align="right">{entry.run_count}</TableCell>
-                      <TableCell align="right">{(entry.seconds / 3600).toFixed(1)}</TableCell>
+              <TableContainer>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow>
+                      <TableCell>Imagem</TableCell>
+                      <TableCell align="right">Execuções</TableCell>
+                      <TableCell align="right">Horas</TableCell>
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                  </TableHead>
+                  <TableBody>
+                    {summary.image_ranking.map((entry) => (
+                      <TableRow key={entry.image_id}>
+                        <TableCell>{entry.display_name}</TableCell>
+                        <TableCell align="right">{entry.run_count}</TableCell>
+                        <TableCell align="right">{(entry.seconds / 3600).toFixed(1)}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
             </Box>
 
             <Box sx={{ flex: 1 }}>

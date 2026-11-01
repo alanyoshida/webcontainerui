@@ -12,6 +12,7 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
@@ -111,33 +112,35 @@ export default function AgentsMdPanel() {
             Nenhum documento ainda. Crie um texto e vincule às imagens do catálogo.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell>Imagens vinculadas</TableCell>
-                <TableCell align="right">Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {documents.map((doc) => (
-                <TableRow key={doc.id}>
-                  <TableCell>{doc.name}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={imageCountLabel(doc.linked_images)} />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => openEdit(doc)}>
-                      Editar
-                    </Button>
-                    <Button size="small" color="error" onClick={() => handleDelete(doc)}>
-                      Remover
-                    </Button>
-                  </TableCell>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Nome</TableCell>
+                  <TableCell>Imagens vinculadas</TableCell>
+                  <TableCell align="right">Ações</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {documents.map((doc) => (
+                  <TableRow key={doc.id}>
+                    <TableCell>{doc.name}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={imageCountLabel(doc.linked_images)} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button size="small" onClick={() => openEdit(doc)}>
+                        Editar
+                      </Button>
+                      <Button size="small" color="error" onClick={() => handleDelete(doc)}>
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 
@@ -145,44 +148,46 @@ export default function AgentsMdPanel() {
         <Typography variant="h6" gutterBottom>
           Vínculo por imagem
         </Typography>
-        <Table size="small">
-          <TableHead>
-            <TableRow>
-              <TableCell>Imagem</TableCell>
-              <TableCell>Documento</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {images.map((image) => (
-              <TableRow key={image.id}>
-                <TableCell>
-                  {image.display_name} ({image.repository}:{image.tag})
-                </TableCell>
-                <TableCell>
-                  <TextField
-                    select
-                    size="small"
-                    value={image.document_id ?? ""}
-                    onChange={(event) =>
-                      handleLinkChange(
-                        image.id,
-                        event.target.value === "" ? null : Number(event.target.value)
-                      )
-                    }
-                    sx={{ minWidth: 220 }}
-                  >
-                    <MenuItem value="">Nenhum</MenuItem>
-                    {documents.map((doc) => (
-                      <MenuItem key={doc.id} value={doc.id}>
-                        {doc.name}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </TableCell>
+        <TableContainer>
+          <Table size="small">
+            <TableHead>
+              <TableRow>
+                <TableCell>Imagem</TableCell>
+                <TableCell>Documento</TableCell>
               </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+            </TableHead>
+            <TableBody>
+              {images.map((image) => (
+                <TableRow key={image.id}>
+                  <TableCell>
+                    {image.display_name} ({image.repository}:{image.tag})
+                  </TableCell>
+                  <TableCell>
+                    <TextField
+                      select
+                      size="small"
+                      value={image.document_id ?? ""}
+                      onChange={(event) =>
+                        handleLinkChange(
+                          image.id,
+                          event.target.value === "" ? null : Number(event.target.value)
+                        )
+                      }
+                      sx={{ minWidth: 220 }}
+                    >
+                      <MenuItem value="">Nenhum</MenuItem>
+                      {documents.map((doc) => (
+                        <MenuItem key={doc.id} value={doc.id}>
+                          {doc.name}
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Box>
 
       <Dialog open={editing !== null} onClose={() => setEditing(null)} fullWidth maxWidth="md">

@@ -13,6 +13,7 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
@@ -141,35 +142,37 @@ export default function SkillsPanel() {
             agente.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell>Repositório</TableCell>
-                <TableCell>Imagens vinculadas</TableCell>
-                <TableCell align="right">Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {skills.map((skill) => (
-                <TableRow key={skill.id}>
-                  <TableCell>{skill.display_name}</TableCell>
-                  <TableCell>{repoLabel(skill)}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={imageCountLabel(skill.linked_images)} />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => openEdit(skill)}>
-                      Editar
-                    </Button>
-                    <Button size="small" color="error" onClick={() => handleDelete(skill)}>
-                      Remover
-                    </Button>
-                  </TableCell>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Nome</TableCell>
+                  <TableCell>Repositório</TableCell>
+                  <TableCell>Imagens vinculadas</TableCell>
+                  <TableCell align="right">Ações</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {skills.map((skill) => (
+                  <TableRow key={skill.id}>
+                    <TableCell>{skill.display_name}</TableCell>
+                    <TableCell>{repoLabel(skill)}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={imageCountLabel(skill.linked_images)} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button size="small" onClick={() => openEdit(skill)}>
+                        Editar
+                      </Button>
+                      <Button size="small" color="error" onClick={() => handleDelete(skill)}>
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 
@@ -186,68 +189,70 @@ export default function SkillsPanel() {
             Nenhuma imagem de agente de código disponível.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Imagem</TableCell>
-                <TableCell>Estado do build</TableCell>
-                <TableCell>Skills</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {images.map((image) => {
-                const building = image.pull_state === "pulling";
-                return (
-                <TableRow key={image.id}>
-                  <TableCell>
-                    {image.display_name} ({image.repository}:{image.tag})
-                  </TableCell>
-                  <TableCell>
-                    <Chip
-                      size="small"
-                      label={BUILD_STATE_LABEL[image.pull_state] ?? image.pull_state}
-                      color={BUILD_STATE_COLOR[image.pull_state]}
-                    />
-                    {image.pull_state === "failed" && image.pull_error && (
-                      <Typography variant="caption" color="error" component="div" sx={{ mt: 0.5 }}>
-                        {image.pull_error}
-                      </Typography>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" flexWrap="wrap" spacing={0}>
-                      {skills.map((skill) => {
-                        const linked = image.skill_ids.includes(skill.id);
-                        return (
-                          <FormControlLabel
-                            key={skill.id}
-                            control={
-                              <Checkbox
-                                size="small"
-                                checked={linked}
-                                disabled={building}
-                                onChange={() =>
-                                  setLinkTarget({
-                                    imageId: image.id,
-                                    skillId: skill.id,
-                                    linked,
-                                    imageDisplayName: image.display_name,
-                                    skillDisplayName: skill.display_name,
-                                  })
-                                }
-                              />
-                            }
-                            label={skill.display_name}
-                          />
-                        );
-                      })}
-                    </Stack>
-                  </TableCell>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Imagem</TableCell>
+                  <TableCell>Estado do build</TableCell>
+                  <TableCell>Skills</TableCell>
                 </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {images.map((image) => {
+                  const building = image.pull_state === "pulling";
+                  return (
+                  <TableRow key={image.id}>
+                    <TableCell>
+                      {image.display_name} ({image.repository}:{image.tag})
+                    </TableCell>
+                    <TableCell>
+                      <Chip
+                        size="small"
+                        label={BUILD_STATE_LABEL[image.pull_state] ?? image.pull_state}
+                        color={BUILD_STATE_COLOR[image.pull_state]}
+                      />
+                      {image.pull_state === "failed" && image.pull_error && (
+                        <Typography variant="caption" color="error" component="div" sx={{ mt: 0.5 }}>
+                          {image.pull_error}
+                        </Typography>
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" flexWrap="wrap" spacing={0}>
+                        {skills.map((skill) => {
+                          const linked = image.skill_ids.includes(skill.id);
+                          return (
+                            <FormControlLabel
+                              key={skill.id}
+                              control={
+                                <Checkbox
+                                  size="small"
+                                  checked={linked}
+                                  disabled={building}
+                                  onChange={() =>
+                                    setLinkTarget({
+                                      imageId: image.id,
+                                      skillId: skill.id,
+                                      linked,
+                                      imageDisplayName: image.display_name,
+                                      skillDisplayName: skill.display_name,
+                                    })
+                                  }
+                                />
+                              }
+                              label={skill.display_name}
+                            />
+                          );
+                        })}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 

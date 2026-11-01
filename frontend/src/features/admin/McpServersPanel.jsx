@@ -14,6 +14,7 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
@@ -203,42 +204,44 @@ export default function McpServersPanel() {
             agente.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Nome</TableCell>
-                <TableCell>Transporte</TableCell>
-                <TableCell>Destino</TableCell>
-                <TableCell>Imagens vinculadas</TableCell>
-                <TableCell align="right">Ações</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {servers.map((server) => (
-                <TableRow key={server.id}>
-                  <TableCell>{server.display_name}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={server.transport} />
-                    {!server.enabled && (
-                      <Chip size="small" label="desativado" color="default" sx={{ ml: 0.5 }} />
-                    )}
-                  </TableCell>
-                  <TableCell>{transportLabel(server)}</TableCell>
-                  <TableCell>
-                    <Chip size="small" label={imageCountLabel(server.linked_images)} />
-                  </TableCell>
-                  <TableCell align="right">
-                    <Button size="small" onClick={() => openEdit(server)}>
-                      Editar
-                    </Button>
-                    <Button size="small" color="error" onClick={() => setDeleteTarget(server)}>
-                      Remover
-                    </Button>
-                  </TableCell>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Nome</TableCell>
+                  <TableCell>Transporte</TableCell>
+                  <TableCell>Destino</TableCell>
+                  <TableCell>Imagens vinculadas</TableCell>
+                  <TableCell align="right">Ações</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {servers.map((server) => (
+                  <TableRow key={server.id}>
+                    <TableCell>{server.display_name}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={server.transport} />
+                      {!server.enabled && (
+                        <Chip size="small" label="desativado" color="default" sx={{ ml: 0.5 }} />
+                      )}
+                    </TableCell>
+                    <TableCell>{transportLabel(server)}</TableCell>
+                    <TableCell>
+                      <Chip size="small" label={imageCountLabel(server.linked_images)} />
+                    </TableCell>
+                    <TableCell align="right">
+                      <Button size="small" onClick={() => openEdit(server)}>
+                        Editar
+                      </Button>
+                      <Button size="small" color="error" onClick={() => setDeleteTarget(server)}>
+                        Remover
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 
@@ -255,43 +258,45 @@ export default function McpServersPanel() {
             Nenhuma imagem de agente de código disponível.
           </Typography>
         ) : (
-          <Table size="small">
-            <TableHead>
-              <TableRow>
-                <TableCell>Imagem</TableCell>
-                <TableCell>Servidores MCP</TableCell>
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {images.map((image) => (
-                <TableRow key={image.id}>
-                  <TableCell>
-                    {image.display_name} ({image.repository}:{image.tag})
-                  </TableCell>
-                  <TableCell>
-                    <Stack direction="row" flexWrap="wrap" spacing={0}>
-                      {servers.map((server) => {
-                        const linked = image.mcp_server_ids.includes(server.id);
-                        return (
-                          <FormControlLabel
-                            key={server.id}
-                            control={
-                              <Checkbox
-                                size="small"
-                                checked={linked}
-                                onChange={() => handleToggleLink(image.id, server.id, linked)}
-                              />
-                            }
-                            label={server.display_name}
-                          />
-                        );
-                      })}
-                    </Stack>
-                  </TableCell>
+          <TableContainer>
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell>Imagem</TableCell>
+                  <TableCell>Servidores MCP</TableCell>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHead>
+              <TableBody>
+                {images.map((image) => (
+                  <TableRow key={image.id}>
+                    <TableCell>
+                      {image.display_name} ({image.repository}:{image.tag})
+                    </TableCell>
+                    <TableCell>
+                      <Stack direction="row" flexWrap="wrap" spacing={0}>
+                        {servers.map((server) => {
+                          const linked = image.mcp_server_ids.includes(server.id);
+                          return (
+                            <FormControlLabel
+                              key={server.id}
+                              control={
+                                <Checkbox
+                                  size="small"
+                                  checked={linked}
+                                  onChange={() => handleToggleLink(image.id, server.id, linked)}
+                                />
+                              }
+                              label={server.display_name}
+                            />
+                          );
+                        })}
+                      </Stack>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
         )}
       </Box>
 

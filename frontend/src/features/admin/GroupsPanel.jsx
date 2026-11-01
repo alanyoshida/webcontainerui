@@ -12,6 +12,7 @@ import Stack from "@mui/material/Stack";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import TextField from "@mui/material/TextField";
@@ -104,29 +105,31 @@ export default function GroupsPanel() {
         </Stack>
       </Box>
 
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>Nome</TableCell>
-            <TableCell align="right">Ações</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {groups.map((group) => (
-            <TableRow key={group.id}>
-              <TableCell>{group.name}</TableCell>
-              <TableCell align="right">
-                <Button size="small" onClick={() => openManageMembers(group)}>
-                  Membros
-                </Button>
-                <Button size="small" color="error" onClick={() => openDeleteDialog(group)}>
-                  Excluir
-                </Button>
-              </TableCell>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>Nome</TableCell>
+              <TableCell align="right">Ações</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {groups.map((group) => (
+              <TableRow key={group.id}>
+                <TableCell>{group.name}</TableCell>
+                <TableCell align="right">
+                  <Button size="small" onClick={() => openManageMembers(group)}>
+                    Membros
+                  </Button>
+                  <Button size="small" color="error" onClick={() => openDeleteDialog(group)}>
+                    Excluir
+                  </Button>
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       <Dialog open={managingGroup !== null} onClose={() => setManagingGroup(null)} fullWidth maxWidth="xs">
         <DialogTitle>Membros de {managingGroup?.name}</DialogTitle>

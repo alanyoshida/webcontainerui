@@ -53,6 +53,7 @@ O frontend usa MUI 6 com tema único em `frontend/src/theme.js` (`mode: "light"`
 - [Cores fixas em `sx` de painéis contradizem o tema dark/pastel] → varredura por hex hardcoded nos componentes tocados; substituição por tokens da paleta.
 - [Confirmação extra em parar/vincular adiciona fricção] → decisão consciente de produto (consistência: todo botão vermelho confirma); diálogos com botão de confirmação focado e `Enter` confirmar.
 - [Mudança de comportamento na API de desabilitar] → único ponto de API afetado; erro claro orientará quem usava auto-desabilitação por API direta.
+- [Tabelas dos painéis admin (Usuários, Grupos, Catálogo, AGENTS.md, Skills, MCP, Métricas) transbordavam o documento em telas estreitas — achado durante a verificação da tarefa 9.3, fora do escopo original da tarefa 4.2 (que cobria só a listagem de instâncias)] → envolvidas em `TableContainer` (mesmo padrão já usado em `InstancesSection`), contendo a rolagem horizontal à própria tabela em vez de vazar para o documento; decisão tomada com o usuário durante a implementação.
 
 ## Migration Plan
 

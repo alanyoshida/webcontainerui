@@ -9,6 +9,7 @@ import TextField from "@mui/material/TextField";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
+import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
@@ -77,38 +78,40 @@ export default function UsersPanel() {
         </Stack>
       </Box>
 
-      <Table size="small">
-        <TableHead>
-          <TableRow>
-            <TableCell>E-mail</TableCell>
-            <TableCell>Papel</TableCell>
-            <TableCell>Status</TableCell>
-            <TableCell align="right">Ações</TableCell>
-          </TableRow>
-        </TableHead>
-        <TableBody>
-          {users.map((user) => (
-            <TableRow key={user.id}>
-              <TableCell>{user.email}</TableCell>
-              <TableCell>{user.is_admin ? "Administrador" : "Usuário"}</TableCell>
-              <TableCell>
-                <Chip
-                  size="small"
-                  label={user.disabled ? "Desabilitado" : "Ativo"}
-                  color={user.disabled ? "default" : "success"}
-                />
-              </TableCell>
-              <TableCell align="right">
-                {!user.disabled && user.id !== currentUser?.id && (
-                  <Button size="small" color="error" onClick={() => setDisableTarget(user)}>
-                    Desabilitar
-                  </Button>
-                )}
-              </TableCell>
+      <TableContainer>
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>E-mail</TableCell>
+              <TableCell>Papel</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell align="right">Ações</TableCell>
             </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+          </TableHead>
+          <TableBody>
+            {users.map((user) => (
+              <TableRow key={user.id}>
+                <TableCell>{user.email}</TableCell>
+                <TableCell>{user.is_admin ? "Administrador" : "Usuário"}</TableCell>
+                <TableCell>
+                  <Chip
+                    size="small"
+                    label={user.disabled ? "Desabilitado" : "Ativo"}
+                    color={user.disabled ? "default" : "success"}
+                  />
+                </TableCell>
+                <TableCell align="right">
+                  {!user.disabled && user.id !== currentUser?.id && (
+                    <Button size="small" color="error" onClick={() => setDisableTarget(user)}>
+                      Desabilitar
+                    </Button>
+                  )}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </TableContainer>
 
       <ConfirmDialog
         open={disableTarget !== null}
