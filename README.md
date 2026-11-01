@@ -18,6 +18,29 @@ terminal com `sudo` sem senha. A documentação do LinuxServer orienta tratar um
 sessão como um login SSH para uma máquina da sua rede. Não exponha o portal à
 internet sem autenticação robusta à frente.
 
+## Instalação
+
+Pré-requisitos: Docker e o plugin Docker Compose v2 no host, e um domínio já
+apontando para ele (o Caddy obtém certificado Let's Encrypt automaticamente).
+
+```bash
+git clone <url-do-repositorio> webcontainerui
+cd webcontainerui
+./install.sh
+```
+
+O script confere os pré-requisitos, pede o domínio público e as credenciais
+do primeiro administrador, gera a chave que cifra as identidades SSH em
+repouso, grava tudo em `deploy/.env` e sobe a composição de produção (Caddy +
+portal). Rodar `./install.sh` de novo — por exemplo depois de um `git pull`
+para atualizar — reaproveita o `deploy/.env` já gravado e só reconstrói e
+reinicia os containers.
+
+Prefere configurar à mão, ou automatizar a instalação sem prompts? Veja
+`deploy/.env.example` e [`deploy/README.md`](deploy/README.md) — cobre a
+ordem de subida manual, as variáveis de ambiente opcionais e o procedimento
+de reversão.
+
 ## Arquitetura: origem única
 
 Tudo é servido na mesma origem — front-end, API e o encaminhamento das sessões.

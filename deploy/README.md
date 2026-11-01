@@ -3,6 +3,11 @@
 Ver também [`SECURITY.md`](SECURITY.md) — leitura obrigatória antes de expor
 o portal além da sua própria máquina.
 
+Caminho rápido: `./install.sh` na raiz do repositório automatiza tudo nesta
+seção (pré-requisitos, coleta de configuração, geração da chave de cifra e
+subida da composição). O que segue é a versão manual, útil para entender o
+que o script faz ou para rodar passo a passo.
+
 ## Ordem de subida (produção)
 
 ```bash
