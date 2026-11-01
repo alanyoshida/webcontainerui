@@ -7,6 +7,7 @@ from app.config import Settings
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime, ContainerSpec
 from app.services import ssh_identity
+from app.services.audit_log import audit
 from app.services import agents_md
 from app.services import mcp_servers
 from app.services.access_control import is_permitted
@@ -258,6 +259,8 @@ async def _provision_and_start(
         conn.execute(
             "UPDATE instances SET state = 'error', error_message = ? WHERE id = ?", (str(exc), row["id"])
         )
+        audit("instance.failed", target=row["id"], outcome="failure",
+              detail=f"criação: {str(exc)[:300]}")
         return _get_by_id(conn, row["id"])
 
     await _inject_ssh_identity(conn, runtime, settings, image, container_id, row["user_id"])
@@ -275,6 +278,8 @@ async def _provision_and_start(
         conn.execute(
             "UPDATE instances SET state = 'error', error_message = ? WHERE id = ?", (str(exc), row["id"])
         )
+        audit("instance.failed", target=row["id"], outcome="failure",
+              detail=f"start: {str(exc)[:300]}")
         return _get_by_id(conn, row["id"])
 
     conn.execute(

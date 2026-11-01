@@ -16,6 +16,8 @@ from pydantic import BaseModel
 
 from app.config import Settings
 from app.deps import get_db, require_admin
+from app.services.audit_log import audit
+from app.services.sessions import AuthenticatedUser
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 from app.services.mcp_servers import (
     create_mcp_server,
@@ -166,7 +168,10 @@ def list_mcp_servers_endpoint(
 
 @router.post("/mcp-servers", response_model=McpServerResponse, status_code=status.HTTP_201_CREATED)
 def create_mcp_server_endpoint(
-    body: CreateMcpServerRequest, request: Request, db: sqlite3.Connection = Depends(get_db)
+    body: CreateMcpServerRequest,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> McpServerResponse:
     settings: Settings = request.app.state.settings
     try:
@@ -186,6 +191,9 @@ def create_mcp_server_endpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("admin.mcp.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=body.display_name,
+          outcome="success", detail="op=criar")
     return _to_response(get_mcp_server(db, mcp_id), settings)
 
 
@@ -194,6 +202,7 @@ async def update_mcp_server_endpoint(
     mcp_server_id: int,
     body: UpdateMcpServerRequest,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> UpdateMcpServerResponse:
     settings: Settings = request.app.state.settings
@@ -218,6 +227,9 @@ async def update_mcp_server_endpoint(
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    audit("admin.mcp.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"servidor {mcp_server_id}",
+          outcome="success", detail="op=editar")
     propagation_failures, schema_validation_errors = await _propagate(
         request, db, _linked_image_ids(db, mcp_server_id)
     )
@@ -230,7 +242,10 @@ async def update_mcp_server_endpoint(
 
 @router.delete("/mcp-servers/{mcp_server_id}", response_model=DeleteMcpServerResponse)
 async def delete_mcp_server_endpoint(
-    mcp_server_id: int, request: Request, db: sqlite3.Connection = Depends(get_db)
+    mcp_server_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> DeleteMcpServerResponse:
     # As imagens afetadas precisam ser coletadas antes do cascade do delete
     # (tarefa 3.2: remover não recusa por vínculo — desvincula e propaga).
@@ -240,6 +255,9 @@ async def delete_mcp_server_endpoint(
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
+    audit("admin.mcp.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"servidor {mcp_server_id}",
+          outcome="success", detail="op=excluir")
     propagation_failures, schema_validation_errors = await _propagate(request, db, image_ids)
     return DeleteMcpServerResponse(
         propagation_failures=propagation_failures,
@@ -270,6 +288,7 @@ async def _link_or_unlink(
     mcp_server_id: int,
     *,
     link: bool,
+    admin: AuthenticatedUser,
 ) -> ImageMcpServersResponse:
     try:
         if link:
@@ -281,6 +300,9 @@ async def _link_or_unlink(
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    audit("admin.mcp.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail=f"op={'vincular' if link else 'desvincular'} servidor {mcp_server_id}")
     propagation_failures, schema_validation_errors = await propagate_mcp_servers_to_live_instances(
         db, request.app.state.runtime, request.app.state.settings, image_id
     )
@@ -305,9 +327,10 @@ async def link_mcp_server_endpoint(
     image_id: int,
     mcp_server_id: int,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageMcpServersResponse:
-    return await _link_or_unlink(request, db, image_id, mcp_server_id, link=True)
+    return await _link_or_unlink(request, db, image_id, mcp_server_id, link=True, admin=admin)
 
 
 @router.delete(
@@ -317,6 +340,7 @@ async def unlink_mcp_server_endpoint(
     image_id: int,
     mcp_server_id: int,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageMcpServersResponse:
-    return await _link_or_unlink(request, db, image_id, mcp_server_id, link=False)
+    return await _link_or_unlink(request, db, image_id, mcp_server_id, link=False, admin=admin)

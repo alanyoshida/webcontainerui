@@ -33,6 +33,7 @@ from app.services.background import cancel_all, spawn
 from app.services.image_covers import seed_image_covers
 from app.services.instances import backfill_open_runs
 from app.services.login_throttle import LoginThrottle
+from app.services.audit_log import install_handler
 from app.services.reaper import reconcile_instance_states, run_reaper
 
 # Cabeçalhos de segurança das respostas geradas pelo próprio portal (change
@@ -116,6 +117,10 @@ def create_app(
             app.state.backend_resolver = backend_resolver
 
         resolved_settings.uploads_dir.mkdir(parents=True, exist_ok=True)
+
+        # Trilha de eventos de segurança (change security-audit-log): uma
+        # linha JSON por evento, na saída padrão.
+        install_handler()
 
         conn = connect(resolved_settings.db_path)
         init_db(conn)

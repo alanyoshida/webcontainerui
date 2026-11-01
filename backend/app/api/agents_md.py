@@ -12,6 +12,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.deps import get_db, require_admin
+from app.services.audit_log import audit
+from app.services.sessions import AuthenticatedUser
 from app.services.agents_md import (
     create_document,
     delete_document,
@@ -87,6 +89,7 @@ def list_documents_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[Do
 def create_document_endpoint(
     body: CreateDocumentRequest,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> DocumentResponse:
     settings = request.app.state.settings
@@ -96,6 +99,9 @@ def create_document_endpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("admin.document.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=body.name,
+          outcome="success", detail="op=criar")
     return _to_response(get_document(db, document_id))
 
 
@@ -104,6 +110,7 @@ async def update_document_endpoint(
     document_id: int,
     body: UpdateDocumentRequest,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> UpdateDocumentResponse:
     settings = request.app.state.settings
@@ -122,6 +129,9 @@ async def update_document_endpoint(
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
+    audit("admin.document.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"documento {document_id}",
+          outcome="success", detail="op=editar")
     document = get_document(db, document_id)
     failures = await propagate_document_to_live_instances(
         db, request.app.state.runtime, settings, document_id
@@ -134,7 +144,10 @@ async def update_document_endpoint(
 
 @router.delete("/agents-md/{document_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document_endpoint(
-    document_id: int, db: sqlite3.Connection = Depends(get_db)
+    document_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> None:
     try:
         delete_document(db, document_id)
@@ -142,6 +155,9 @@ def delete_document_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ConflictError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    audit("admin.document.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"documento {document_id}",
+          outcome="success", detail="op=excluir")
 
 
 @router.get("/agents-md/images", response_model=list[ImageLinkResponse])
@@ -163,6 +179,7 @@ async def link_document_endpoint(
     image_id: int,
     body: LinkDocumentRequest,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> LinkDocumentResponse:
     previous_id = db.execute(
@@ -186,6 +203,9 @@ async def link_document_endpoint(
         removidas = await remove_document_from_live_instances(db, runtime, image_id)
         failures = [f["instance_id"] for f in removidas]
 
+    audit("admin.document.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail=f"op=vincular documento {body.document_id}")
     return LinkDocumentResponse(
         image_id=image_id,
         document_id=body.document_id,

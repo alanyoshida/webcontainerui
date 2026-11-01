@@ -5,6 +5,8 @@ from pydantic import BaseModel
 
 from app.deps import get_db, require_admin
 from app.services.access_control import grant, preview_revoke, revoke
+from app.services.audit_log import audit
+from app.services.sessions import AuthenticatedUser
 from app.services.instances import stop_instance
 
 router = APIRouter(dependencies=[Depends(require_admin)])
@@ -20,9 +22,17 @@ class RevokePreviewResponse(BaseModel):
 
 @router.post("/groups/{group_id}/images", status_code=status.HTTP_204_NO_CONTENT)
 def grant_image_endpoint(
-    group_id: int, body: GrantImageRequest, db: sqlite3.Connection = Depends(get_db)
+    group_id: int,
+    body: GrantImageRequest,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> None:
     grant(db, group_id, body.image_id)
+    audit("admin.grant.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None,
+          target=f"imagem {body.image_id} -> grupo {group_id}",
+          outcome="success", detail="op=conceder")
 
 
 @router.get("/groups/{group_id}/images/{image_id}/revoke-preview", response_model=RevokePreviewResponse)
@@ -41,6 +51,7 @@ async def revoke_image_endpoint(
     image_id: int,
     request: Request,
     confirm: bool = False,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
     if not confirm:
@@ -51,6 +62,10 @@ async def revoke_image_endpoint(
         )
 
     affected = revoke(db, group_id, image_id)
+    audit("admin.grant.revoked", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None,
+          target=f"imagem {image_id} -> grupo {group_id}",
+          outcome="success", detail=f"op=revogar; instancias afetadas={len(affected)}")
     runtime = request.app.state.runtime
     for row in affected:
         await stop_instance(db, runtime, row["id"], row["user_id"])

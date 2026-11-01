@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.deps import get_current_user, get_db
+from app.services.audit_log import audit
 from app.services.errors import NotFoundError, PermissionDeniedError, ValidationFailedError
 from app.services.instances import (
     create_instance,
@@ -16,6 +17,10 @@ from app.services.instances import (
 from app.services.sessions import AuthenticatedUser
 
 router = APIRouter()
+
+
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client is not None else None
 
 
 class CreateInstanceRequest(BaseModel):
@@ -72,6 +77,9 @@ async def create_instance_endpoint(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
     except PermissionDeniedError as exc:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    audit("instance.created", actor_id=user.id, actor_email=user.email,
+          ip=_client_ip(request), target=row["id"], outcome="success",
+          detail=f"imagem {body.image_id}")
     return _to_response(row)
 
 
@@ -98,6 +106,8 @@ async def update_instance_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("instance.updated", actor_id=user.id, actor_email=user.email,
+          ip=_client_ip(request), target=instance_id, outcome="success")
     return _to_response(row)
 
 
@@ -112,6 +122,8 @@ async def stop_instance_endpoint(
         await stop_instance(db, request.app.state.runtime, instance_id, user.id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    audit("instance.stopped", actor_id=user.id, actor_email=user.email,
+          ip=_client_ip(request), target=instance_id, outcome="success")
 
 
 @router.delete("/instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -128,3 +140,5 @@ async def delete_instance_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("instance.deleted", actor_id=user.id, actor_email=user.email,
+          ip=_client_ip(request), target=instance_id, outcome="success")

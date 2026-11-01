@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, stat
 from pydantic import BaseModel
 
 from app.deps import get_current_user, get_db, require_admin
+from app.services.audit_log import audit
 from app.services.agent_images import (
     build_hash_for,
     default_agent_images_dir,
@@ -82,7 +83,10 @@ def _to_response(row: sqlite3.Row) -> ImageResponse:
 
 @admin_router.post("/images", response_model=ImageResponse, status_code=status.HTTP_201_CREATED)
 async def create_image_endpoint(
-    body: CreateImageRequest, request: Request, db: sqlite3.Connection = Depends(get_db)
+    body: CreateImageRequest,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> ImageResponse:
     # async def (não def): precisa rodar na thread do event loop para que
     # `spawn` consiga agendar a tarefa de fundo com `asyncio.create_task`.
@@ -107,13 +111,19 @@ async def create_image_endpoint(
         request.app,
         run_pull(settings.db_path, request.app.state.runtime, image_id, body.repository, body.tag),
     )
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None,
+          target=f"{body.repository}:{body.tag}", outcome="success", detail="op=criar")
 
     return _to_response(get_image(db, image_id))
 
 
 @admin_router.post("/images/{image_id}/retry-pull", response_model=ImageResponse)
 async def retry_pull_endpoint(
-    image_id: int, request: Request, db: sqlite3.Connection = Depends(get_db)
+    image_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> ImageResponse:
     try:
         row = get_image(db, image_id)
@@ -157,12 +167,18 @@ async def retry_pull_endpoint(
             run_pull(settings.db_path, runtime, image_id, row["repository"], row["tag"]),
         )
 
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None,
+          target=f"{row['repository']}:{row['tag']}", outcome="success", detail="op=retry")
     return _to_response(row)
 
 
 @admin_router.post("/images/{image_id}/update-image", response_model=ImageResponse)
 async def update_image_endpoint(
-    image_id: int, request: Request, db: sqlite3.Connection = Depends(get_db)
+    image_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> ImageResponse:
     """Re-baixa a referência de uma entrada pronta do catálogo.
 
@@ -186,6 +202,9 @@ async def update_image_endpoint(
         request.app,
         run_pull(settings.db_path, request.app.state.runtime, image_id, row["repository"], row["tag"]),
     )
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None,
+          target=f"{row['repository']}:{row['tag']}", outcome="success", detail="op=atualizar")
 
     return _to_response(row)
 
@@ -195,6 +214,7 @@ async def upload_image_icon_endpoint(
     image_id: int,
     request: Request,
     file: UploadFile,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageResponse:
     settings = request.app.state.settings
@@ -210,13 +230,24 @@ async def upload_image_icon_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail="op=capa")
 
     return _to_response(get_image(db, image_id))
 
 
 @admin_router.post("/images/{image_id}/disable", status_code=status.HTTP_204_NO_CONTENT)
-def disable_image_endpoint(image_id: int, db: sqlite3.Connection = Depends(get_db)) -> None:
+def disable_image_endpoint(
+    image_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
+) -> None:
     disable_image(db, image_id)
+    audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail="op=desabilitar")
 
 
 @admin_router.get("/images", response_model=list[ImageResponse])

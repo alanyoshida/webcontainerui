@@ -74,3 +74,29 @@ temporária). A mitigação é a recusa ser curta e configurável
 (`WCUI_LOGIN_LOCK_SECONDS`, padrão 300s), nunca permanente — o mesmo
 trade-off de qualquer limitador por conta. Achados M1/M2 do relatório de
 pentest de 2026-11-01 (`docs/relatorio-pentest-2026-11-01.md`).
+
+## Trilha de eventos de segurança (change `security-audit-log`)
+
+Um evento = uma linha JSON na saída padrão do portal, capturável com
+`docker logs deploy-portal-1-1` (ou o coletor do operador: Loki, Vector,
+CloudWatch). Formato e campos:
+
+```json
+{"event": "auth.login", "actor_id": 1, "actor_email": "a@x.test", "ip": "203.0.113.9", "outcome": "success"}
+```
+
+- Campos: `actor_id`/`actor_email` (via sessão; ausentes em eventos internos
+  do sistema), `ip` (IP real do cliente atrás de proxy confiável — ver
+  allowlist `UVICORN_FORWARDED_ALLOW_IPS`), `target` (objeto da ação),
+  `outcome` (`success` | `failure` | `denied`) e `detail` curto.
+- Catálogo de nomes: `auth.login`/`auth.login.throttled`/`auth.logout`,
+  `admin.user.created|disabled`, `admin.group.changed`,
+  `admin.grant.changed|revoked`, `admin.image.changed`,
+  `admin.document.changed`, `admin.mcp.changed`, `admin.skill.changed`,
+  `instance.created|updated|stopped|deleted|failed`.
+- Nenhum evento carrega segredo: senha, token de sessão, credencial interna
+  de instância, chave privada e valores de env/headers de MCP nunca passam
+  pelo emissor (`backend/app/services/audit_log.py`).
+- Retenção/rotação: responsabilidade do driver de log do Docker
+  (`json-file` com `max-size`/`max-file`) ou do coletor externo — o portal
+  só escreve no stdout.

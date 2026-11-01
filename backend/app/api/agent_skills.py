@@ -13,6 +13,8 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
 from app.deps import get_db, require_admin
+from app.services.audit_log import audit
+from app.services.sessions import AuthenticatedUser
 from app.services.agent_images import rebuild_agent_image
 from app.services.agent_skills import (
     create_skill,
@@ -86,7 +88,10 @@ def list_skills_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[Skill
 
 @router.post("/agent-skills", response_model=SkillResponse, status_code=status.HTTP_201_CREATED)
 def create_skill_endpoint(
-    body: CreateSkillRequest, db: sqlite3.Connection = Depends(get_db)
+    body: CreateSkillRequest,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> SkillResponse:
     try:
         skill_id = create_skill(
@@ -96,12 +101,19 @@ def create_skill_endpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("admin.skill.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=body.display_name,
+          outcome="success", detail="op=criar")
     return _to_response(get_skill(db, skill_id))
 
 
 @router.patch("/agent-skills/{skill_id}", response_model=SkillResponse)
 def update_skill_endpoint(
-    skill_id: int, body: UpdateSkillRequest, db: sqlite3.Connection = Depends(get_db)
+    skill_id: int,
+    body: UpdateSkillRequest,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
 ) -> SkillResponse:
     try:
         update_skill(
@@ -118,15 +130,26 @@ def update_skill_endpoint(
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     except ValidationFailedError as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    audit("admin.skill.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"skill {skill_id}",
+          outcome="success", detail="op=editar")
     return _to_response(get_skill(db, skill_id))
 
 
 @router.delete("/agent-skills/{skill_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_skill_endpoint(skill_id: int, db: sqlite3.Connection = Depends(get_db)) -> None:
+def delete_skill_endpoint(
+    skill_id: int,
+    request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
+    db: sqlite3.Connection = Depends(get_db),
+) -> None:
     try:
         delete_skill(db, skill_id)
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    audit("admin.skill.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"skill {skill_id}",
+          outcome="success", detail="op=excluir")
 
 
 def _image_response(row: sqlite3.Row, skill_ids: list[int]) -> ImageSkillsResponse:
@@ -159,6 +182,7 @@ async def _link_or_unlink(
     skill_id: int,
     *,
     link: bool,
+    admin: AuthenticatedUser,
 ) -> ImageSkillsResponse:
     try:
         if link:
@@ -186,6 +210,9 @@ async def _link_or_unlink(
     settings = request.app.state.settings
     runtime = request.app.state.runtime
     spawn(request.app, rebuild_agent_image(settings, runtime, image_id))
+    audit("admin.skill.changed", actor_id=admin.id, actor_email=admin.email,
+          ip=request.client.host if request.client else None, target=f"imagem {image_id}",
+          outcome="success", detail=f"op={'vincular' if link else 'desvincular'} skill {skill_id}")
 
     return _image_response(image_row, skill_ids)
 
@@ -195,9 +222,10 @@ async def link_skill_endpoint(
     image_id: int,
     skill_id: int,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageSkillsResponse:
-    return await _link_or_unlink(request, db, image_id, skill_id, link=True)
+    return await _link_or_unlink(request, db, image_id, skill_id, link=True, admin=admin)
 
 
 @router.delete("/agent-skills/images/{image_id}/skills/{skill_id}", response_model=ImageSkillsResponse)
@@ -205,6 +233,7 @@ async def unlink_skill_endpoint(
     image_id: int,
     skill_id: int,
     request: Request,
+    admin: AuthenticatedUser = Depends(require_admin),
     db: sqlite3.Connection = Depends(get_db),
 ) -> ImageSkillsResponse:
-    return await _link_or_unlink(request, db, image_id, skill_id, link=False)
+    return await _link_or_unlink(request, db, image_id, skill_id, link=False, admin=admin)

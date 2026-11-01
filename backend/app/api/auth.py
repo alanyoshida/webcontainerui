@@ -4,11 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
 from app.deps import SESSION_COOKIE_NAME, get_current_user, get_db
+from app.services.audit_log import audit
 from app.services.login_throttle import LoginThrottle
 from app.services.passwords import hash_password, verify_password
 from app.services.sessions import (
     AuthenticatedUser,
     create_session,
+    resolve_session,
     revoke_session,
 )
 
@@ -44,6 +46,10 @@ class SessionUserResponse(BaseModel):
     is_admin: bool
 
 
+def _client_ip(request: Request) -> str | None:
+    return request.client.host if request.client is not None else None
+
+
 @router.post("/login", response_model=SessionUserResponse)
 def login(
     body: LoginRequest,
@@ -58,6 +64,13 @@ def login(
     keys = _throttle_keys(body, request)
     retry_after = throttle.retry_after_seconds(*keys)
     if retry_after is not None:
+        audit(
+            "auth.login.throttled",
+            actor_email=body.email,
+            ip=_client_ip(request),
+            outcome="denied",
+            detail=f"retry_after={retry_after}s",
+        )
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="muitas tentativas de login; tente novamente mais tarde",
@@ -72,6 +85,7 @@ def login(
     if row is None:
         verify_password(body.password, _DUMMY_HASH)
         throttle.record_failure(*keys)
+        audit("auth.login", actor_email=body.email, ip=_client_ip(request), outcome="failure")
         raise _INVALID_CREDENTIALS
 
     # O hash é verificado antes da checagem de desabilitação: o Argon2 roda
@@ -80,10 +94,12 @@ def login(
     # (anti-enumeração por timing, achado B1 do pentest).
     if not verify_password(body.password, row["password_hash"]):
         throttle.record_failure(*keys)
+        audit("auth.login", actor_email=body.email, ip=_client_ip(request), outcome="failure")
         raise _INVALID_CREDENTIALS
 
     if row["disabled_at"] is not None:
         throttle.record_failure(*keys)
+        audit("auth.login", actor_email=body.email, ip=_client_ip(request), outcome="failure")
         raise _INVALID_CREDENTIALS
 
     settings = request.app.state.settings
@@ -91,6 +107,13 @@ def login(
     # Sucesso zera a chave da conta; a de origem permanece, para conter o
     # spraying de várias contas de um mesmo IP.
     throttle.record_success(keys[0])
+    audit(
+        "auth.login",
+        actor_id=row["id"],
+        actor_email=row["email"],
+        ip=_client_ip(request),
+        outcome="success",
+    )
 
     response.set_cookie(
         key=SESSION_COOKIE_NAME,
@@ -112,7 +135,17 @@ def logout(
 ) -> None:
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if token is not None:
+        # resolve antes de revogar: sessão revogada não autentica mais
+        user = resolve_session(db, token)
         revoke_session(db, token)
+        if user is not None:
+            audit(
+                "auth.logout",
+                actor_id=user.id,
+                actor_email=user.email,
+                ip=_client_ip(request),
+                outcome="success",
+            )
     response.delete_cookie(key=SESSION_COOKIE_NAME, path="/")
 
 
