@@ -8,7 +8,7 @@
 ## 2. Documentação e verificação
 
 - [x] 2.1 Documentar em `deploy/README.md` (seção de ordem de subida) que um deploy novo nasce com os 5 agentes + VS Code + Webtop XFCE baixando em segundo plano, e que entradas já existentes nunca são sobrescritas pelo seed — conferência por leitura cruzada com o design
-- [ ] 2.2 Rodar a suíte padrão (`cd backend && .venv/bin/python -m pytest`) verde; contra o stack dev reiniciado, confirmar em `/api/admin/images` que não há duplicação das entradas padrão e que o startup loga o seed sem erro
+- [x] 2.2 Rodar a suíte padrão (`cd backend && .venv/bin/python -m pytest`) verde; contra o stack dev reiniciado, confirmar em `/api/admin/images` que não há duplicação das entradas padrão e que o startup loga o seed sem erro
 
 ## Workflow follow-up
 
