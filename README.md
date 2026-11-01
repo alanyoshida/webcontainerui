@@ -1,8 +1,16 @@
-# webcontainerui
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/logo-dark.png">
+  <img src="docs/logo-light.png" alt="webcontainerui" width="320">
+</picture>
 
 Portal multiusuário para rodar desktops Linux completos dentro do navegador,
 usando as imagens [webtop](https://docs.linuxserver.io/images/docker-webtop/) do
 LinuxServer.io.
+
+<picture>
+  <source srcset="images/agent_page.png">
+  <img src="images/agent_page.png" alt="s" width="320">
+</picture>
 
 ## Aviso de segurança, leia antes de implantar
 
