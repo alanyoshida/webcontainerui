@@ -396,7 +396,7 @@ export default function ImagesPanel() {
                 value={editShm}
                 onChange={(e) => setEditShm(e.target.value)}
                 inputProps={{ min: 1 }}
-                required
+                placeholder="1024"
               />
               <TextField
                 label="Limite de memória (MB)"
@@ -405,7 +405,6 @@ export default function ImagesPanel() {
                 value={editMem}
                 onChange={(e) => setEditMem(e.target.value)}
                 inputProps={{ min: 1 }}
-                required
               />
               <TextField
                 label="Limite de CPU (núcleos)"
@@ -414,16 +413,15 @@ export default function ImagesPanel() {
                 value={editCpu}
                 onChange={(e) => setEditCpu(e.target.value)}
                 inputProps={{ min: 0.1, step: 0.1 }}
-                required
               />
               <TextField
-                label="Porta interna"
+                label="Porta interna (padrão 3000)"
                 size="small"
                 type="number"
                 value={editPort}
                 onChange={(e) => setEditPort(e.target.value)}
                 inputProps={{ min: 1, max: 65535 }}
-                required
+                placeholder="3000"
               />
               <Typography variant="caption" color="text.secondary">
                 Instâncias existentes aplicam os novos valores quando o dono as
