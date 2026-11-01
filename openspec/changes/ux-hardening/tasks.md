@@ -38,8 +38,8 @@
 
 ## 7. TopBar e navegação do shell
 
-- [ ] 7.1 TopBar em zonas: à esquerda botão "Administração" (somente admins) abrindo menu com as 8 seções; logo ao centro; à direita seletor de tema (menu Light/Dark/Pastel) e botão-avatar com iniciais + chevron abrindo menu com e-mail no cabeçalho, Identidade SSH e Sair. **Verificar:** teste vitest (admin vê, usuário comum não vê o botão; itens corretos em cada menu)
-- [ ] 7.2 Responsividade da TopBar: em telas estreitas o e-mail sai da barra (permanece no menu), rótulos encurtam e a barra nunca excede a viewport (sem shrink-to-fit). **Verificar:** inspeção manual em 375px (sem rolagem horizontal do documento)
+- [x] 7.1 TopBar em zonas: à esquerda botão "Administração" (somente admins) abrindo menu com as 8 seções; logo ao centro; à direita seletor de tema (menu Light/Dark/Pastel) e botão-avatar com iniciais + chevron abrindo menu com e-mail no cabeçalho, Identidade SSH e Sair. **Verificar:** teste vitest (admin vê, usuário comum não vê o botão; itens corretos em cada menu)
+- [x] 7.2 Responsividade da TopBar: em telas estreitas o e-mail sai da barra (permanece no menu), rótulos encurtam e a barra nunca excede a viewport (sem shrink-to-fit). **Verificar:** inspeção manual em 375px (sem rolagem horizontal do documento)
 
 ## 8. Ícones
 
