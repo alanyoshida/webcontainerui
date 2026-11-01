@@ -21,6 +21,7 @@ import Typography from "@mui/material/Typography";
 import { Link2, Link2Off, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SectionTitle from "../../components/SectionTitle";
 import SuccessSnackbar from "../../components/SuccessSnackbar";
 import { imageCountLabel } from "../../utils/pluralize";
 
@@ -140,7 +141,7 @@ export default function SkillsPanel() {
 
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-          <Typography variant="h6">Biblioteca de skills</Typography>
+          <SectionTitle sx={{ mb: 0 }}>Biblioteca de skills</SectionTitle>
           <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCreate}>
             Nova skill
           </Button>
@@ -186,9 +187,7 @@ export default function SkillsPanel() {
       </Box>
 
       <Box>
-        <Typography variant="h6" gutterBottom>
-          Vínculo por imagem
-        </Typography>
+        <SectionTitle>Vínculo por imagem</SectionTitle>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Vincular ou desvincular dispara um novo build da imagem. Só imagens de agente de código
           aparecem aqui.

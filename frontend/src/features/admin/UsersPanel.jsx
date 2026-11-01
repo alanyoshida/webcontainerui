@@ -13,11 +13,11 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Chip from "@mui/material/Chip";
-import Typography from "@mui/material/Typography";
 import { Ban, Plus } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import { useAuth } from "../../auth/AuthContext";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SectionTitle from "../../components/SectionTitle";
 
 export default function UsersPanel() {
   const { user: currentUser } = useAuth();
@@ -62,9 +62,7 @@ export default function UsersPanel() {
   return (
     <Stack spacing={3}>
       <Box component="form" onSubmit={handleCreate}>
-        <Typography variant="h6" gutterBottom>
-          Nova conta
-        </Typography>
+        <SectionTitle>Nova conta</SectionTitle>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2} alignItems="center">
           <TextField label="E-mail" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required size="small" />

@@ -13,6 +13,7 @@ import TableRow from "@mui/material/TableRow";
 import Typography from "@mui/material/Typography";
 import { LineChart } from "@mui/x-charts/LineChart";
 import { api } from "../../api/client";
+import SectionTitle from "../../components/SectionTitle";
 
 const REASON_LABEL = {
   user_stop: "Parada pelo usuário",
@@ -70,9 +71,7 @@ export default function UsageMetricsPanel() {
       {error && <Alert severity="error">{error}</Alert>}
 
       <Box>
-        <Typography variant="h6" gutterBottom>
-          Rodando agora
-        </Typography>
+        <SectionTitle>Rodando agora</SectionTitle>
         {live.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
             Nenhuma instância em execução no momento.
@@ -102,9 +101,7 @@ export default function UsageMetricsPanel() {
       </Box>
 
       <Box>
-        <Typography variant="h6" gutterBottom>
-          Histórico (últimos 30 dias)
-        </Typography>
+        <SectionTitle>Histórico (últimos 30 dias)</SectionTitle>
         {runsPage.items.length === 0 ? (
           <Typography variant="body2" color="text.secondary">
             Nenhuma execução nos últimos 30 dias.
@@ -150,9 +147,7 @@ export default function UsageMetricsPanel() {
       {summary && (
         <>
           <Box>
-            <Typography variant="h6" gutterBottom>
-              Uso diário (últimos 30 dias)
-            </Typography>
+            <SectionTitle>Uso diário (últimos 30 dias)</SectionTitle>
             <LineChart
               height={240}
               xAxis={[{ scaleType: "point", data: summary.daily_series.map((point) => point.date) }]}
@@ -162,9 +157,7 @@ export default function UsageMetricsPanel() {
 
           <Stack direction={{ xs: "column", md: "row" }} spacing={4}>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" gutterBottom>
-                Horas por usuário
-              </Typography>
+              <SectionTitle>Horas por usuário</SectionTitle>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -186,9 +179,7 @@ export default function UsageMetricsPanel() {
             </Box>
 
             <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" gutterBottom>
-                Horas por grupo
-              </Typography>
+              <SectionTitle>Horas por grupo</SectionTitle>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -212,9 +203,7 @@ export default function UsageMetricsPanel() {
 
           <Stack direction={{ xs: "column", md: "row" }} spacing={4}>
             <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" gutterBottom>
-                Imagens mais usadas
-              </Typography>
+              <SectionTitle>Imagens mais usadas</SectionTitle>
               <TableContainer>
                 <Table size="small">
                   <TableHead>
@@ -238,9 +227,7 @@ export default function UsageMetricsPanel() {
             </Box>
 
             <Box sx={{ flex: 1 }}>
-              <Typography variant="h6" gutterBottom>
-                Motivo de término
-              </Typography>
+              <SectionTitle>Motivo de término</SectionTitle>
               <Stack direction="row" spacing={1} flexWrap="wrap" useFlexGap>
                 {summary.reason_breakdown.map((entry) => (
                   <Chip key={entry.reason} label={`${REASON_LABEL[entry.reason] ?? entry.reason}: ${entry.count}`} />

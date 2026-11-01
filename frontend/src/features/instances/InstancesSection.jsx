@@ -7,8 +7,8 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import Typography from "@mui/material/Typography";
 import { api } from "../../api/client";
+import SectionTitle from "../../components/SectionTitle";
 import InstanceTableRow from "./InstanceTableRow";
 
 /**
@@ -29,9 +29,9 @@ export default function InstancesSection({ instances, loading, error, onOpenSess
 
   return (
     <section aria-label="Suas instâncias">
-      <Typography variant="h5" component="h2" gutterBottom>
+      <SectionTitle variant="h5" component="h2">
         Minhas instâncias
-      </Typography>
+      </SectionTitle>
 
       {loading && <CircularProgress size={24} />}
       {error && <Alert severity="error">{error}</Alert>}

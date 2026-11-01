@@ -22,6 +22,7 @@ import Typography from "@mui/material/Typography";
 import { Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SectionTitle from "../../components/SectionTitle";
 import SuccessSnackbar from "../../components/SuccessSnackbar";
 import { imageCountLabel } from "../../utils/pluralize";
 
@@ -202,7 +203,7 @@ export default function McpServersPanel() {
 
       <Box>
         <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
-          <Typography variant="h6">Biblioteca de servidores MCP</Typography>
+          <SectionTitle sx={{ mb: 0 }}>Biblioteca de servidores MCP</SectionTitle>
           <Button variant="contained" startIcon={<Plus size={16} />} onClick={openCreate}>
             Novo servidor
           </Button>
@@ -255,9 +256,7 @@ export default function McpServersPanel() {
       </Box>
 
       <Box>
-        <Typography variant="h6" gutterBottom>
-          Vínculo por imagem
-        </Typography>
+        <SectionTitle>Vínculo por imagem</SectionTitle>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
           Vincular, desvincular ou editar propaga na hora para as instâncias em execução — sem
           rebuild. Só imagens de agente de código aparecem aqui.

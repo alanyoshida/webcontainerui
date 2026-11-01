@@ -11,6 +11,7 @@ import Grid from "@mui/material/Grid";
 import Typography from "@mui/material/Typography";
 import { Image as ImageIcon, Play } from "lucide-react";
 import { api } from "../../api/client";
+import SectionTitle from "../../components/SectionTitle";
 import { MONO_FONT_FAMILY } from "../../theme";
 
 const COVER_HEIGHT = 140;
@@ -40,9 +41,9 @@ export default function CatalogSection({ onStart }) {
 
   return (
     <section aria-label="Catálogo de imagens">
-      <Typography variant="h5" component="h2" gutterBottom>
+      <SectionTitle variant="h5" component="h2">
         Catálogo
-      </Typography>
+      </SectionTitle>
 
       {loading && <CircularProgress size={24} />}
       {error && <Alert severity="error">{error}</Alert>}

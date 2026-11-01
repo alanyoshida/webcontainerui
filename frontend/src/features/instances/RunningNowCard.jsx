@@ -4,6 +4,7 @@ import CardContent from "@mui/material/CardContent";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import { ExternalLink } from "lucide-react";
+import SectionTitle from "../../components/SectionTitle";
 
 /**
  * Resumo fixo das instâncias em execução, no topo da home (ver design.md
@@ -16,9 +17,7 @@ export default function RunningNowCard({ instances, onOpenSession }) {
   return (
     <Card variant="outlined" component="section" aria-label="Em execução agora">
       <CardContent>
-        <Typography variant="h6" component="h2" gutterBottom>
-          Em execução agora
-        </Typography>
+        <SectionTitle component="h2">Em execução agora</SectionTitle>
 
         {running.length === 0 ? (
           <Typography variant="body2" color="text.secondary">

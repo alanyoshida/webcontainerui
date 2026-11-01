@@ -20,6 +20,7 @@ import Typography from "@mui/material/Typography";
 import { Plus, Trash2, UserPlus, Users, X } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SectionTitle from "../../components/SectionTitle";
 
 export default function GroupsPanel() {
   const [groups, setGroups] = useState([]);
@@ -88,9 +89,7 @@ export default function GroupsPanel() {
   return (
     <Stack spacing={3}>
       <Box component="form" onSubmit={handleCreateGroup}>
-        <Typography variant="h6" gutterBottom>
-          Novo grupo
-        </Typography>
+        <SectionTitle>Novo grupo</SectionTitle>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Stack direction="row" spacing={2}>
           <TextField

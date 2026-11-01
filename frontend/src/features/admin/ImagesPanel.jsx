@@ -16,6 +16,7 @@ import Typography from "@mui/material/Typography";
 import { Ban, Image as ImageIcon, Plus, RefreshCw, Upload } from "lucide-react";
 import { api, ApiError } from "../../api/client";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import SectionTitle from "../../components/SectionTitle";
 import { MONO_FONT_FAMILY } from "../../theme";
 
 const STATE_LABEL = { pulling: "Baixando", ready: "Pronta", failed: "Falhou" };
@@ -106,9 +107,7 @@ export default function ImagesPanel() {
         data-testid="icon-file-input"
       />
       <Box component="form" onSubmit={handleCreate}>
-        <Typography variant="h6" gutterBottom>
-          Registrar imagem
-        </Typography>
+        <SectionTitle>Registrar imagem</SectionTitle>
         {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
         <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
           <TextField
