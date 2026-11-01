@@ -20,6 +20,10 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     setupFiles: "./src/test-setup.js",
+    // Os testes E2E de navegador ficam em `e2e/` e rodam com o Playwright
+    // (`npm run test:e2e`), não com o Vitest — aqui só cabem testes de
+    // componente em jsdom.
+    exclude: ["**/node_modules/**", "**/dist/**", "e2e/**"],
     server: {
       // @mui/x-charts importa subcaminhos como "@mui/material/styles" sem
       // extensão de arquivo; @mui/material não declara "exports" no

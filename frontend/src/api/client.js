@@ -116,4 +116,15 @@ export const api = {
     request("POST", `/admin/agent-skills/images/${imageId}/skills/${skillId}`),
   adminUnlinkAgentSkill: (imageId, skillId) =>
     request("DELETE", `/admin/agent-skills/images/${imageId}/skills/${skillId}`),
+
+  adminListMcpServers: () => request("GET", "/admin/mcp-servers"),
+  adminCreateMcpServer: (payload) => request("POST", "/admin/mcp-servers", payload),
+  adminUpdateMcpServer: (serverId, payload) =>
+    request("PATCH", `/admin/mcp-servers/${serverId}`, payload),
+  adminDeleteMcpServer: (serverId) => request("DELETE", `/admin/mcp-servers/${serverId}`),
+  adminListImageMcpServers: () => request("GET", "/admin/mcp-servers/images"),
+  adminLinkMcpServer: (imageId, serverId) =>
+    request("POST", `/admin/mcp-servers/images/${imageId}/servers/${serverId}`),
+  adminUnlinkMcpServer: (imageId, serverId) =>
+    request("DELETE", `/admin/mcp-servers/images/${imageId}/servers/${serverId}`),
 };

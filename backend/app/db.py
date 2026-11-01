@@ -73,6 +73,10 @@ CREATE TABLE IF NOT EXISTS instances (
     inner_password TEXT NOT NULL,
     state TEXT NOT NULL DEFAULT 'starting',
     error_message TEXT,
+    -- Quebra de contrato do config de MCP detectada na criação (JSON de
+    -- mensagens por MCP/campo; NULL = sem quebra). Consultável pelo admin,
+    -- não impede a instância de ficar pronta (ver mcp_servers.py).
+    mcp_validation_errors TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_seen_at TEXT,
     deleted_at TEXT
@@ -150,6 +154,34 @@ CREATE TABLE IF NOT EXISTS image_skills (
     skill_id INTEGER NOT NULL REFERENCES agent_skills(id),
     PRIMARY KEY (image_id, skill_id)
 );
+
+-- Biblioteca de servidores MCP (ver services/mcp_servers.py): cadastro
+-- genérico (transporte stdio ou http/sse) que o administrador vincula a
+-- imagens de agente de código. `env_encrypted`/`headers_encrypted` guardam
+-- os dicionários de variável de ambiente/header cifrados com a mesma
+-- infraestrutura Fernet da identidade SSH (nunca em claro no banco) — só
+-- um dos dois é usado, conforme `transport`.
+CREATE TABLE IF NOT EXISTS mcp_servers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    display_name TEXT NOT NULL UNIQUE,
+    transport TEXT NOT NULL,
+    command TEXT,
+    args_json TEXT,
+    url TEXT,
+    env_encrypted BLOB,
+    headers_encrypted BLOB,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT
+);
+
+-- Vínculo N:N entre servidores MCP e imagens de agente de código (mesma
+-- regra de `image_skills`: só imagens com provision_kind='build').
+CREATE TABLE IF NOT EXISTS image_mcp_servers (
+    image_id INTEGER NOT NULL REFERENCES images(id),
+    mcp_server_id INTEGER NOT NULL REFERENCES mcp_servers(id),
+    PRIMARY KEY (image_id, mcp_server_id)
+);
 """
 
 
@@ -178,6 +210,7 @@ def init_db(conn: sqlite3.Connection) -> None:
     _migrate_add_icon_source(conn)
     _migrate_add_agents_md_id(conn)
     _migrate_add_image_provisioning_columns(conn)
+    _migrate_add_instance_mcp_validation_errors(conn)
     _migrate_normalize_last_seen_at(conn)
 
 
@@ -238,6 +271,18 @@ def _migrate_add_image_provisioning_columns(conn: sqlite3.Connection) -> None:
         )
     if "build_hash" not in columns:
         conn.execute("ALTER TABLE images ADD COLUMN build_hash TEXT")
+
+
+def _migrate_add_instance_mcp_validation_errors(conn: sqlite3.Connection) -> None:
+    """Adiciona a coluna `mcp_validation_errors` a `instances`.
+
+    Bancos criados antes dela não ganham a coluna pelo CREATE TABLE IF NOT
+    EXISTS — mesmo padrão guardado por PRAGMA table_info das demais
+    migrações. NULL significa "sem quebra de contrato registrada".
+    """
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(instances)")}
+    if "mcp_validation_errors" not in columns:
+        conn.execute("ALTER TABLE instances ADD COLUMN mcp_validation_errors TEXT")
 
 
 def _migrate_normalize_last_seen_at(conn: sqlite3.Connection) -> None:

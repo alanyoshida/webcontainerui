@@ -9,7 +9,9 @@ erro sem depender de um Docker real se comportando mal de propósito.
 from __future__ import annotations
 
 import asyncio
+import io
 import itertools
+import tarfile
 from collections.abc import AsyncIterator, Mapping
 
 from app.runtime.errors import ContainerNotFoundError
@@ -28,6 +30,11 @@ class FakeContainerRuntime:
         self.pull_calls: list[dict] = []
         self.put_archive_calls: list[dict] = []
         self.exec_calls: list[dict] = []
+        # Simula o sistema de arquivos do container pra `get_archive` ler o
+        # que `put_archive` escreveu (mudança mcp-server-library: o merge
+        # de config de MCP precisa de round-trip escrita->leitura nos
+        # testes, sem depender de Docker real).
+        self._files: dict[str, dict[str, bytes]] = {}
 
     def set_delay(self, operation: str, seconds: float) -> None:
         self._delays[operation] = seconds
@@ -91,6 +98,22 @@ class FakeContainerRuntime:
         self.put_archive_calls.append(
             {"container_id": container_id, "destination_path": destination_path, "tar_bytes": tar_bytes}
         )
+        base = destination_path.rstrip("/")
+        files = self._files.setdefault(container_id, {})
+        with tarfile.open(fileobj=io.BytesIO(tar_bytes)) as tar:
+            for member in tar.getmembers():
+                if not member.isfile():
+                    continue
+                extracted = tar.extractfile(member)
+                if extracted is None:
+                    continue
+                full_path = f"{base}/{member.name.lstrip('/')}"
+                files[full_path] = extracted.read()
+
+    async def get_archive(self, container_id: str, path: str) -> bytes | None:
+        self._require(container_id)
+        await self._simulate("get_archive")
+        return self._files.get(container_id, {}).get(path)
 
     async def exec(self, container_id: str, command: list[str]) -> tuple[int, bytes]:
         self._require(container_id)

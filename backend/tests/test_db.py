@@ -445,3 +445,57 @@ def test_image_skills_vincula_skill_a_imagem_de_build(db_conn):
         (image_id, skill_id),
     ).fetchone()[0]
     assert vinculadas == 1
+
+
+def test_mcp_servers_existe_apos_init_db(db_conn):
+    columns = {row["name"] for row in db_conn.execute("PRAGMA table_info(mcp_servers)")}
+    assert columns == {
+        "id",
+        "display_name",
+        "transport",
+        "command",
+        "args_json",
+        "url",
+        "env_encrypted",
+        "headers_encrypted",
+        "enabled",
+        "created_at",
+        "updated_at",
+    }
+
+
+def test_image_mcp_servers_existe_apos_init_db(db_conn):
+    columns = {row["name"] for row in db_conn.execute("PRAGMA table_info(image_mcp_servers)")}
+    assert columns == {"image_id", "mcp_server_id"}
+
+
+def test_mcp_servers_nome_duplicado_e_rejeitado(db_conn):
+    db_conn.execute(
+        "INSERT INTO mcp_servers (display_name, transport, command) VALUES (?, ?, ?)",
+        ("Meu MCP", "stdio", "npx"),
+    )
+
+    with pytest.raises(Exception):
+        db_conn.execute(
+            "INSERT INTO mcp_servers (display_name, transport, command) VALUES (?, ?, ?)",
+            ("Meu MCP", "stdio", "npx"),
+        )
+
+
+def test_image_mcp_servers_vincula_mcp_a_imagem_de_build(db_conn):
+    image_id = insert_image(db_conn, provision_kind="build")
+    mcp_id = db_conn.execute(
+        "INSERT INTO mcp_servers (display_name, transport, command) VALUES (?, ?, ?)",
+        ("Meu MCP", "stdio", "npx"),
+    ).lastrowid
+
+    db_conn.execute(
+        "INSERT INTO image_mcp_servers (image_id, mcp_server_id) VALUES (?, ?)",
+        (image_id, mcp_id),
+    )
+
+    vinculados = db_conn.execute(
+        "SELECT COUNT(*) FROM image_mcp_servers WHERE image_id = ? AND mcp_server_id = ?",
+        (image_id, mcp_id),
+    ).fetchone()[0]
+    assert vinculados == 1

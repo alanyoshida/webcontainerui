@@ -119,6 +119,29 @@ class AioDockerContainerRuntime:
         except DockerError as exc:
             raise RuntimeOperationError(str(exc)) from exc
 
+    async def get_archive(self, container_id: str, path: str) -> bytes | None:
+        """Lê um arquivo do container, já desempacotado do tar que a API
+        do Docker devolve (mudança mcp-server-library: o merge de config
+        de MCP precisa ler o estado atual antes de escrever de volta).
+        `None` quando o caminho não existe — distinto de container
+        inexistente, que `_get_container` já trata à parte.
+        """
+        container = await self._get_container(container_id)
+        try:
+            tar = await container.get_archive(path)
+        except DockerError as exc:
+            if exc.status == 404:
+                return None
+            raise RuntimeOperationError(str(exc)) from exc
+        try:
+            member = next((m for m in tar.getmembers() if m.isfile()), None)
+            if member is None:
+                return None
+            extracted = tar.extractfile(member)
+            return extracted.read() if extracted is not None else None
+        finally:
+            tar.close()
+
     async def exec(self, container_id: str, command: list[str]) -> tuple[int, bytes]:
         """Executa um comando no container e devolve (código de saída, saída).
 

@@ -1,3 +1,4 @@
+import json
 import secrets
 import sqlite3
 import uuid
@@ -7,6 +8,7 @@ from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime, ContainerSpec
 from app.services import ssh_identity
 from app.services import agents_md
+from app.services import mcp_servers
 from app.services.access_control import is_permitted
 from app.services.errors import NotFoundError, PermissionDeniedError, ValidationFailedError
 from app.services.images import get_image
@@ -179,6 +181,27 @@ async def _inject_agents_md(
         pass
 
 
+async def _inject_mcp_servers(
+    conn: sqlite3.Connection,
+    runtime: ContainerRuntime,
+    settings: Settings,
+    image: sqlite3.Row,
+    container_id: str,
+) -> list[str]:
+    """Escreve os MCPs vinculados à imagem no config nativo da ferramenta
+    (merge via `apply_mcp_config_to_container`) no container recém-criado.
+    Best-effort, mesmo padrão de `_inject_agents_md`: falha não impede a
+    instância de ficar pronta. Quebra de contrato (validação pós-escrita)
+    é devolvida para quem chamou registrar — o admin consulta e corrige o
+    cadastro do MCP."""
+    try:
+        return await mcp_servers.apply_mcp_config_to_container(
+            conn, runtime, settings, image, container_id
+        )
+    except (ContainerNotFoundError, RuntimeOperationError):
+        return []
+
+
 async def propagate_ssh_identity_to_live_instances(
     conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, user_id: int
 ) -> list[dict]:
@@ -236,6 +259,7 @@ async def _provision_and_start(
 
     await _inject_ssh_identity(conn, runtime, settings, image, container_id, row["user_id"])
     await _inject_agents_md(conn, runtime, settings, image, container_id)
+    mcp_validation_errors = await _inject_mcp_servers(conn, runtime, settings, image, container_id)
 
     try:
         await runtime.start_container(container_id)
@@ -251,8 +275,14 @@ async def _provision_and_start(
         return _get_by_id(conn, row["id"])
 
     conn.execute(
-        "UPDATE instances SET state = 'running', error_message = NULL, container_id = ?, container_name = ? WHERE id = ?",
-        (container_id, container_name, row["id"]),
+        "UPDATE instances SET state = 'running', error_message = NULL,"
+        " mcp_validation_errors = ?, container_id = ?, container_name = ? WHERE id = ?",
+        (
+            json.dumps(mcp_validation_errors, ensure_ascii=False) if mcp_validation_errors else None,
+            container_id,
+            container_name,
+            row["id"],
+        ),
     )
     _open_run(conn, row["id"], row["user_id"], row["image_id"])
     return _get_by_id(conn, row["id"])

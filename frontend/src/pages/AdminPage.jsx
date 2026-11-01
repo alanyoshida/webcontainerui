@@ -7,6 +7,7 @@ import AccessPanel from "../features/admin/AccessPanel";
 import AgentsMdPanel from "../features/admin/AgentsMdPanel";
 import GroupsPanel from "../features/admin/GroupsPanel";
 import ImagesPanel from "../features/admin/ImagesPanel";
+import McpServersPanel from "../features/admin/McpServersPanel";
 import SkillsPanel from "../features/admin/SkillsPanel";
 import UsageMetricsPanel from "../features/admin/UsageMetricsPanel";
 import UsersPanel from "../features/admin/UsersPanel";
@@ -17,6 +18,7 @@ const TABS = [
   { label: "Catálogo", Panel: ImagesPanel },
   { label: "AGENTS.md", Panel: AgentsMdPanel },
   { label: "Skills", Panel: SkillsPanel },
+  { label: "MCP", Panel: McpServersPanel },
   { label: "Acessos", Panel: AccessPanel },
   { label: "Métricas de uso", Panel: UsageMetricsPanel },
 ];

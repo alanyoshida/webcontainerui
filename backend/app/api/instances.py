@@ -1,3 +1,4 @@
+import json
 import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -23,6 +24,7 @@ class InstanceResponse(BaseModel):
     image_tag: str
     state: str
     error_message: str | None
+    mcp_validation_errors: list[str] = []
 
 
 def _to_response(row: sqlite3.Row) -> InstanceResponse:
@@ -34,6 +36,9 @@ def _to_response(row: sqlite3.Row) -> InstanceResponse:
         image_tag=row["image_tag"],
         state=row["state"],
         error_message=row["error_message"],
+        mcp_validation_errors=json.loads(row["mcp_validation_errors"])
+        if row["mcp_validation_errors"]
+        else [],
     )
 
 

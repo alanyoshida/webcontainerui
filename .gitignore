@@ -46,3 +46,8 @@ docker-compose.override.yaml
 *.swp
 .DS_Store
 Thumbs.db
+
+# Playwright (testes E2E do frontend)
+frontend/test-results/
+frontend/playwright-report/
+frontend/bun.lock

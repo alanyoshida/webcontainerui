@@ -163,15 +163,64 @@ async def test_fake_build_image_propaga_falha_configurada():
             pass
 
 
+def _tar_of(name: str, content: bytes) -> bytes:
+    import io
+    import tarfile
+
+    buffer = io.BytesIO()
+    with tarfile.open(fileobj=buffer, mode="w") as tar:
+        info = tarfile.TarInfo(name=name)
+        info.size = len(content)
+        tar.addfile(info, io.BytesIO(content))
+    return buffer.getvalue()
+
+
 async def test_fake_put_archive_registra_container_destino_e_conteudo():
     runtime = FakeContainerRuntime()
     container_id = await runtime.create_container(_spec())
+    tar_bytes = _tar_of("arquivo.txt", b"tar-bytes-de-teste")
 
-    await runtime.put_archive(container_id, "/config", b"tar-bytes-de-teste")
+    await runtime.put_archive(container_id, "/config", tar_bytes)
 
     assert runtime.put_archive_calls == [
-        {"container_id": container_id, "destination_path": "/config", "tar_bytes": b"tar-bytes-de-teste"}
+        {"container_id": container_id, "destination_path": "/config", "tar_bytes": tar_bytes}
     ]
+
+
+async def test_fake_get_archive_le_de_volta_o_que_put_archive_escreveu():
+    runtime = FakeContainerRuntime()
+    container_id = await runtime.create_container(_spec())
+    tar_bytes = _tar_of(".claude.json", b'{"mcpServers": {}}')
+
+    await runtime.put_archive(container_id, "/config", tar_bytes)
+    conteudo = await runtime.get_archive(container_id, "/config/.claude.json")
+
+    assert conteudo == b'{"mcpServers": {}}'
+
+
+async def test_fake_get_archive_caminho_inexistente_devolve_none():
+    runtime = FakeContainerRuntime()
+    container_id = await runtime.create_container(_spec())
+
+    assert await runtime.get_archive(container_id, "/config/nao-existe.json") is None
+
+
+async def test_fake_get_archive_em_container_inexistente_falha():
+    runtime = FakeContainerRuntime()
+
+    with pytest.raises(ContainerNotFoundError):
+        await runtime.get_archive("nao-existe", "/config/x.json")
+
+
+async def test_fake_get_archive_caminho_aninhado():
+    runtime = FakeContainerRuntime()
+    container_id = await runtime.create_container(_spec())
+    tar_bytes = _tar_of(".config/opencode/opencode.jsonc", b'{"mcp": {}}')
+
+    await runtime.put_archive(container_id, "/config", tar_bytes)
+    conteudo = await runtime.get_archive(container_id, "/config/.config/opencode/opencode.jsonc")
+
+    assert conteudo == b'{"mcp": {}}'
 
 
 async def test_fake_put_archive_em_container_inexistente_falha():
