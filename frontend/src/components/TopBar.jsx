@@ -85,6 +85,8 @@ export default function TopBar() {
                         <ListSubheader
                           key={`heading-${section.group}`}
                           sx={{
+                            position: "static",
+                            bgcolor: "transparent",
                             fontSize: "0.6875rem",
                             fontWeight: 600,
                             letterSpacing: "0.06em",
