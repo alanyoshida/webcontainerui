@@ -22,16 +22,19 @@ cd deploy
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-Sobe só o portal (`http://127.0.0.1:8000`). O front-end roda fora da
-composição, em outro terminal:
+A imagem é construída a partir do `Dockerfile` da raiz, que já compila o
+front-end — a aplicação completa (front + API) responde em
+`http://127.0.0.1:8000` sem precisar de Node na máquina. Login dev:
+`admin@local.test` / `senha-admin-dev-123456`.
+
+Para desenvolver o front-end com hot-reload, rode o Vite em outro terminal:
 
 ```bash
 cd frontend && npm run dev
 ```
 
 Acesse `http://localhost:5173` (o Vite faz proxy de `/api`, `/i` e `/uploads`
-para o portal — origem única em dev). Login dev: `admin@local.test` /
-`senha-admin-dev-123456`.
+para o portal — origem única em dev).
 
 ### Produção
 

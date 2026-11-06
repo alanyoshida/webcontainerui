@@ -49,6 +49,31 @@ Prefere configurar à mão, ou automatizar a instalação sem prompts? Veja
 ordem de subida manual, as variáveis de ambiente opcionais e o procedimento
 de reversão.
 
+## Teste local
+
+Sem domínio, sem TLS e sem Caddy — para experimentar o portal na própria
+máquina com um comando:
+
+```bash
+cd deploy
+docker compose -f docker-compose.dev.yml up --build
+```
+
+A imagem é construída a partir do `Dockerfile` da raiz, que já compila o
+front-end: a aplicação completa responde em `http://127.0.0.1:8000`, sem
+precisar de Node na máquina. Login dev: `admin@local.test` /
+`senha-admin-dev-123456`. O portal só escuta em `127.0.0.1` — não fica
+exposto à rede.
+
+Para derrubar preservando o banco de dados:
+
+```bash
+cd deploy && docker compose -f docker-compose.dev.yml down
+```
+
+`http://localhost` já é um secure context, que é o que o cliente Selkies
+exige para WebCodecs funcionar — por isso TLS não faz falta aqui.
+
 ## Arquitetura: origem única
 
 Tudo é servido na mesma origem — front-end, API e o encaminhamento das sessões.
