@@ -68,4 +68,6 @@ async def revoke_image_endpoint(
           outcome="success", detail=f"op=revogar; instancias afetadas={len(affected)}")
     runtime = request.app.state.runtime
     for row in affected:
-        await stop_instance(db, runtime, row["id"], row["user_id"])
+        await stop_instance(
+            db, runtime, row["id"], row["user_id"], settings=request.app.state.settings
+        )

@@ -15,6 +15,7 @@ cd deploy
 export WCUI_DOMAIN=desktop.seu-dominio.test
 export WCUI_ADMIN_EMAIL=admin@seu-dominio.test
 export WCUI_ADMIN_PASSWORD="uma senha com pelo menos 12 caracteres"
+export WCUI_DATA_PLANE_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose up -d --build
 ```
 
@@ -64,7 +65,7 @@ casando com a subnet real da `wcui_net` — confira com
 
 ## Variáveis de ambiente
 
-As três abaixo são obrigatórias; a composição recusa subir sem elas
+As quatro abaixo são obrigatórias; a composição recusa subir sem elas
 (`docker compose` falha cedo com uma mensagem clara em vez de o portal
 quebrar na inicialização).
 
@@ -73,6 +74,37 @@ quebrar na inicialização).
 | `WCUI_DOMAIN` | Domínio público; o Caddy obtém certificado Let's Encrypt para ele |
 | `WCUI_ADMIN_EMAIL` | E-mail do primeiro administrador |
 | `WCUI_ADMIN_PASSWORD` | Senha inicial dele (mínimo 12 caracteres) |
+| `WCUI_DATA_PLANE_SECRET` | Segredo compartilhado entre portal e Caddy; o `forward_auth` o apresenta ao endpoint interno de autorização (`secrets.token_urlsafe(32)`) |
+
+### Plano de dados das sessões
+
+O Caddy não é só terminação TLS: ele transporta `/i/{uuid}/` (HTTP e
+WebSocket) diretamente aos containers das instâncias, sem os frames passarem
+pelo processo do portal (change `external-stream-proxy`). Para cada instância
+viva, o portal escreve um snippet em `deploy/caddy-routes/` — um volume
+nomeado montado no Caddy em `/etc/caddy/caddy-routes` e no portal em
+`/data/caddy-routes` — e recarrega o Caddy com `docker exec` no container
+`wcui-caddy`.
+
+Antes de encaminhar, o Caddy consulta o portal em
+`/internal/data-plane/authorize` (`forward_auth`): sessão válida, dono e
+instância em execução. Só a resposta 2xx carrega a credencial interna da
+instância, copiada para a requisição encaminhada — o cliente nunca a vê. O
+endpoint exige o `WCUI_DATA_PLANE_SECRET` e não é exposto pela borda (o
+Caddy responde `404` a `/internal/*` vindo de fora).
+
+Sintomas e diagnóstico:
+
+- **Sessão presa em "carregando" com o portal de pé** — confira as rotas
+  publicadas: `docker exec wcui-caddy ls /etc/caddy/caddy-routes`. Um arquivo
+  por instância `running`, mais o `000-placeholder.caddy`.
+- **Rota publicada mas não aplicada** — o `reload` falhou; o log de auditoria
+  do portal (`docker logs <portal>`) tem um evento `data_plane.reload`. O
+  Caddy mantém a última configuração válida, então nunca fica com uma config
+  quebrada; a rota entra no próximo evento de ciclo de vida da instância.
+- **Publicação foi desligada** — `WCUI_CADDY_ROUTES_DIR` vazio. Nesse modo o
+  portal entrega as sessões pelo próprio caminho interno (é o padrão em dev e
+  testes).
 
 ### Proxy TLS e cookie `Secure`
 
@@ -142,6 +174,10 @@ próprio FastAPI servindo o build do React.
 Os volumes `wcui_db` (ou `wcui_db_dev`) e o volume Docker de cada desktop de
 usuário são nomeados e sobrevivem a `docker compose down`. Derrubar a
 composição não apaga nada.
+
+O plano de dados não guarda estado além dos snippets em `caddy_routes`:
+para voltar a entregar tudo pelo portal, restaure o `Caddyfile` anterior (ou
+remova o volume e reinicie o Caddy) — as instâncias e volumes não mudam.
 
 **Antes de aplicar qualquer migração de schema**, copie o arquivo SQLite —
 é um único arquivo, então a cópia é trivial e a reversão é só restaurá-lo:

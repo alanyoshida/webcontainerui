@@ -48,6 +48,28 @@ decisão completa e as demais mitigações do projeto (isolamento de rede dos
 containers de desktop, credencial interna por instância, desligamento dos
 links de compartilhamento do Selkies).
 
+## Plano de dados das sessões (change `external-stream-proxy`)
+
+Em produção o Caddy transporta `/i/{uuid}/` diretamente aos containers das
+instâncias; o portal deixa de reenviar os frames e passa a decidir apenas a
+autorização. Isso muda a superfície de duas formas:
+
+- **O Caddy alcança os containers das instâncias.** Ele já vivia na
+  `wcui_net`; agora o reverse_proxy usa esse acesso. Os containers continuam
+  sem porta publicada no host — o isolamento entre usuários segue topológico.
+- **Segredo compartilhado.** O `forward_auth` apresenta
+  `WCUI_DATA_PLANE_SECRET` ao endpoint interno de autorização. Sem o segredo
+  correto, o endpoint responde `401` e nada é encaminhado (falha fechada,
+  inclusive com o portal fora do ar). O endpoint não é exposto pela borda: o
+  Caddy responde `404` a `/internal/*` vindo de fora.
+- **Rotas são configuração, não código.** O portal escreve um snippet por
+  instância em `caddy_routes` com id e nome de container validados (apenas
+  `[A-Za-z0-9_.-]`); o comando de reload é fixo no portal, nunca derivado de
+  input de usuário.
+
+O portal continua sendo o único componente que decide autorização; o Caddy
+só transporta o que o portal aprovou.
+
 ## Cabeçalhos encaminhados e allowlist de subnet (change `harden-login`)
 
 O portal só honra `X-Forwarded-Proto`/`X-Forwarded-For` vindos de IPs na

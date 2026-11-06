@@ -46,6 +46,16 @@ class FakeContainerRuntime:
     def set_build_progress(self, progress: list[PullProgress]) -> None:
         self._build_progress = progress
 
+    def register_container(
+        self, container_id: str, *, state: ContainerState = ContainerState.RUNNING
+    ) -> None:
+        """Registra um container já existente fora deste runtime.
+
+        Usado por testes de operações que agem sobre containers que o portal
+        não criou — o Caddy do plano de dados, ou um container cujo estado
+        precisa ser simulado após um reinício do processo."""
+        self._containers[container_id] = {"spec": None, "state": state}
+
     def set_image_info(
         self, repository: str, tag: str, *, labels: Mapping[str, str] | None = None, digest: str | None = None
     ) -> None:

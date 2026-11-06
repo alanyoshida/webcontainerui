@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from cryptography.fernet import Fernet
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -46,6 +46,10 @@ class Settings(BaseSettings):
     docs_enabled: bool = False
 
     idle_timeout_minutes: int = Field(default=30, gt=0)
+    # Intervalo mínimo entre heartbeats de atividade aceitos por instância
+    # (change external-stream-proxy): a visão de sessão sinaliza enquanto
+    # está aberta, e o portal não precisa gravar mais que isso.
+    heartbeat_min_seconds: int = Field(default=30, gt=0)
     reaper_interval_seconds: int = Field(default=60, gt=0)
     activity_debounce_seconds: int = Field(default=30, gt=0)
 
@@ -67,6 +71,25 @@ class Settings(BaseSettings):
     puid: int = Field(default=1000, ge=0)
     pgid: int = Field(default=1000, ge=0)
     timezone: str = Field(default="Etc/UTC", min_length=1)
+
+    # Segredo compartilhado com o plano de dados externo (Caddy): o
+    # endpoint interno de autorização só responde a quem o apresentar.
+    # Vazio desativa o endpoint — dev e testes não têm Caddy na frente.
+    data_plane_secret: str = ""
+
+    # Diretório compartilhado onde o portal publica as rotas de sessão que o
+    # Caddy importa (plano de dados externo). Ausente desativa a publicação:
+    # dev e testes continuam entregando as sessões pelo próprio portal.
+    caddy_routes_dir: Path | None = None
+
+    # Nome/ID do container do Caddy para o `reload` após publicar rotas.
+    # Só é usado quando `caddy_routes_dir` está definido.
+    caddy_container: str = "wcui-caddy"
+
+    @field_validator("caddy_routes_dir", mode="before")
+    @classmethod
+    def _blank_caddy_routes_dir_is_none(cls, value):
+        return None if value in ("", None) else value
 
     # Chave mestra usada para cifrar a chave privada SSH de cada usuário em
     # repouso (ver services/ssh_identity.py). Sem valor padrão: um deploy

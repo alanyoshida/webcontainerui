@@ -86,50 +86,64 @@ Cada instância recebe o caminho `/i/<uuid>/`, e o container é criado com
                      HTTPS (Let's Encrypt)
                              v
                  +-----------------------+
-                 |  Caddy  (so TLS)      |
+                 |  Caddy                |
+                 |  TLS + plano de dados |
                  +-----------+-----------+
-                             | HTTP + WS
-                             v
-      +---------------------------------------------------+
-      |                   FastAPI                         |
-      |  /            front-end (build do React)          |
-      |  /api/*       auth, catalogo, instancias, admin    |
-      |  /i/{uuid}/*  encaminhamento HTTP + WS            |
-      |                   |                               |
-      |                   +-- sessao valida?              |
-      |                   +-- dono da instancia?          |
-      |                   +-- instancia em execucao?      |
-      |                   +-- injeta Authorization        |
-      +-------------------|-------------------------------+
-                          |
-                 rede docker wcui_net
-            *** containers sem porta publicada ***
-                          v
-        +-------------+  +-------------+  +-------------+
-        |  webtop A   |  |  webtop B   |  |  webtop C   |
-        |   :3000     |  |   :3000     |  |   :3000     |
-        +-------------+  +-------------+  +-------------+
+                             |
+          +------------------+-------------------+
+          | /i/{uuid}/*                          | / e /api/*
+          | forward_auth + repasse               v
+          v                          +---------------------------+
+   +------+-----------------+         |          FastAPI          |
+   | consulta o portal:     |         |  /        front-end       |
+   | sessao? dono? rodando? |<------->|  /api/*   auth, catalogo  |
+   | 200 + credencial       |         |  /internal/data-plane/... |
+   +------+-----------------+         |  Docker: cria containers  |
+          |                           +-------------+-------------+
+          |                                         |
+          v                                         |
+    rede docker wcui_net                            |
+    *** containers sem porta publicada ***          |
+          |                                         |
+          v                                         |
+   +-------------+  +-------------+  +-------------+ |
+   |  webtop A   |  |  webtop B   |  |  webtop C   |<-+
+   |   :3000     |  |   :3000     |  |   :3000     |
+   +-------------+  +-------------+  +-------------+
 ```
 
 O ponto central: **os containers não publicam porta no host**. Ficam apenas na
-rede interna, alcançáveis somente pelo processo do portal. O isolamento entre
-usuários é topológico — não existe endereço alternativo para alcançar o desktop de
-outra pessoa. A verificação de propriedade no encaminhamento é a segunda camada, e
-a credencial aleatória por instância é a terceira.
+rede interna. O isolamento entre usuários é topológico — não existe endereço
+alternativo para alcançar o desktop de outra pessoa.
+
+O transporte dos frames **não passa pelo processo do portal** em produção: o
+Caddy encaminha `/i/{uuid}/*` (HTTP e WS) direto ao container, depois de
+consultar o portal por `forward_auth` — sessão válida, dono e instância em
+execução. Só a resposta aprovada carrega a credencial interna da instância, que
+o Caddy copia para a requisição encaminhada; o cliente nunca a vê. As rotas são
+publicadas pelo portal num volume compartilhado (`caddy_routes`). Em
+desenvolvimento, sem Caddy, o próprio portal entrega as sessões — o caminho
+in-process continua existindo e é o que a suíte de testes usa.
 
 A origem única também resolve o CSP: o container envia `frame-ancestors 'self'`,
 então embutir a sessão em iframe funciona sem relaxar nada.
 
 ## Alvo de escala
 
-**10 a 30 sessões simultâneas, um único host Docker.**
+Com o plano de dados no Caddy, o teto deixa de ser o processo do portal: o
+limite passa a ser o **host Docker** — CPU e RAM de cada desktop e a banda do
+link. O Caddy encaminha milhares de conexões WebSocket sem ser gargalo; numa
+máquina dedicada (32 vCPU, 64 GB, 1 Gbps), a ordem de grandeza é **~60–100
+sessões ativas**, dominada por CPU/RAM dos containers (cada webtop usa 1–2 GB e
+parte de um núcleo em uso real).
 
-O stream de cada sessão atravessa o processo Python. O gargalo prático não é
-banda, é bloqueio: uma chamada Docker síncrona travaria o event loop que repassa
-os frames de todas as outras sessões. Por isso o portal roda com **um worker** e
-usa `aiodocker`, sem nenhuma chamada bloqueante no caminho. Acima de ~50 sessões,
-o caminho de crescimento é mover o streaming para um proxy externo com
-forward-auth, mantendo a autorização no portal.
+O portal continua com **um worker** e usa `aiodocker` sem chamadas bloqueantes:
+ele decide autorização e orquestra containers, mas não transporta frames. A
+autorização do plano de dados é uma chamada curta por requisição HTTP (o canal
+WebSocket abre uma vez), não por frame. Para crescer além de um host, a
+estratégia é mais de um host — o banco Postgres (change `postgres-for-production`)
+já permite vários portais sobre os mesmos dados. Os números são estimativa de
+arquitetura; valide com carga real antes de prometer um teto.
 
 ## Desenvolvimento
 

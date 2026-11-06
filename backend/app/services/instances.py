@@ -6,7 +6,7 @@ import uuid
 from app.config import Settings
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime, ContainerSpec
-from app.services import ssh_identity
+from app.services import data_plane, ssh_identity
 from app.services.audit_log import audit
 from app.services import agents_md
 from app.services import mcp_servers
@@ -295,6 +295,9 @@ async def _provision_and_start(
         ),
     )
     _open_run(conn, row["id"], row["user_id"], row["image_id"])
+    await data_plane.publish_route(
+        runtime, settings, row["id"], container_name, image["port"]
+    )
     return _get_by_id(conn, row["id"])
 
 
@@ -324,6 +327,9 @@ async def _resume_existing(
                 "UPDATE instances SET state = 'running', error_message = NULL WHERE id = ?", (row["id"],)
             )
             _open_run(conn, row["id"], row["user_id"], row["image_id"])
+            await data_plane.publish_route(
+                runtime, settings, row["id"], row["container_name"], image["port"]
+            )
             return _get_by_id(conn, row["id"])
 
     container_name = f"{settings.container_prefix}-{row['id']}"
@@ -375,6 +381,7 @@ async def stop_instance(
     instance_id: str,
     user_id: int,
     reason: str = "user_stop",
+    settings: Settings | None = None,
 ) -> None:
     """Para o container preservando o volume. Idempotente: parar uma
     instância já parada, ou cujo container já não existe no runtime, não é
@@ -392,6 +399,8 @@ async def stop_instance(
             pass
     _close_run(conn, instance_id, reason)
     conn.execute("UPDATE instances SET state = 'stopped' WHERE id = ?", (instance_id,))
+    if settings is not None:
+        await data_plane.withdraw_route(runtime, settings, instance_id)
 
 
 async def update_instance(
@@ -426,6 +435,7 @@ async def update_instance(
             " state = 'stopped' WHERE id = ?",
             (instance_id,),
         )
+        await data_plane.withdraw_route(runtime, settings, instance_id)
 
     fresh = _get_by_id(conn, instance_id)
     return await _resume_existing(conn, runtime, settings, image, fresh)
@@ -438,6 +448,7 @@ async def delete_instance(
     user_id: int,
     *,
     confirmed: bool,
+    settings: Settings | None = None,
 ) -> None:
     if not confirmed:
         raise ValidationFailedError("exclusão requer confirmação explícita")
@@ -451,6 +462,8 @@ async def delete_instance(
     await runtime.remove_volume(row["volume_name"])
     _close_run(conn, instance_id, "deleted")
     conn.execute("UPDATE instances SET deleted_at = datetime('now') WHERE id = ?", (instance_id,))
+    if settings is not None:
+        await data_plane.withdraw_route(runtime, settings, instance_id)
 
 
 def backfill_open_runs(conn: sqlite3.Connection) -> None:
@@ -481,7 +494,12 @@ def backfill_open_runs(conn: sqlite3.Connection) -> None:
         )
 
 
-async def stop_all_running_for_user(conn: sqlite3.Connection, runtime: ContainerRuntime, user_id: int) -> None:
+async def stop_all_running_for_user(
+    conn: sqlite3.Connection,
+    runtime: ContainerRuntime,
+    user_id: int,
+    settings: Settings | None = None,
+) -> None:
     """Usada ao desabilitar uma conta: para tudo que estiver em execução,
     preservando os volumes."""
     rows = conn.execute(
@@ -489,4 +507,4 @@ async def stop_all_running_for_user(conn: sqlite3.Connection, runtime: Container
         (user_id,),
     ).fetchall()
     for row in rows:
-        await stop_instance(conn, runtime, row["id"], user_id)
+        await stop_instance(conn, runtime, row["id"], user_id, settings=settings)

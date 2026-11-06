@@ -1,6 +1,8 @@
-# Caddy só termina TLS e repassa para o portal — nenhuma lógica de
-# instância ou autorização mora aqui, isso é tudo do FastAPI (D4 em
-# design.md). Certificado via Let's Encrypt, automático.
+# Caddy termina TLS e atua como plano de dados das sessões (change
+# external-stream-proxy): as rotas /i/{uuid}/* são importadas de um
+# diretório compartilhado, publicado pelo portal, e encaminham direto ao
+# container consultando o portal por forward_auth antes de cada requisição.
+# O restante (front-end e API) continua indo para o portal.
 #
 # WebSocket não precisa de diretiva especial: o reverse_proxy do Caddy
 # repassa upgrades de conexão por padrão, diferente do Nginx.
@@ -16,6 +18,16 @@
 	# Remove o cabeçalho Server do uvicorn encaminhado (change
 	# http-hardening, I3): a borda não anuncia a stack.
 	header -Server
+
+	# O endpoint interno de autorização do plano de dados não é exposto
+	# pela borda: só o forward_auth, de dentro da rede, o alcança.
+	respond /internal/* 404
+
+	# Uma rota por instância viva, escrita pelo portal no volume
+	# compartilhado (caddy_routes). Cada snippet tem um `handle` próprio
+	# para /i/{uuid}/* — o Caddy ordena `handle` antes do `reverse_proxy`
+	# abaixo, então só o restante cai no portal. Glob vazio não é erro.
+	import /etc/caddy/caddy-routes/*.caddy
 
 	reverse_proxy portal:8000 {
 		# Sessões de desktop são conexões longas (D1); sem isto, o padrão

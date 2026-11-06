@@ -10,6 +10,7 @@ from app.services.errors import NotFoundError, PermissionDeniedError, Validation
 from app.services.instances import (
     create_instance,
     delete_instance,
+    get_owned_instance,
     list_instances_for_user,
     stop_instance,
     update_instance,
@@ -119,11 +120,42 @@ async def stop_instance_endpoint(
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
     try:
-        await stop_instance(db, request.app.state.runtime, instance_id, user.id)
+        await stop_instance(
+            db,
+            request.app.state.runtime,
+            instance_id,
+            user.id,
+            settings=request.app.state.settings,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     audit("instance.stopped", actor_id=user.id, actor_email=user.email,
           ip=_client_ip(request), target=instance_id, outcome="success")
+
+
+@router.post("/instances/{instance_id}/heartbeat", status_code=status.HTTP_204_NO_CONTENT)
+async def heartbeat_instance_endpoint(
+    instance_id: str,
+    request: Request,
+    user: AuthenticatedUser = Depends(get_current_user),
+    db: sqlite3.Connection = Depends(get_db),
+) -> None:
+    """Sinal de atividade da visão de sessão aberta (change external-stream-proxy).
+
+    Com o transporte das sessões no plano de dados externo, o portal deixa
+    de ver o tráfego do canal persistente; este heartbeat mantém a detecção
+    de ociosidade equivalente. A janela mínima evita gravação por mensagem.
+    """
+    try:
+        row = get_owned_instance(db, instance_id, user.id)
+    except NotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="não encontrada"
+        ) from exc
+    if row["state"] == "running":
+        request.app.state.activity_tracker.touch_throttled(
+            instance_id, request.app.state.settings.heartbeat_min_seconds
+        )
 
 
 @router.delete("/instances/{instance_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -135,7 +167,14 @@ async def delete_instance_endpoint(
     db: sqlite3.Connection = Depends(get_db),
 ) -> None:
     try:
-        await delete_instance(db, request.app.state.runtime, instance_id, user.id, confirmed=confirm)
+        await delete_instance(
+            db,
+            request.app.state.runtime,
+            instance_id,
+            user.id,
+            confirmed=confirm,
+            settings=request.app.state.settings,
+        )
     except NotFoundError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValidationFailedError as exc:

@@ -12,6 +12,7 @@ from app.api.admin import router as admin_router
 from app.api.agent_skills import router as agent_skills_router
 from app.api.agents_md import router as agents_md_router
 from app.api.auth import router as auth_router
+from app.api.data_plane import router as data_plane_router
 from app.api.health import router as health_router
 from app.api.images import admin_router as images_admin_router
 from app.api.images import catalog_router
@@ -29,6 +30,7 @@ from app.runtime.protocol import ContainerRuntime
 from app.services.activity import ActivityTracker
 from app.services.activity_flusher import run_activity_flusher
 from app.services.agent_images import seed_agent_images
+from app.services.data_plane import publish_live_routes
 from app.services.background import cancel_all, spawn
 from app.services.desktop_images import seed_desktop_images
 from app.services.image_covers import seed_image_covers
@@ -136,6 +138,10 @@ def create_app(
         # então só abre run retroativo para quem de fato segue em execução
         # (métricas de uso, D3/design.md).
         backfill_open_runs(conn)
+        # Publica as rotas das instâncias que sobreviveram à reconciliação e
+        # remove rotas órfãs deixadas no volume compartilhado por um processo
+        # anterior (plano de dados externo; no-op sem caddy_routes_dir).
+        await publish_live_routes(conn, resolved_runtime, resolved_settings)
         conn.close()
 
         # Garante a base e as 5 imagens de agente no catálogo. Aguarda os
@@ -167,6 +173,7 @@ def create_app(
                 resolved_settings.idle_timeout_minutes,
                 resolved_settings.reaper_interval_seconds,
                 resolved_settings.session_purge_grace_hours,
+                settings=resolved_settings,
             ),
         )
 
@@ -201,6 +208,7 @@ def create_app(
     app.include_router(public_config_router, prefix="/api", tags=["config"])
     app.include_router(health_router, tags=["health"])
     app.include_router(session_proxy_router, tags=["session-proxy"])
+    app.include_router(data_plane_router, tags=["data-plane"])
 
     # Imagens de capa enviadas pelo administrador (fora do bundle do
     # front-end, por isso um mount próprio em vez de reaproveitar /assets).

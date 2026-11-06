@@ -4,6 +4,7 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
+from app.config import Settings
 from app.db import connect
 from app.runtime.errors import ContainerNotFoundError
 from app.runtime.protocol import ContainerRuntime, ContainerState
@@ -75,6 +76,7 @@ async def run_reaper(
     idle_timeout_minutes: int,
     interval_seconds: int,
     session_purge_grace_hours: int = 24,
+    settings: Settings | None = None,
 ) -> None:
     """Loop periódico de ociosidade, reconciliação de estado e purga de
     sessões. Uma falha numa iteração não encerra o loop (D-risco "um worker
@@ -95,8 +97,13 @@ async def run_reaper(
         try:
             conn = connect(db_path)
             try:
-                await reconcile_instance_states(conn, runtime)
-                await reap_idle_instances(conn, runtime, idle_timeout_minutes)
+                reconciled = await reconcile_instance_states(conn, runtime)
+                stopped = await reap_idle_instances(conn, runtime, idle_timeout_minutes)
+                if settings is not None:
+                    from app.services.data_plane import withdraw_route
+
+                    for instance_id in reconciled + stopped:
+                        await withdraw_route(runtime, settings, instance_id)
                 removidas = purge_sessions(conn, session_purge_grace_hours)
                 if removidas:
                     logger.info("purga de sessões: %d linha(s) removida(s)", removidas)

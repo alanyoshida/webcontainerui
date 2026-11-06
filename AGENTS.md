@@ -43,6 +43,7 @@ cd deploy
 export WCUI_DOMAIN=desktop.seu-dominio.test
 export WCUI_ADMIN_EMAIL=admin@seu-dominio.test
 export WCUI_ADMIN_PASSWORD="senha com pelo menos 12 caracteres"
+export WCUI_DATA_PLANE_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose up -d --build
 ```
 
@@ -57,6 +58,7 @@ Caddy termina TLS na frente. O portal não publica porta — só o Caddy expõe
 | `WCUI_ADMIN_EMAIL` | E-mail do primeiro administrador |
 | `WCUI_ADMIN_PASSWORD` | Senha inicial (mínimo 12 caracteres) |
 | `WCUI_SSH_KEY_ENCRYPTION_KEY` | Chave Fernet que cifra as chaves SSH em repouso |
+| `WCUI_DATA_PLANE_SECRET` | Segredo compartilhado entre portal e Caddy para o `forward_auth` |
 
 Para gerar a chave Fernet:
 
@@ -144,6 +146,26 @@ confira o catálogo, o início de instância e a tela de identidade SSH.
 - O Vite faz proxy de `/api`, `/i` e `/uploads` em dev. Em produção o
   FastAPI serve o build de `frontend/dist` — rotas de API têm prioridade
   sobre o catch-all do SPA.
+
+### Plano de dados das sessões
+
+- Em produção o Caddy transporta `/i/{uuid}/*` (HTTP + WS) direto aos
+  containers, consultando o portal por `forward_auth` antes de cada
+  requisição. O portal **não transporta frames**; ele só decide (sessão,
+  dono, `running`) no endpoint interno `/internal/data-plane/authorize`.
+- O endpoint exige `WCUI_DATA_PLANE_SECRET` (header `X-Data-Plane-Secret`),
+  nunca aparece no schema público e o Caddy responde `404` a `/internal/*`
+  vindo da borda.
+- O portal publica as rotas no diretório `WCUI_CADDY_ROUTES_DIR` (volume
+  `caddy_routes`) e recarrega o Caddy via `runtime.exec` com um comando
+  **fixo** (`caddy reload`), nunca derivado de input de usuário. Sem esse
+  diretório configurado, a publicação é no-op — é o modo dev/testes.
+- O proxy in-process (`api/session_proxy.py`) **continua registrado**; em
+  produção ele fica sombreado pelo roteamento da borda. Não remova: é o
+  caminho de dev, da suíte de testes e a defesa em profundidade.
+- Atividade para o reaper: toques nas autorizações aprovadas + heartbeat
+  throttled da visão de sessão (`POST /api/instances/{id}/heartbeat`). Não
+  reintroduza toque por mensagem.
 
 ### Imagens de agente
 

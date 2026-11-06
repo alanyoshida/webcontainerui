@@ -133,7 +133,9 @@ async def disable_user_endpoint(
         outcome="success",
         detail="conta desabilitada e sessões revogadas",
     )
-    await stop_all_running_for_user(db, request.app.state.runtime, user_id)
+    await stop_all_running_for_user(
+        db, request.app.state.runtime, user_id, settings=request.app.state.settings
+    )
 
 
 @router.get("/groups", response_model=list[GroupResponse])

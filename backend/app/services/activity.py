@@ -1,4 +1,5 @@
 import sqlite3
+import time
 from datetime import datetime, timezone
 
 
@@ -20,9 +21,24 @@ class ActivityTracker:
 
     def __init__(self) -> None:
         self._pending: dict[str, str] = {}
+        self._last_touch: dict[str, float] = {}
 
     def touch(self, instance_id: str) -> None:
         self._pending[instance_id] = _now_iso()
+
+    def touch_throttled(self, instance_id: str, min_seconds: int) -> bool:
+        """Toque com frequência limitada por instância.
+
+        Usado pelo heartbeat da visão de sessão (change
+        external-stream-proxy): o cliente pode repetir, mas o portal só
+        considera um toque por janela. Devolve se o toque foi registrado."""
+        now = time.monotonic()
+        last = self._last_touch.get(instance_id)
+        if last is not None and now - last < min_seconds:
+            return False
+        self._last_touch[instance_id] = now
+        self.touch(instance_id)
+        return True
 
     def flush(self, conn: sqlite3.Connection) -> int:
         pending = self._pending

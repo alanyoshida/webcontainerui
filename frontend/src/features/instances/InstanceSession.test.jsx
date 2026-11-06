@@ -256,3 +256,35 @@ test("a carga do iframe dispara o refit do terminal embutido", async () => {
 
   expect(term.fit).toHaveBeenCalledTimes(1);
 });
+
+test("com a sessão pronta, envia heartbeat de atividade a cada 60s e para ao desmontar", async () => {
+  vi.useFakeTimers();
+  global.fetch.mockResolvedValue(new Response(null, { status: 200 }));
+
+  const { unmount } = render(<InstanceSession instanceId="abc-123" />);
+  await act(async () => {
+    await Promise.resolve();
+  });
+  expect(screen.getByTitle(/Sessão da instância abc-123/)).toBeInTheDocument();
+
+  const heartbeats = () =>
+    global.fetch.mock.calls.filter(([url]) => String(url).endsWith("/heartbeat"));
+
+  expect(heartbeats()).toHaveLength(0);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60000);
+  });
+  expect(heartbeats()).toHaveLength(1);
+
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(60000);
+  });
+  expect(heartbeats()).toHaveLength(2);
+
+  unmount();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(180000);
+  });
+  expect(heartbeats()).toHaveLength(2); // parou ao desmontar
+});

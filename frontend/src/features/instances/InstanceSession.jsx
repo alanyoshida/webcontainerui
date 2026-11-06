@@ -8,6 +8,10 @@ const RETRY_INTERVAL_MS = 3000;
 const MAX_RETRIES = 20; // ~1 minuto tentando, mesma ordem de grandeza do ciclo do reaper
 const TTYD_REFIT_POLL_MS = 100;
 const TTYD_REFIT_MAX_WAIT_MS = 5000;
+// Heartbeat de atividade (change external-stream-proxy): com o plano de
+// dados externo, o portal deixa de ver o tráfego do canal persistente e
+// depende deste sinal enquanto a visão de sessão está aberta.
+const HEARTBEAT_INTERVAL_MS = 60000;
 
 /**
  * Refaz o ajuste do terminal ttyd embutido depois que o iframe carrega.
@@ -94,6 +98,22 @@ export default function InstanceSession({ instanceId }) {
     },
     []
   );
+
+  // Enquanto a sessão está pronta (e a visão montada), sinaliza atividade
+  // ao portal. O primeiro batimento vem só no fim da janela: a checagem de
+  // disponibilidade e a própria carga do iframe já passam pelo plano de
+  // dados e tocam a atividade — o heartbeat cobre o uso que fica invisível
+  // ao portal (tráfego apenas pelo canal persistente).
+  useEffect(() => {
+    if (status !== "ready") return undefined;
+    const timer = setInterval(() => {
+      fetch(`/api/instances/${instanceId}/heartbeat`, {
+        method: "POST",
+        credentials: "include",
+      }).catch(() => {});
+    }, HEARTBEAT_INTERVAL_MS);
+    return () => clearInterval(timer);
+  }, [instanceId, status]);
 
   // A carga do iframe é o gatilho para refazer o ajuste do terminal ttyd
   // (ver refitEmbeddedTerminal): o fit interno dele já rodou com métricas
