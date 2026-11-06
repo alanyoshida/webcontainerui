@@ -9,7 +9,7 @@ que o resto da suíte não dependa de Docker (D7 em design.md).
 import pytest
 
 from app.config import Settings
-from app.db import connect
+from app.db import sqlite3_connection
 from app.main import create_app
 from fastapi.testclient import TestClient
 
@@ -58,7 +58,7 @@ async def test_dono_alcanca_a_sessao_e_outro_usuario_nao(e2e_app_settings):
         pass
     await pull_runtime.close()
 
-    conn = connect(e2e_app_settings.db_path)
+    conn = sqlite3_connection(e2e_app_settings.db_path)
     init_db(conn)
     dono_id = insert_user(conn, "dono-e2e@exemplo.test")
     outro_id = insert_user(conn, "outro-e2e@exemplo.test")
@@ -101,7 +101,7 @@ async def test_dono_alcanca_a_sessao_e_outro_usuario_nao(e2e_app_settings):
             # container na rede bridge, que o host alcança diretamente.
             import aiodocker
 
-            conn2 = connect(e2e_app_settings.db_path)
+            conn2 = sqlite3_connection(e2e_app_settings.db_path)
             container_id = conn2.execute(
                 "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
             ).fetchone()["container_id"]

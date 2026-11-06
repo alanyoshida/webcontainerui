@@ -6,7 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.runtime.fake import FakeContainerRuntime
 from app.services.desktop_images import DESKTOP_IMAGES, seed_desktop_images
 
@@ -21,7 +21,7 @@ class FakeApp:
 @pytest.fixture
 def setup(tmp_path):
     db_path = tmp_path / "t.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     init_db(conn)
     conn.close()
     settings = Settings(db_path=db_path, uploads_dir=tmp_path / "uploads")
@@ -46,9 +46,9 @@ def _roda_com_loop(app, acao):
 def test_banco_vazio_registra_as_quatro_e_dispara_pull(setup):
     app, settings, runtime = setup
 
-    _roda_com_loop(app, lambda: seed_desktop_images(app, settings, runtime))
+    _roda_com_loop(app, lambda: seed_desktop_images(app, settings, runtime, engine=engine_for_path(settings.db_path)))
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     linhas = conn.execute(
         """SELECT display_name, repository, tag, pull_state, provision_kind
            FROM images WHERE repository LIKE 'lscr.io/%' ORDER BY repository, tag"""
@@ -67,7 +67,7 @@ def test_banco_vazio_registra_as_quatro_e_dispara_pull(setup):
 
 def test_entrada_existente_nao_e_duplicada_ni_tocada(setup):
     app, settings, runtime = setup
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.execute(
         """INSERT INTO images
@@ -79,9 +79,9 @@ def test_entrada_existente_nao_e_duplicada_ni_tocada(setup):
     conn.commit()
     conn.close()
 
-    _roda_com_loop(app, lambda: seed_desktop_images(app, settings, runtime))
+    _roda_com_loop(app, lambda: seed_desktop_images(app, settings, runtime, engine=engine_for_path(settings.db_path)))
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     linhas = conn.execute(
         """SELECT display_name, enabled, mem_limit_mb, pull_state
            FROM images WHERE repository = 'lscr.io/linuxserver/webtop' AND tag = 'latest'"""
@@ -116,9 +116,9 @@ def test_falha_em_uma_entrada_nao_impede_as_demais(setup, monkeypatch):
     monkeypatch.setattr(modulo, "create_image", falha_no_vscode)
 
     # não levanta: a falha é isolada e logada
-    _roda_com_loop(app, lambda: seed_desktop_images(app, settings, runtime))
+    _roda_com_loop(app, lambda: seed_desktop_images(app, settings, runtime, engine=engine_for_path(settings.db_path)))
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     repos = {r[0] for r in conn.execute("SELECT repository FROM images").fetchall()}
     conn.close()
 
@@ -138,7 +138,7 @@ def test_lifespan_registra_desktops_com_capa_no_mesmo_boot(tmp_path, fake_runtim
     with TestClient(app, base_url="http://testserver"):
         pass
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     desktops = conn.execute(
         """SELECT display_name, pull_state, icon_path, icon_source
            FROM images

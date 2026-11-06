@@ -16,7 +16,7 @@ os.environ.setdefault("WCUI_SSH_KEY_ENCRYPTION_KEY", Fernet.generate_key().decod
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.main import create_app
 from app.runtime.fake import FakeContainerRuntime
 from app.services.passwords import hash_password
@@ -41,7 +41,7 @@ def db_conn():
     """
     with tempfile.TemporaryDirectory() as tmp_dir:
         db_path = Path(tmp_dir) / "webcontainerui.db"
-        conn = connect(db_path)
+        conn = sqlite3_connection(db_path)
         init_db(conn)
         try:
             yield conn
@@ -211,7 +211,7 @@ def seed_user(client, app_settings):
     """
 
     def _seed(email: str, password: str, *, is_admin: bool = False, disabled: bool = False) -> int:
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         try:
             cur = conn.execute(
                 "INSERT INTO users (email, password_hash, is_admin, disabled_at) VALUES (?, ?, ?, ?)",

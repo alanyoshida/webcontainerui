@@ -3,7 +3,7 @@ import time
 import pytest
 
 from app.config import Settings
-from app.db import connect
+from app.db import engine_for_path, sqlite3_connection
 from app.services.errors import ValidationFailedError
 from app.services.images import set_image_icon
 
@@ -103,7 +103,7 @@ async def test_run_pull_leva_a_entrada_ao_estado_pronta(app_settings):
     from app.services.image_pull import run_pull
     from app.services.images import create_image
 
-    setup_conn = connect(app_settings.db_path)
+    setup_conn = sqlite3_connection(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
         setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
@@ -111,9 +111,9 @@ async def test_run_pull_leva_a_entrada_ao_estado_pronta(app_settings):
     setup_conn.close()
 
     runtime = FakeContainerRuntime()
-    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
+    await run_pull(engine_for_path(app_settings.db_path), runtime, image_id, "exemplo/webtop", "latest")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
     conn.close()
     assert row["pull_state"] == "ready"
@@ -125,7 +125,7 @@ async def test_run_pull_registra_o_label_de_versao_da_imagem(app_settings):
     from app.services.image_pull import run_pull
     from app.services.images import create_image
 
-    setup_conn = connect(app_settings.db_path)
+    setup_conn = sqlite3_connection(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
         setup_conn, "VS Code", "exemplo/vscode", "latest", settings=app_settings
@@ -136,9 +136,9 @@ async def test_run_pull_registra_o_label_de_versao_da_imagem(app_settings):
     runtime.set_image_info(
         "exemplo/vscode", "latest", labels={"build_version": "1.143.1-ls31"}
     )
-    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/vscode", "latest")
+    await run_pull(engine_for_path(app_settings.db_path), runtime, image_id, "exemplo/vscode", "latest")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT pull_state, image_version FROM images WHERE id = ?", (image_id,)
     ).fetchone()
@@ -153,7 +153,7 @@ async def test_run_pull_sem_label_registra_o_digest_curto(app_settings):
     from app.services.image_pull import run_pull
     from app.services.images import create_image
 
-    setup_conn = connect(app_settings.db_path)
+    setup_conn = sqlite3_connection(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
         setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
@@ -164,9 +164,9 @@ async def test_run_pull_sem_label_registra_o_digest_curto(app_settings):
     runtime.set_image_info(
         "exemplo/webtop", "latest", digest="sha256:0123456789abcdef0123"
     )
-    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
+    await run_pull(engine_for_path(app_settings.db_path), runtime, image_id, "exemplo/webtop", "latest")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT pull_state, image_version FROM images WHERE id = ?", (image_id,)
     ).fetchone()
@@ -185,7 +185,7 @@ async def test_run_pull_com_falha_de_inspecao_deixa_entrada_pronta_sem_versao(ap
     from app.services.image_pull import run_pull
     from app.services.images import create_image
 
-    setup_conn = connect(app_settings.db_path)
+    setup_conn = sqlite3_connection(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
         setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
@@ -194,9 +194,9 @@ async def test_run_pull_com_falha_de_inspecao_deixa_entrada_pronta_sem_versao(ap
 
     runtime = FakeContainerRuntime()
     runtime.fail_next("inspect_image", RuntimeOperationError("daemon indisponível"))
-    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
+    await run_pull(engine_for_path(app_settings.db_path), runtime, image_id, "exemplo/webtop", "latest")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT pull_state, image_version FROM images WHERE id = ?", (image_id,)
     ).fetchone()
@@ -214,7 +214,7 @@ async def test_run_pull_com_erro_inesperado_de_inspecao_deixa_entrada_pronta(app
     from app.services.image_pull import run_pull
     from app.services.images import create_image
 
-    setup_conn = connect(app_settings.db_path)
+    setup_conn = sqlite3_connection(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
         setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
@@ -223,9 +223,9 @@ async def test_run_pull_com_erro_inesperado_de_inspecao_deixa_entrada_pronta(app
 
     runtime = FakeContainerRuntime()
     runtime.fail_next("inspect_image", AttributeError("'coroutine' object has no attribute 'show'"))
-    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
+    await run_pull(engine_for_path(app_settings.db_path), runtime, image_id, "exemplo/webtop", "latest")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
     conn.close()
     assert row["pull_state"] == "ready"
@@ -238,7 +238,7 @@ async def test_run_pull_leva_a_entrada_ao_estado_falha(app_settings):
     from app.services.image_pull import run_pull
     from app.services.images import create_image
 
-    setup_conn = connect(app_settings.db_path)
+    setup_conn = sqlite3_connection(app_settings.db_path)
     init_db(setup_conn)
     image_id = create_image(
         setup_conn, "Webtop", "exemplo/webtop", "latest", settings=app_settings
@@ -247,9 +247,9 @@ async def test_run_pull_leva_a_entrada_ao_estado_falha(app_settings):
 
     runtime = FakeContainerRuntime()
     runtime.fail_next("pull_image", RuntimeOperationError("registro indisponível"))
-    await run_pull(app_settings.db_path, runtime, image_id, "exemplo/webtop", "latest")
+    await run_pull(engine_for_path(app_settings.db_path), runtime, image_id, "exemplo/webtop", "latest")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT pull_state, pull_error FROM images WHERE id = ?", (image_id,)
     ).fetchone()
@@ -265,7 +265,7 @@ def test_retry_pull_sobre_entrada_em_falha_nao_recria(client, seed_user, app_set
         json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute(
         "UPDATE images SET pull_state = 'failed', pull_error = 'erro' WHERE id = ?", (criada["id"],)
     )
@@ -284,7 +284,7 @@ def test_update_image_sobre_entrada_pronta_reabre_o_download(client, seed_user, 
         "/api/admin/images",
         json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute("UPDATE images SET pull_state = 'ready' WHERE id = ?", (criada["id"],))
     conn.close()
 
@@ -301,7 +301,7 @@ def test_update_image_recusa_entrada_em_download(client, seed_user, app_settings
         "/api/admin/images",
         json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute("UPDATE images SET pull_state = 'pulling' WHERE id = ?", (criada["id"],))
     conn.close()
 
@@ -318,7 +318,7 @@ def test_update_image_recusa_entrada_em_falha(client, seed_user, app_settings):
         "/api/admin/images",
         json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute("UPDATE images SET pull_state = 'failed' WHERE id = ?", (criada["id"],))
     conn.close()
 
@@ -331,7 +331,7 @@ def test_update_image_recusa_entrada_de_build(client, seed_user, app_settings):
     from .conftest import insert_image
 
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, repository="wcui-agent-teste", provision_kind="build")
     conn.close()
 
@@ -363,7 +363,7 @@ def test_resposta_da_imagem_expoe_image_version(client, seed_user, app_settings)
         "/api/admin/images",
         json={"display_name": "VS Code", "repository": "exemplo/vscode", "tag": "latest"},
     ).json()
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute("UPDATE images SET image_version = '1.143.1-ls31' WHERE id = ?", (criada["id"],))
     conn.close()
 
@@ -491,7 +491,7 @@ def test_upload_de_icone_maior_que_o_limite_retorna_400(app_settings, fake_runti
     )
     app = create_app(settings, runtime=fake_runtime)
     with TestClient(app) as c:
-        conn = connect(settings.db_path)
+        conn = sqlite3_connection(settings.db_path)
         conn.execute(
             "INSERT INTO users (email, password_hash, is_admin) VALUES (?, ?, 1)",
             ("admin@exemplo.test", hash_password("senha-admin-123")),
@@ -546,7 +546,7 @@ def test_imagem_desabilitada_sai_do_catalogo_do_usuario(client, seed_user, app_s
     verificada em 8.4, quando a criação de instância existir; aqui só se
     cobre o efeito sobre a listagem, que é o que 6.4 pede."""
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     user_id = insert_user(conn, "u3@exemplo.test")
     image_id = insert_image(conn, pull_state="ready")
     group_id = insert_group(conn)
@@ -559,7 +559,7 @@ def test_imagem_desabilitada_sai_do_catalogo_do_usuario(client, seed_user, app_s
 
     from app.services.images import list_catalog_for_user
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     catalogo = list_catalog_for_user(conn, user_id)
     conn.close()
     assert catalogo == []

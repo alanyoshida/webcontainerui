@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import engine_for_path, sqlite3_connection
 from app.runtime.protocol import ContainerState
 from app.services.reaper import reap_idle_instances, reconcile_instance_states, run_reaper
 
@@ -16,7 +16,7 @@ def test_instancia_ociosa_alem_do_limite_e_parada_com_volume_preservado(
     client, seed_user, app_settings, fake_runtime
 ):
     user_id = _login_as(client, seed_user, "ociosa@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -24,7 +24,7 @@ def test_instancia_ociosa_alem_do_limite_e_parada_com_volume_preservado(
     conn.close()
     instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     volume_name = conn.execute(
         "SELECT volume_name FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()["volume_name"]
@@ -34,14 +34,14 @@ def test_instancia_ociosa_alem_do_limite_e_parada_com_volume_preservado(
     )
     conn.close()
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     import asyncio
 
     paradas = asyncio.run(reap_idle_instances(conn, fake_runtime, app_settings.idle_timeout_minutes))
     conn.close()
 
     assert paradas == [instance_id]
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute("SELECT state FROM instances WHERE id = ?", (instance_id,)).fetchone()
     conn.close()
     assert row["state"] == "stopped"
@@ -52,7 +52,7 @@ def test_sessao_com_trafego_continuo_nao_e_parada(client, seed_user, app_setting
     import asyncio
 
     user_id = _login_as(client, seed_user, "ativa@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -61,12 +61,12 @@ def test_sessao_com_trafego_continuo_nao_e_parada(client, seed_user, app_setting
     instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
     # last_seen_at recente (padrão NULL->created_at agora, também recente)
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     paradas = asyncio.run(reap_idle_instances(conn, fake_runtime, app_settings.idle_timeout_minutes))
     conn.close()
 
     assert paradas == []
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute("SELECT state FROM instances WHERE id = ?", (instance_id,)).fetchone()
     conn.close()
     assert row["state"] == "running"
@@ -78,7 +78,7 @@ def test_reconciliacao_corrige_container_encerrado_por_fora(
     import asyncio
 
     user_id = _login_as(client, seed_user, "externa@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -86,7 +86,7 @@ def test_reconciliacao_corrige_container_encerrado_por_fora(
     conn.close()
     instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     container_id = conn.execute(
         "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()["container_id"]
@@ -95,12 +95,12 @@ def test_reconciliacao_corrige_container_encerrado_por_fora(
     # encerrado "por fora": o runtime some com o container sem o DB saber
     asyncio.run(fake_runtime.remove_container(container_id))
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     corrigidas = asyncio.run(reconcile_instance_states(conn, fake_runtime))
     conn.close()
 
     assert corrigidas == [instance_id]
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute("SELECT state FROM instances WHERE id = ?", (instance_id,)).fetchone()
     conn.close()
     assert row["state"] == "stopped"
@@ -113,7 +113,7 @@ async def test_run_reaper_reconcilia_sozinho_sem_chamada_direta(client, seed_use
     import asyncio
 
     user_id = _login_as(client, seed_user, "loop-reconcilia@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -121,7 +121,7 @@ async def test_run_reaper_reconcilia_sozinho_sem_chamada_direta(client, seed_use
     conn.close()
     instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     container_id = conn.execute(
         "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()["container_id"]
@@ -130,7 +130,7 @@ async def test_run_reaper_reconcilia_sozinho_sem_chamada_direta(client, seed_use
     await fake_runtime.remove_container(container_id)  # encerrado "por fora"
 
     task = asyncio.create_task(
-        run_reaper(app_settings.db_path, fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
+        run_reaper(engine_for_path(app_settings.db_path), fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
     )
     await asyncio.sleep(0.05)
     task.cancel()
@@ -139,7 +139,7 @@ async def test_run_reaper_reconcilia_sozinho_sem_chamada_direta(client, seed_use
     except asyncio.CancelledError:
         pass
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute("SELECT state FROM instances WHERE id = ?", (instance_id,)).fetchone()
     conn.close()
     assert row["state"] == "stopped"
@@ -156,7 +156,7 @@ async def test_instancia_reconciliada_nao_vira_candidata_a_parar_por_ociosidade(
     import app.services.reaper as reaper_module
 
     user_id = _login_as(client, seed_user, "nao-candidata@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -164,7 +164,7 @@ async def test_instancia_reconciliada_nao_vira_candidata_a_parar_por_ociosidade(
     conn.close()
     instance_id = client.post("/api/instances", json={"image_id": image_id}).json()["id"]
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     container_id = conn.execute(
         "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()["container_id"]
@@ -182,7 +182,7 @@ async def test_instancia_reconciliada_nao_vira_candidata_a_parar_por_ociosidade(
     monkeypatch.setattr(reaper_module, "find_idle_running_instances", espiando)
 
     task = asyncio.create_task(
-        run_reaper(app_settings.db_path, fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
+        run_reaper(engine_for_path(app_settings.db_path), fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
     )
     await asyncio.sleep(0.03)
     task.cancel()
@@ -204,7 +204,7 @@ async def test_falha_na_reconciliacao_nao_interrompe_o_loop(app_settings, fake_r
     from app.db import init_db
     import app.services.reaper as reaper_module
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     conn.close()
 
@@ -220,7 +220,7 @@ async def test_falha_na_reconciliacao_nao_interrompe_o_loop(app_settings, fake_r
     monkeypatch.setattr(reaper_module, "reconcile_instance_states", falha_depois_funciona)
 
     task = asyncio.create_task(
-        run_reaper(app_settings.db_path, fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
+        run_reaper(engine_for_path(app_settings.db_path), fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
     )
     await asyncio.sleep(0.05)
     task.cancel()
@@ -239,7 +239,7 @@ async def test_falha_injetada_no_reaper_nao_encerra_o_loop(app_settings, fake_ru
     from app.db import init_db
     import app.services.reaper as reaper_module
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     conn.close()
 
@@ -255,7 +255,7 @@ async def test_falha_injetada_no_reaper_nao_encerra_o_loop(app_settings, fake_ru
     monkeypatch.setattr(reaper_module, "reap_idle_instances", falha_depois_funciona)
 
     task = asyncio.create_task(
-        run_reaper(app_settings.db_path, fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
+        run_reaper(engine_for_path(app_settings.db_path), fake_runtime, idle_timeout_minutes=30, interval_seconds=0.01)
     )
     await asyncio.sleep(0.05)  # algumas iterações, a primeira falhando
     task.cancel()
@@ -277,7 +277,7 @@ async def test_run_reaper_purga_sessoes_mortas(client, seed_user, app_settings, 
     from app.services.passwords import hash_password
 
     seed_user("rebeca@exemplo.test", "senha-correta-123")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     conn.execute(
         "INSERT INTO sessions (token_hash, user_id, expires_at) VALUES ('h-morto', 1, '2020-01-01 00:00:00')"
@@ -287,7 +287,7 @@ async def test_run_reaper_purga_sessoes_mortas(client, seed_user, app_settings, 
 
     task = asyncio.create_task(
         run_reaper(
-            app_settings.db_path,
+            engine_for_path(app_settings.db_path),
             fake_runtime,
             idle_timeout_minutes=30,
             interval_seconds=0.01,
@@ -301,7 +301,7 @@ async def test_run_reaper_purga_sessoes_mortas(client, seed_user, app_settings, 
     except asyncio.CancelledError:
         pass
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     restantes = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
     conn.close()
     assert restantes == 0

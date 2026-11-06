@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import sqlite3_connection
 from app.runtime.protocol import ContainerState
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
@@ -15,7 +15,7 @@ def test_iniciar_instancia_parada_religa_o_mesmo_container(client, seed_user, ap
     import asyncio
 
     user_id = _login_as(client, seed_user, "reiniciar@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -40,7 +40,7 @@ def test_iniciar_apos_container_removido_por_fora_recria_preservando_volume(
     import asyncio
 
     user_id = _login_as(client, seed_user, "recriar@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -48,7 +48,7 @@ def test_iniciar_apos_container_removido_por_fora_recria_preservando_volume(
     conn.close()
 
     primeira = client.post("/api/instances", json={"image_id": image_id}).json()
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     volume_name = conn.execute(
         "SELECT volume_name, container_id FROM instances WHERE id = ?", (primeira["id"],)
     ).fetchone()
@@ -63,7 +63,7 @@ def test_iniciar_apos_container_removido_por_fora_recria_preservando_volume(
     assert segunda.status_code == 201
     assert segunda.json()["id"] == primeira["id"]
     assert segunda.json()["state"] == "running"
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT container_id, volume_name FROM instances WHERE id = ?", (primeira["id"],)
     ).fetchone()

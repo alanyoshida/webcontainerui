@@ -1,4 +1,4 @@
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
 
@@ -44,7 +44,7 @@ def test_regenerar_troca_a_chave_publica(client, seed_user):
 
 def test_regenerar_propaga_para_instancia_existente(client, seed_user, app_settings, fake_runtime):
     user_id = _login_as(client, seed_user, "propaga-api@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     image_id = insert_image(conn)
     group_id = insert_group(conn)

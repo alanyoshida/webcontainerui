@@ -15,11 +15,9 @@ async def health(request: Request) -> JSONResponse:
     `ContainerNotFoundError` já prova que o Docker respondeu; só uma
     falha de conexão de fato conta como runtime indisponível).
     """
-    settings = request.app.state.settings
-
     db_ok = True
     try:
-        conn = connect(settings.db_path)
+        conn = connect(request.app.state.engine)
         try:
             conn.execute("SELECT 1")
         finally:

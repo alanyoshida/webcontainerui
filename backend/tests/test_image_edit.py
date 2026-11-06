@@ -5,7 +5,7 @@ import logging
 
 import pytest
 
-from app.db import connect
+from app.db import sqlite3_connection
 from app.services.audit_log import install_handler
 
 
@@ -31,7 +31,7 @@ def _cria_imagem(client, seed_user, **overrides):
 
 
 def _enabled(app_settings, image_id):
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     valor = conn.execute("SELECT enabled FROM images WHERE id = ?", (image_id,)).fetchone()[0]
     conn.close()
     return valor
@@ -39,7 +39,7 @@ def _enabled(app_settings, image_id):
 
 def test_edicao_parcial_preserva_campos_nao_enviados(client, seed_user, app_settings):
     image_id = _cria_imagem(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     antes = dict(conn.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone())
     conn.close()
 

@@ -1,5 +1,4 @@
 import json
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -16,6 +15,8 @@ from app.services.instances import (
     update_instance,
 )
 from app.services.sessions import AuthenticatedUser
+from app.db import DbConnection
+from sqlalchemy.engine import RowMapping
 
 router = APIRouter()
 
@@ -44,7 +45,7 @@ class InstanceResponse(BaseModel):
     image_catalog_version: str | None
 
 
-def _to_response(row: sqlite3.Row) -> InstanceResponse:
+def _to_response(row: RowMapping) -> InstanceResponse:
     return InstanceResponse(
         id=row["id"],
         image_id=row["image_id"],
@@ -66,7 +67,7 @@ async def create_instance_endpoint(
     body: CreateInstanceRequest,
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> InstanceResponse:
     settings = request.app.state.settings
     runtime = request.app.state.runtime
@@ -86,7 +87,7 @@ async def create_instance_endpoint(
 
 @router.get("/instances", response_model=list[InstanceResponse])
 def list_instances_endpoint(
-    user: AuthenticatedUser = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)
+    user: AuthenticatedUser = Depends(get_current_user), db: DbConnection = Depends(get_db)
 ) -> list[InstanceResponse]:
     return [_to_response(row) for row in list_instances_for_user(db, user.id)]
 
@@ -96,7 +97,7 @@ async def update_instance_endpoint(
     instance_id: str,
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> InstanceResponse:
     try:
         row = await update_instance(
@@ -117,7 +118,7 @@ async def stop_instance_endpoint(
     instance_id: str,
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     try:
         await stop_instance(
@@ -138,7 +139,7 @@ async def heartbeat_instance_endpoint(
     instance_id: str,
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     """Sinal de atividade da visão de sessão aberta (change external-stream-proxy).
 
@@ -164,7 +165,7 @@ async def delete_instance_endpoint(
     request: Request,
     confirm: bool = False,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     try:
         await delete_instance(

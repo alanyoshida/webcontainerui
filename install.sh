@@ -108,6 +108,15 @@ if [[ -z "${WCUI_SSH_KEY_ENCRYPTION_KEY:-}" ]]; then
   echo "Guarde-a com segurança: perdê-la impede descriptografar chaves já cifradas."
 fi
 
+if [[ -z "${WCUI_POSTGRES_PASSWORD:-}" ]]; then
+  if command -v python3 >/dev/null 2>&1; then
+    WCUI_POSTGRES_PASSWORD=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
+  else
+    WCUI_POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr '+/' '-_' | tr -d '=')
+  fi
+  echo "Senha do PostgreSQL gerada automaticamente."
+fi
+
 if [[ -z "${WCUI_DATA_PLANE_SECRET:-}" ]]; then
   if command -v python3 >/dev/null 2>&1; then
     WCUI_DATA_PLANE_SECRET=$(python3 -c "import secrets; print(secrets.token_urlsafe(32))")
@@ -126,6 +135,7 @@ WCUI_ADMIN_EMAIL=$WCUI_ADMIN_EMAIL
 WCUI_ADMIN_PASSWORD=$WCUI_ADMIN_PASSWORD
 WCUI_SSH_KEY_ENCRYPTION_KEY=$WCUI_SSH_KEY_ENCRYPTION_KEY
 WCUI_DATA_PLANE_SECRET=$WCUI_DATA_PLANE_SECRET
+WCUI_POSTGRES_PASSWORD=$WCUI_POSTGRES_PASSWORD
 EOF
 chmod 600 "$ENV_FILE"
 
@@ -138,6 +148,7 @@ echo "  WCUI_ADMIN_EMAIL=$WCUI_ADMIN_EMAIL"
 echo "  WCUI_ADMIN_PASSWORD=(oculta)"
 echo "  WCUI_SSH_KEY_ENCRYPTION_KEY=(oculta)"
 echo "  WCUI_DATA_PLANE_SECRET=(oculta)"
+echo "  WCUI_POSTGRES_PASSWORD=(oculta)"
 echo
 echo "A seguir: build da imagem e subida de Caddy + portal, expondo as portas"
 echo "80/443 deste host e solicitando certificado Let's Encrypt para o domínio"

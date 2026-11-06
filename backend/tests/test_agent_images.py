@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.runtime.errors import RuntimeOperationError
 from app.runtime.fake import FakeContainerRuntime
 from app.services.agent_images import (
@@ -40,7 +40,7 @@ def _make_context(root: Path) -> None:
 
 
 def _agent_rows(settings: Settings) -> list:
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         return conn.execute(
             "SELECT * FROM images WHERE provision_kind = 'build' ORDER BY id"
@@ -77,7 +77,7 @@ def test_lista_tem_exatamente_os_cinco_agentes_com_campos_obrigatorios():
 
 async def test_run_build_sucesso_marca_pronta_e_grava_hash(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     image_id = insert_image(
         conn, repository="wcui-agent-teste", tag="latest", pull_state="pulling",
@@ -87,7 +87,7 @@ async def test_run_build_sucesso_marca_pronta_e_grava_hash(tmp_path):
 
     runtime = FakeContainerRuntime()
     await run_build(
-        settings.db_path,
+        engine_for_path(settings.db_path),
         runtime,
         image_id,
         "wcui-agent-teste",
@@ -96,7 +96,7 @@ async def test_run_build_sucesso_marca_pronta_e_grava_hash(tmp_path):
         build_hash="hash-1",
     )
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     row = conn.execute(
         "SELECT pull_state, build_hash, pull_error FROM images WHERE id = ?", (image_id,)
     ).fetchone()
@@ -116,7 +116,7 @@ async def test_run_build_sucesso_marca_pronta_e_grava_hash(tmp_path):
 
 async def test_run_build_falha_marca_falha_com_a_mensagem(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     image_id = insert_image(
         conn, repository="wcui-agent-teste", tag="latest", pull_state="pulling",
@@ -127,7 +127,7 @@ async def test_run_build_falha_marca_falha_com_a_mensagem(tmp_path):
     runtime = FakeContainerRuntime()
     runtime.fail_next("build_image", RuntimeOperationError("Dockerfile inválido"))
     await run_build(
-        settings.db_path,
+        engine_for_path(settings.db_path),
         runtime,
         image_id,
         "wcui-agent-teste",
@@ -136,7 +136,7 @@ async def test_run_build_falha_marca_falha_com_a_mensagem(tmp_path):
         build_hash="hash-1",
     )
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     row = conn.execute(
         "SELECT pull_state, build_hash, pull_error FROM images WHERE id = ?", (image_id,)
     ).fetchone()
@@ -148,14 +148,14 @@ async def test_run_build_falha_marca_falha_com_a_mensagem(tmp_path):
 
 async def test_seed_idempotente_e_nao_rebuilda_contexto_inalterado(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     root = tmp_path / "agent-images"
     _make_context(root)
 
     runtime = FakeContainerRuntime()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
     assert len(_agent_rows(settings)) == 5
     assert all(row["pull_state"] == "ready" for row in _agent_rows(settings))
     builds_primeira = len(
@@ -164,7 +164,7 @@ async def test_seed_idempotente_e_nao_rebuilda_contexto_inalterado(tmp_path):
     assert builds_primeira == 5
 
     runtime.build_calls.clear()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     assert len(_agent_rows(settings)) == 5  # sem duplicação
     assert [
@@ -174,13 +174,13 @@ async def test_seed_idempotente_e_nao_rebuilda_contexto_inalterado(tmp_path):
 
 async def test_seed_rebuilda_somente_a_imagem_cujo_contexto_mudou(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     root = tmp_path / "agent-images"
     _make_context(root)
     runtime = FakeContainerRuntime()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     alvo = AGENT_IMAGES[2]
     (root / alvo.context_subdir / "Dockerfile").write_text(
@@ -188,7 +188,7 @@ async def test_seed_rebuilda_somente_a_imagem_cujo_contexto_mudou(tmp_path):
     )
 
     runtime.build_calls.clear()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     reconstruidas = [
         c["repository"]
@@ -201,7 +201,7 @@ async def test_seed_rebuilda_somente_a_imagem_cujo_contexto_mudou(tmp_path):
 
 async def test_seed_isola_falha_de_uma_imagem(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     root = tmp_path / "agent-images"
@@ -226,7 +226,7 @@ async def test_seed_isola_falha_de_uma_imagem(tmp_path):
                 yield progress
 
     runtime = RuntimeComFalha()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     rows = {row["repository"]: row for row in _agent_rows(settings)}
     assert len(rows) == 5
@@ -239,14 +239,14 @@ async def test_seed_isola_falha_de_uma_imagem(tmp_path):
 
 async def test_seed_constroi_a_base_antes_dos_agentes(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     root = tmp_path / "agent-images"
     _make_context(root)
 
     runtime = FakeContainerRuntime()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     assert runtime.build_calls[0]["repository"] == BASE_IMAGE_REPOSITORY
     assert {c["repository"] for c in runtime.build_calls[1:]} == {
@@ -279,17 +279,17 @@ def test_hash_muda_so_com_skills_vinculadas_sem_tocar_arquivo(tmp_path):
 
 async def test_seed_resolve_skills_vinculadas_e_passa_nos_buildargs(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     root = tmp_path / "agent-images"
     _make_context(root)
 
     runtime = FakeContainerRuntime()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     alvo = AGENT_IMAGES[0]
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         image_id = conn.execute(
             "SELECT id FROM images WHERE repository = ?", (alvo.repository,)
@@ -300,7 +300,7 @@ async def test_seed_resolve_skills_vinculadas_e_passa_nos_buildargs(tmp_path):
         conn.close()
 
     runtime.build_calls.clear()
-    await seed_agent_images(settings, runtime, base_dir=root)  # hash mudou: rebuilda
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)  # hash mudou: rebuilda
 
     builds_do_alvo = [c for c in runtime.build_calls if c["repository"] == alvo.repository]
     assert len(builds_do_alvo) == 1
@@ -309,17 +309,17 @@ async def test_seed_resolve_skills_vinculadas_e_passa_nos_buildargs(tmp_path):
 
 async def test_rebuild_agent_image_resolve_skills_atuais_do_banco(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     root = tmp_path / "agent-images"
     _make_context(root)
 
     runtime = FakeContainerRuntime()
-    await seed_agent_images(settings, runtime, base_dir=root)
+    await seed_agent_images(settings, runtime, engine=engine_for_path(settings.db_path), base_dir=root)
 
     alvo = AGENT_IMAGES[0]
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         image_id = conn.execute(
             "SELECT id FROM images WHERE repository = ?", (alvo.repository,)
@@ -330,20 +330,20 @@ async def test_rebuild_agent_image_resolve_skills_atuais_do_banco(tmp_path):
         conn.close()
 
     runtime.build_calls.clear()
-    await rebuild_agent_image(settings, runtime, image_id, base_dir=root)
+    await rebuild_agent_image(engine_for_path(settings.db_path), runtime, image_id, base_dir=root)
 
     assert len(runtime.build_calls) == 1
     assert runtime.build_calls[0]["repository"] == alvo.repository
     assert runtime.build_calls[0]["buildargs"] == {"SKILLS": "owner/repo"}
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     row = conn.execute("SELECT pull_state FROM images WHERE id = ?", (image_id,)).fetchone()
     conn.close()
     assert row["pull_state"] == "ready"
 
 
 def test_seed_roda_no_lifespan_e_deixa_as_cinco_prontas(client):
-    conn = connect(client.app.state.settings.db_path)
+    conn = sqlite3_connection(client.app.state.settings.db_path)
     try:
         rows = conn.execute(
             "SELECT pull_state FROM images WHERE provision_kind = 'build'"
@@ -359,7 +359,7 @@ def test_retry_de_imagem_buildada_dispara_build_e_nao_download(
 ):
     _login_admin(client, seed_user)
     spec = AGENT_IMAGES[3]
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT id FROM images WHERE repository = ? AND tag = ?",
         (spec.repository, spec.tag),
@@ -387,7 +387,7 @@ def test_retry_de_imagem_de_download_continua_disparando_download(
         "/api/admin/images",
         json={"display_name": "Webtop", "repository": "exemplo/webtop", "tag": "latest"},
     ).json()
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute(
         "UPDATE images SET pull_state = 'failed', pull_error = 'erro' WHERE id = ?",
         (criada["id"],),

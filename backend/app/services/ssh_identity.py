@@ -1,13 +1,14 @@
 import io
-import sqlite3
 import tarfile
 import time
 
 from cryptography.fernet import Fernet
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from sqlalchemy.engine import RowMapping
 
 from app.config import Settings
+from app.db import DbConnection, format_ts, utcnow
 
 # Chaves de host SSH publicadas pelo GitHub, GitLab e Bitbucket, obtidas via
 # `ssh-keyscan` direto contra cada servidor (conferidas também contra
@@ -28,7 +29,7 @@ bitbucket.org ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABgQDQeJzhupRu0u0cdegZIa8e86EG2q
 
 _SELECT_IDENTITY = (
     "SELECT user_id, public_key, private_key_encrypted, created_at "
-    "FROM ssh_identities WHERE user_id = ?"
+    "FROM ssh_identities WHERE user_id = :user_id"
 )
 
 
@@ -52,11 +53,11 @@ def _fernet(settings: Settings) -> Fernet:
     return Fernet(settings.ssh_key_encryption_key.encode())
 
 
-def _get_identity_row(conn: sqlite3.Connection, user_id: int) -> sqlite3.Row | None:
-    return conn.execute(_SELECT_IDENTITY, (user_id,)).fetchone()
+def _get_identity_row(conn: DbConnection, user_id: int) -> RowMapping | None:
+    return conn.execute(_SELECT_IDENTITY, {"user_id": user_id}).fetchone()
 
 
-def get_or_create_identity(conn: sqlite3.Connection, settings: Settings, user_id: int) -> sqlite3.Row:
+def get_or_create_identity(conn: DbConnection, settings: Settings, user_id: int) -> RowMapping:
     """Retorna a identidade SSH do usuário, gerando-a sob demanda se ainda
     não existir (spec: "Identidade gerada sob demanda"). Nunca sobrescreve
     uma identidade já existente — só `regenerate_identity` faz isso."""
@@ -67,13 +68,14 @@ def get_or_create_identity(conn: sqlite3.Connection, settings: Settings, user_id
     private_bytes, public_bytes = _generate_keypair()
     encrypted = _fernet(settings).encrypt(private_bytes)
     conn.execute(
-        "INSERT INTO ssh_identities (user_id, public_key, private_key_encrypted) VALUES (?, ?, ?)",
-        (user_id, public_bytes.decode(), encrypted),
+        "INSERT INTO ssh_identities (user_id, public_key, private_key_encrypted)"
+        " VALUES (:user_id, :public_key, :private_key_encrypted)",
+        {"user_id": user_id, "public_key": public_bytes.decode(), "private_key_encrypted": encrypted},
     )
     return _get_identity_row(conn, user_id)
 
 
-def regenerate_identity(conn: sqlite3.Connection, settings: Settings, user_id: int) -> sqlite3.Row:
+def regenerate_identity(conn: DbConnection, settings: Settings, user_id: int) -> RowMapping:
     """Substitui a identidade SSH do usuário por uma nova — a chave pública
     antiga deixa de corresponder à nova chave privada (spec: "Regeneração
     troca a chave pública exibida")."""
@@ -81,17 +83,18 @@ def regenerate_identity(conn: sqlite3.Connection, settings: Settings, user_id: i
     encrypted = _fernet(settings).encrypt(private_bytes)
     conn.execute(
         """INSERT INTO ssh_identities (user_id, public_key, private_key_encrypted)
-               VALUES (?, ?, ?)
+               VALUES (:user_id, :public_key, :private_key_encrypted)
            ON CONFLICT (user_id) DO UPDATE SET
                public_key = excluded.public_key,
                private_key_encrypted = excluded.private_key_encrypted,
-               created_at = datetime('now')""",
-        (user_id, public_bytes.decode(), encrypted),
+               created_at = :now""",
+        {"user_id": user_id, "public_key": public_bytes.decode(),
+         "private_key_encrypted": encrypted, "now": format_ts(utcnow())},
     )
     return _get_identity_row(conn, user_id)
 
 
-def decrypt_private_key(settings: Settings, identity_row: sqlite3.Row) -> bytes:
+def decrypt_private_key(settings: Settings, identity_row: RowMapping) -> bytes:
     """Decifra a chave privada de uma linha de `ssh_identities` — uso
     interno (montagem do pacote a injetar no container, `build_ssh_archive`
     abaixo). Nunca exposta a uma resposta de API."""

@@ -8,7 +8,6 @@ canal), e mantê-las lado a lado deixa isso explícito.
 
 import asyncio
 import base64
-import sqlite3
 
 import httpx
 import websockets
@@ -20,6 +19,8 @@ from app.deps import SESSION_COOKIE_NAME, get_db, get_db_ws
 from app.services.errors import NotFoundError
 from app.services.instances import get_owned_instance
 from app.services.sessions import AuthenticatedUser, resolve_session
+from app.db import DbConnection
+from sqlalchemy.engine import RowMapping
 
 router = APIRouter()
 
@@ -37,7 +38,7 @@ WS_CLOSE_UPSTREAM_UNAVAILABLE = 4502
 UPSTREAM_TIMEOUT_SECONDS = 3600.0
 
 
-def default_backend_base_url(row: sqlite3.Row) -> str:
+def default_backend_base_url(row: RowMapping) -> str:
     return f"http://{row['container_name']}:{row['image_port']}"
 
 
@@ -50,7 +51,7 @@ def _basic_auth_header(user: str, password: str) -> str:
     return f"Basic {token}"
 
 
-def _authenticate(db: sqlite3.Connection, token: str | None) -> AuthenticatedUser | None:
+def _authenticate(db: DbConnection, token: str | None) -> AuthenticatedUser | None:
     if token is None:
         return None
     return resolve_session(db, token)
@@ -62,7 +63,7 @@ def _authenticate(db: sqlite3.Connection, token: str | None) -> AuthenticatedUse
     include_in_schema=False,  # encaminhamento bruto, não um endpoint REST documentável
 )
 async def proxy_http(
-    instance_id: str, rest: str, request: Request, db: sqlite3.Connection = Depends(get_db)
+    instance_id: str, rest: str, request: Request, db: DbConnection = Depends(get_db)
 ):
     user = _authenticate(db, request.cookies.get(SESSION_COOKIE_NAME))
     if user is None:
@@ -131,7 +132,7 @@ async def proxy_http(
 
 @router.websocket("/i/{instance_id}/{rest:path}")
 async def proxy_websocket(
-    websocket: WebSocket, instance_id: str, rest: str, db: sqlite3.Connection = Depends(get_db_ws)
+    websocket: WebSocket, instance_id: str, rest: str, db: DbConnection = Depends(get_db_ws)
 ) -> None:
     user = _authenticate(db, websocket.cookies.get(SESSION_COOKIE_NAME))
     if user is None:

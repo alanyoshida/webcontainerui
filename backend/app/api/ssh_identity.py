@@ -1,4 +1,3 @@
-import sqlite3
 
 from fastapi import APIRouter, Depends, Request
 from pydantic import BaseModel
@@ -7,6 +6,7 @@ from app.deps import get_current_user, get_db
 from app.services.instances import propagate_ssh_identity_to_live_instances
 from app.services.sessions import AuthenticatedUser
 from app.services.ssh_identity import get_or_create_identity, regenerate_identity
+from app.db import DbConnection
 
 router = APIRouter()
 
@@ -24,7 +24,7 @@ class RegenerateSshIdentityResponse(BaseModel):
 def get_ssh_identity_endpoint(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> SshIdentityResponse:
     settings = request.app.state.settings
     row = get_or_create_identity(db, settings, user.id)
@@ -35,7 +35,7 @@ def get_ssh_identity_endpoint(
 async def regenerate_ssh_identity_endpoint(
     request: Request,
     user: AuthenticatedUser = Depends(get_current_user),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> RegenerateSshIdentityResponse:
     settings = request.app.state.settings
     runtime = request.app.state.runtime

@@ -6,7 +6,7 @@ import logging
 
 import pytest
 
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.runtime.errors import RuntimeOperationError
 from app.services.audit_log import install_handler
 from app.services.passwords import hash_password
@@ -38,7 +38,7 @@ def _por_evento(audit_capture, nome):
 
 def _monta_catalogo(app_settings, *, email):
     """Usuário comum + imagem pronta + grant de grupo, no banco do app."""
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     user_id = conn.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()[0]
     cur = conn.execute(
@@ -58,7 +58,7 @@ def _monta_catalogo(app_settings, *, email):
 def _image_id_de_teste(app_settings):
     """O seed do lifespan já cria as imagens de agente (ids 1..N); o id real
     da imagem criada para o teste é consultado do banco."""
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT id FROM images WHERE repository = 'exemplo/webtop'"
     ).fetchone()

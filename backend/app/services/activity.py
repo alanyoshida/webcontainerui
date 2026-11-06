@@ -1,14 +1,6 @@
-import sqlite3
 import time
-from datetime import datetime, timezone
 
-
-def _now_iso() -> str:
-    # Sem offset explícito: mesma convenção de `datetime('now')` do SQLite,
-    # usada por toda outra coluna de timestamp do banco (created_at,
-    # started_at, ended_at, deleted_at) — isoformat() num datetime "aware"
-    # incluiria "+00:00" e quebraria o parsing que assume esse formato.
-    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+from app.db import DbConnection, format_ts, utcnow
 
 
 class ActivityTracker:
@@ -20,11 +12,11 @@ class ActivityTracker:
     """
 
     def __init__(self) -> None:
-        self._pending: dict[str, str] = {}
+        self._pending: dict[str, object] = {}
         self._last_touch: dict[str, float] = {}
 
     def touch(self, instance_id: str) -> None:
-        self._pending[instance_id] = _now_iso()
+        self._pending[instance_id] = format_ts(utcnow())
 
     def touch_throttled(self, instance_id: str, min_seconds: int) -> bool:
         """Toque com frequência limitada por instância.
@@ -40,11 +32,12 @@ class ActivityTracker:
         self.touch(instance_id)
         return True
 
-    def flush(self, conn: sqlite3.Connection) -> int:
+    def flush(self, conn: DbConnection) -> int:
         pending = self._pending
         self._pending = {}
         for instance_id, timestamp in pending.items():
             conn.execute(
-                "UPDATE instances SET last_seen_at = ? WHERE id = ?", (timestamp, instance_id)
+                "UPDATE instances SET last_seen_at = :now WHERE id = :instance_id",
+                {"now": timestamp, "instance_id": instance_id},
             )
         return len(pending)

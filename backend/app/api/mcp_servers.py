@@ -9,12 +9,14 @@ da ferramenta, com o campo por MCP) para o admin corrigir ciente.
 """
 
 import json
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
 
+from sqlalchemy.engine import RowMapping
+
 from app.config import Settings
+from app.db import DbConnection, format_ts
 from app.deps import get_db, require_admin
 from app.services.audit_log import audit
 from app.services.sessions import AuthenticatedUser
@@ -94,7 +96,7 @@ class ImageMcpServersResponse(BaseModel):
     schema_validation_errors: list[dict]
 
 
-def _secret_keys(row: sqlite3.Row, field: str, settings: Settings) -> list[str]:
+def _secret_keys(row: RowMapping, field: str, settings: Settings) -> list[str]:
     """Chaves (nunca valores) do segredo cifrado — o admin vê o que existe
     cadastrado sem reexibir o valor (mesmo trade-off da chave SSH). Uma
     linha com blob ilegível não pode derrubar a listagem inteira: devolve
@@ -108,7 +110,7 @@ def _secret_keys(row: sqlite3.Row, field: str, settings: Settings) -> list[str]:
         return []
 
 
-def _args_of(row: sqlite3.Row) -> list[str]:
+def _args_of(row: RowMapping) -> list[str]:
     try:
         args = json.loads(row["args_json"]) if row["args_json"] else []
     except (TypeError, ValueError):
@@ -116,7 +118,7 @@ def _args_of(row: sqlite3.Row) -> list[str]:
     return args if isinstance(args, list) else []
 
 
-def _to_response(row: sqlite3.Row, settings: Settings) -> McpServerResponse:
+def _to_response(row: RowMapping, settings: Settings) -> McpServerResponse:
     return McpServerResponse(
         id=row["id"],
         display_name=row["display_name"],
@@ -128,21 +130,22 @@ def _to_response(row: sqlite3.Row, settings: Settings) -> McpServerResponse:
         headers_keys=_secret_keys(row, "headers", settings),
         enabled=bool(row["enabled"]),
         linked_images=row["linked_images"],
-        updated_at=row["updated_at"],
+        updated_at=format_ts(row["updated_at"]),
     )
 
 
-def _linked_image_ids(db: sqlite3.Connection, mcp_server_id: int) -> list[int]:
+def _linked_image_ids(db: DbConnection, mcp_server_id: int) -> list[int]:
     return [
-        row[0]
+        row["image_id"]
         for row in db.execute(
-            "SELECT image_id FROM image_mcp_servers WHERE mcp_server_id = ? ORDER BY image_id",
-            (mcp_server_id,),
+            "SELECT image_id FROM image_mcp_servers"
+            " WHERE mcp_server_id = :mcp_server_id ORDER BY image_id",
+            {"mcp_server_id": mcp_server_id},
         )
     ]
 
 
-async def _propagate(request: Request, db: sqlite3.Connection, image_ids: list[int]) -> tuple[list[dict], list[dict]]:
+async def _propagate(request: Request, db: DbConnection, image_ids: list[int]) -> tuple[list[dict], list[dict]]:
     """Propaga cada imagem afetada e junta os relatórios. Best-effort:
     nunca levanta por falha individual (padrão de `agents_md`)."""
     settings = request.app.state.settings
@@ -160,7 +163,7 @@ async def _propagate(request: Request, db: sqlite3.Connection, image_ids: list[i
 
 @router.get("/mcp-servers", response_model=list[McpServerResponse])
 def list_mcp_servers_endpoint(
-    request: Request, db: sqlite3.Connection = Depends(get_db)
+    request: Request, db: DbConnection = Depends(get_db)
 ) -> list[McpServerResponse]:
     settings: Settings = request.app.state.settings
     return [_to_response(row, settings) for row in list_mcp_servers(db)]
@@ -171,7 +174,7 @@ def create_mcp_server_endpoint(
     body: CreateMcpServerRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> McpServerResponse:
     settings: Settings = request.app.state.settings
     try:
@@ -203,7 +206,7 @@ async def update_mcp_server_endpoint(
     body: UpdateMcpServerRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> UpdateMcpServerResponse:
     settings: Settings = request.app.state.settings
     try:
@@ -245,7 +248,7 @@ async def delete_mcp_server_endpoint(
     mcp_server_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> DeleteMcpServerResponse:
     # As imagens afetadas precisam ser coletadas antes do cascade do delete
     # (tarefa 3.2: remover não recusa por vínculo — desvincula e propaga).
@@ -266,7 +269,7 @@ async def delete_mcp_server_endpoint(
 
 
 @router.get("/mcp-servers/images", response_model=list[ImageMcpServersResponse])
-def list_image_links_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[ImageMcpServersResponse]:
+def list_image_links_endpoint(db: DbConnection = Depends(get_db)) -> list[ImageMcpServersResponse]:
     return [
         ImageMcpServersResponse(
             id=row["id"],
@@ -283,7 +286,7 @@ def list_image_links_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[
 
 async def _link_or_unlink(
     request: Request,
-    db: sqlite3.Connection,
+    db: DbConnection,
     image_id: int,
     mcp_server_id: int,
     *,
@@ -307,7 +310,8 @@ async def _link_or_unlink(
         db, request.app.state.runtime, request.app.state.settings, image_id
     )
     row = db.execute(
-        "SELECT id, display_name, repository, tag FROM images WHERE id = ?", (image_id,)
+        "SELECT id, display_name, repository, tag FROM images WHERE id = :image_id",
+        {"image_id": image_id},
     ).fetchone()
     return ImageMcpServersResponse(
         id=row["id"],
@@ -328,7 +332,7 @@ async def link_mcp_server_endpoint(
     mcp_server_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageMcpServersResponse:
     return await _link_or_unlink(request, db, image_id, mcp_server_id, link=True, admin=admin)
 
@@ -341,6 +345,6 @@ async def unlink_mcp_server_endpoint(
     mcp_server_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageMcpServersResponse:
     return await _link_or_unlink(request, db, image_id, mcp_server_id, link=False, admin=admin)

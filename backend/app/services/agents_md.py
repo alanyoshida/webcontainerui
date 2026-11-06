@@ -9,11 +9,13 @@ no mesmo padrão da identidade SSH (`ssh_identity.py` para gerar,
 """
 
 import io
-import sqlite3
 import tarfile
 import time
 
+from sqlalchemy.engine import RowMapping
+
 from app.config import Settings
+from app.db import DbConnection, INTEGRITY_ERRORS, format_ts, utcnow
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 
 _DOCUMENT_SELECT = """
@@ -24,24 +26,24 @@ _DOCUMENT_SELECT = """
 """
 
 
-def list_documents(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def list_documents(conn: DbConnection) -> list[RowMapping]:
     return conn.execute(_DOCUMENT_SELECT + " ORDER BY d.name").fetchall()
 
 
-def get_document(conn: sqlite3.Connection, document_id: int) -> sqlite3.Row:
+def get_document(conn: DbConnection, document_id: int) -> RowMapping:
     row = conn.execute(
-        _DOCUMENT_SELECT + " WHERE d.id = ?", (document_id,)
+        _DOCUMENT_SELECT + " WHERE d.id = :document_id", {"document_id": document_id}
     ).fetchone()
     if row is None:
         raise NotFoundError(f"documento AGENTS.md não encontrado: {document_id}")
     return row
 
 
-def get_document_for_image(conn: sqlite3.Connection, image_id: int) -> sqlite3.Row | None:
+def get_document_for_image(conn: DbConnection, image_id: int) -> RowMapping | None:
     """Documento vinculado à imagem, se houver. None significa sem vínculo."""
     return conn.execute(
-        _DOCUMENT_SELECT + " WHERE d.id = (SELECT agents_md_id FROM images WHERE id = ?)",
-        (image_id,),
+        _DOCUMENT_SELECT + " WHERE d.id = (SELECT agents_md_id FROM images WHERE id = :image_id)",
+        {"image_id": image_id},
     ).fetchone()
 
 
@@ -55,23 +57,24 @@ def _validate_content(content: str, settings: Settings) -> None:
 
 
 def create_document(
-    conn: sqlite3.Connection, name: str, content: str, *, settings: Settings
+    conn: DbConnection, name: str, content: str, *, settings: Settings
 ) -> int:
     if not name.strip():
         raise ValidationFailedError("nome do documento não pode ser vazio")
     _validate_content(content, settings)
     try:
         cur = conn.execute(
-            "INSERT INTO agent_md_documents (name, content, updated_at) VALUES (?, ?, datetime('now'))",
-            (name, content),
+            "INSERT INTO agent_md_documents (name, content, updated_at)"
+            " VALUES (:name, :content, :now) RETURNING id",
+            {"name": name, "content": content, "now": format_ts(utcnow())},
         )
-    except sqlite3.IntegrityError as exc:
+    except INTEGRITY_ERRORS as exc:
         raise ConflictError(f"documento AGENTS.md já existe: {name}") from exc
-    return cur.lastrowid
+    return cur.fetchone()["id"]
 
 
 def update_document(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     document_id: int,
     *,
     name: str | None = None,
@@ -80,7 +83,8 @@ def update_document(
 ) -> None:
     """Edita nome e/ou conteúdo. Só toca nas colunas recebidas."""
     row = conn.execute(
-        "SELECT id FROM agent_md_documents WHERE id = ?", (document_id,)
+        "SELECT id FROM agent_md_documents WHERE id = :document_id",
+        {"document_id": document_id},
     ).fetchone()
     if row is None:
         raise NotFoundError(f"documento AGENTS.md não encontrado: {document_id}")
@@ -95,38 +99,39 @@ def update_document(
     if name is not None:
         try:
             conn.execute(
-                "UPDATE agent_md_documents SET name = ?, updated_at = datetime('now')"
-                " WHERE id = ?",
-                (name, document_id),
+                "UPDATE agent_md_documents SET name = :name, updated_at = :now"
+                " WHERE id = :document_id",
+                {"name": name, "now": format_ts(utcnow()), "document_id": document_id},
             )
-        except sqlite3.IntegrityError as exc:
+        except INTEGRITY_ERRORS as exc:
             raise ConflictError(f"documento AGENTS.md já existe: {name}") from exc
     if content is not None:
         conn.execute(
-            "UPDATE agent_md_documents SET content = ?, updated_at = datetime('now')"
-            " WHERE id = ?",
-            (content, document_id),
+            "UPDATE agent_md_documents SET content = :content, updated_at = :now"
+            " WHERE id = :document_id",
+            {"content": content, "now": format_ts(utcnow()), "document_id": document_id},
         )
 
 
-def delete_document(conn: sqlite3.Connection, document_id: int) -> None:
+def delete_document(conn: DbConnection, document_id: int) -> None:
     """Remove o documento, recusado enquanto alguma imagem o referenciar."""
     linked = conn.execute(
-        "SELECT COUNT(*) FROM images WHERE agents_md_id = ?", (document_id,)
-    ).fetchone()[0]
+        "SELECT COUNT(*) AS total FROM images WHERE agents_md_id = :document_id",
+        {"document_id": document_id},
+    ).fetchone()["total"]
     if linked:
         raise ConflictError(
             f"documento AGENTS.md vinculado a {linked} imagem(ns): desvincule antes de remover"
         )
     cur = conn.execute(
-        "DELETE FROM agent_md_documents WHERE id = ?", (document_id,)
+        "DELETE FROM agent_md_documents WHERE id = :document_id", {"document_id": document_id}
     )
     if cur.rowcount == 0:
         raise NotFoundError(f"documento AGENTS.md não encontrado: {document_id}")
 
 
 def set_image_document(
-    conn: sqlite3.Connection, image_id: int, document_id: int | None
+    conn: DbConnection, image_id: int, document_id: int | None
 ) -> None:
     """Define (ou remove, com None) o vínculo da imagem com um documento."""
     from app.services.images import get_image  # import local: evita ciclo
@@ -134,25 +139,28 @@ def set_image_document(
     get_image(conn, image_id)  # 404 se a imagem não existe
     if document_id is not None:
         exists = conn.execute(
-            "SELECT 1 FROM agent_md_documents WHERE id = ?", (document_id,)
+            "SELECT 1 FROM agent_md_documents WHERE id = :document_id",
+            {"document_id": document_id},
         ).fetchone()
         if exists is None:
             raise NotFoundError(f"documento AGENTS.md não encontrado: {document_id}")
     conn.execute(
-        "UPDATE images SET agents_md_id = ? WHERE id = ?", (document_id, image_id)
+        "UPDATE images SET agents_md_id = :document_id WHERE id = :image_id",
+        {"document_id": document_id, "image_id": image_id},
     )
 
 
-def linked_image_ids(conn: sqlite3.Connection, document_id: int) -> list[int]:
+def linked_image_ids(conn: DbConnection, document_id: int) -> list[int]:
     return [
-        row[0]
+        row["id"]
         for row in conn.execute(
-            "SELECT id FROM images WHERE agents_md_id = ? ORDER BY id", (document_id,)
+            "SELECT id FROM images WHERE agents_md_id = :document_id ORDER BY id",
+            {"document_id": document_id},
         )
     ]
 
 
-def _live_instances_of_image(conn: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
+def _live_instances_of_image(conn: DbConnection, image_id: int) -> list[RowMapping]:
     """Instâncias com container criado e em execução da imagem informada.
 
     A propagação e a remoção só alcançam instâncias vivas: uma parada não
@@ -161,14 +169,14 @@ def _live_instances_of_image(conn: sqlite3.Connection, image_id: int) -> list[sq
     """
     return conn.execute(
         """SELECT id AS instance_id, container_id FROM instances
-           WHERE image_id = ? AND deleted_at IS NULL
+           WHERE image_id = :image_id AND deleted_at IS NULL
              AND container_id IS NOT NULL AND state = 'running'""",
-        (image_id,),
+        {"image_id": image_id},
     ).fetchall()
 
 
 async def propagate_document_to_live_instances(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime,
     settings: Settings,
     document_id: int,
@@ -184,7 +192,7 @@ async def propagate_document_to_live_instances(
     failures: list[dict] = []
     for image_id in linked_image_ids(conn, document_id):
         image = conn.execute(
-            "SELECT provision_kind FROM images WHERE id = ?", (image_id,)
+            "SELECT provision_kind FROM images WHERE id = :image_id", {"image_id": image_id}
         ).fetchone()
         uid, gid = _owner_uid_gid(settings, image)
         tar_bytes = build_agents_md_archive(document["content"], uid=uid, gid=gid)
@@ -201,7 +209,7 @@ async def propagate_document_to_live_instances(
 
 
 async def remove_document_from_live_instances(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime,
     image_id: int,
 ) -> list[dict]:
@@ -221,7 +229,7 @@ async def remove_document_from_live_instances(
     return failures
 
 
-def _owner_uid_gid(settings: Settings, image: sqlite3.Row) -> tuple[int, int]:
+def _owner_uid_gid(settings: Settings, image: RowMapping) -> tuple[int, int]:
     """Mesma regra de `_ssh_owner_uid_gid` em `instances.py`: root para
     imagens de agente (`provision_kind == 'build'`), PUID/PGID para webtop."""
     if image["provision_kind"] == "build":

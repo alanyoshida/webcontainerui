@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import sqlite3_connection
 
 
 def test_login_com_credenciais_corretas_emite_sessao(client, seed_user):
@@ -35,7 +35,7 @@ def test_email_inexistente_e_senha_incorreta_tem_resposta_identica(client, seed_
 def test_senha_armazenada_apenas_como_hash(app_settings, client, seed_user):
     seed_user("carla@exemplo.test", "senha-correta-123")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT password_hash FROM users WHERE email = ?", ("carla@exemplo.test",)
     ).fetchone()
@@ -50,7 +50,7 @@ def test_sessao_expirada_e_rejeitada(client, seed_user, app_settings):
     client.post("/api/auth/login", json={"email": "duda@exemplo.test", "password": "senha-correta-123"})
 
     # expira manualmente a sessão criada, simulando o prazo já vencido
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute("UPDATE sessions SET expires_at = '2000-01-01 00:00:00'")
     conn.close()
 
@@ -83,7 +83,7 @@ def test_sessao_ativa_e_recusada_apos_desabilitar_a_conta(client, seed_user, app
     client.post("/api/auth/login", json={"email": "gui@exemplo.test", "password": "senha-correta-123"})
     assert client.get("/api/auth/me").status_code == 200
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute("UPDATE users SET disabled_at = '2024-01-01 00:00:00' WHERE email = ?", ("gui@exemplo.test",))
     conn.close()
 

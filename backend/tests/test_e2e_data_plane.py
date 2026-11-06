@@ -21,7 +21,7 @@ import pytest
 import uvicorn
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.main import create_app
 from app.runtime.fake import FakeContainerRuntime
 from app.services.passwords import hash_password
@@ -76,7 +76,7 @@ def _seed_running_instance(settings: Settings, backend_port: int, email: str) ->
 
     Feito depois do startup do portal para a reconciliação não tratar a
     instância como morta (o runtime falso não tem esse container)."""
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         conn.execute(
             "INSERT INTO users (email, password_hash) VALUES (?, ?)",

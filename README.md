@@ -74,6 +74,20 @@ cd deploy && docker compose -f docker-compose.dev.yml down
 `http://localhost` já é um secure context, que é o que o cliente Selkies
 exige para WebCodecs funcionar — por isso TLS não faz falta aqui.
 
+## Banco de dados
+
+Desenvolvimento e testes locais usam **SQLite** em `/data/webcontainerui.db`
+(sem nenhuma dependência extra). Produção usa **PostgreSQL**, provido pela
+própria composição (`postgres:17-alpine`, rede interna, sem porta publicada)
+e selecionado por `WCUI_DATABASE_URL`. A produção nasce com banco vazio — não
+há migração automática do SQLite; backup e reversão estão em
+[`deploy/README.md`](deploy/README.md).
+
+O acesso a dados é SQLAlchemy Core, com SQL explícito e parâmetros nomeados,
+para rodar igual nos dois motores. A suíte padrão (`pytest`) roda só em
+SQLite; a suíte e2e (`pytest -m e2e`) sobe um PostgreSQL efêmero em Docker e
+valida bootstrap, login, usuários, ciclo de instância e métricas contra ele.
+
 ## Arquitetura: origem única
 
 Tudo é servido na mesma origem — front-end, API e o encaminhamento das sessões.
@@ -150,7 +164,7 @@ arquitetura; valide com carga real antes de prometer um teto.
 O back-end e o front-end se instalam de forma independente.
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev,postgres]"
 ```
 
 ```bash

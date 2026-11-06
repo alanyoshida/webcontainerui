@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.db import connect
+from app.db import engine_for_path, sqlite3_connection
 from app.main import create_app
 from app.runtime.fake import FakeContainerRuntime
 from app.services import data_plane, reaper
@@ -43,7 +43,7 @@ def env(tmp_path, fake_runtime):
 
 
 def _create_instance(client, settings, email="dono@exemplo.test") -> tuple[str, int]:
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         conn.execute(
             "INSERT INTO users (email, password_hash) VALUES (?, ?)",
@@ -160,7 +160,7 @@ def test_data_plane_startup_publica_vivas_e_remove_rotas_orfas(tmp_path):
     app1 = create_app(settings, runtime=runtime1)
     with TestClient(app1, base_url="http://testserver") as client:
         instance_id, _ = _create_instance(client, settings)
-        conn = connect(settings.db_path)
+        conn = sqlite3_connection(settings.db_path)
         container_id = conn.execute(
             "SELECT container_id FROM instances WHERE id = ?", (instance_id,)
         ).fetchone()["container_id"]
@@ -187,7 +187,7 @@ def test_data_plane_reaper_retira_rota_ao_parar_por_ociosidade(tmp_path):
     app = create_app(settings, runtime=runtime)
     with TestClient(app, base_url="http://testserver") as client:
         instance_id, _ = _create_instance(client, settings)
-        conn = connect(settings.db_path)
+        conn = sqlite3_connection(settings.db_path)
         conn.execute(
             "UPDATE instances SET last_seen_at = '2000-01-01 00:00:00' WHERE id = ?",
             (instance_id,),
@@ -197,7 +197,7 @@ def test_data_plane_reaper_retira_rota_ao_parar_por_ociosidade(tmp_path):
         async def _uma_rodada():
             task = asyncio.create_task(
                 reaper.run_reaper(
-                    settings.db_path,
+                    engine_for_path(settings.db_path),
                     runtime,
                     idle_timeout_minutes=1,
                     interval_seconds=0.01,

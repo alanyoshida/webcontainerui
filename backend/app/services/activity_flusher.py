@@ -1,6 +1,6 @@
 import asyncio
 import logging
-from pathlib import Path
+from sqlalchemy.engine import Engine
 
 from app.db import connect
 from app.services.activity import ActivityTracker
@@ -8,7 +8,7 @@ from app.services.activity import ActivityTracker
 logger = logging.getLogger(__name__)
 
 
-async def run_activity_flusher(db_path: Path, tracker: ActivityTracker, interval_seconds: int) -> None:
+async def run_activity_flusher(engine: Engine, tracker: ActivityTracker, interval_seconds: int) -> None:
     """Grava os toques pendentes a cada `interval_seconds`, indefinidamente.
 
     Cancelada pelo `lifespan` no desligamento (via `background.cancel_all`).
@@ -18,7 +18,7 @@ async def run_activity_flusher(db_path: Path, tracker: ActivityTracker, interval
     while True:
         await asyncio.sleep(interval_seconds)
         try:
-            conn = connect(db_path)
+            conn = connect(engine)
             try:
                 tracker.flush(conn)
             finally:

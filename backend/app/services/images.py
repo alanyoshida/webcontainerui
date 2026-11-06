@@ -1,7 +1,9 @@
-import sqlite3
 import uuid
 
+from sqlalchemy.engine import RowMapping
+
 from app.config import Settings
+from app.db import INTEGRITY_ERRORS, DbConnection
 from app.runtime.protocol import ImageInfo
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 
@@ -26,7 +28,7 @@ def _sniff_image_extension(content: bytes) -> str | None:
 
 
 def create_image(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     display_name: str,
     repository: str,
     tag: str,
@@ -50,21 +52,23 @@ def create_image(
             """INSERT INTO images
                    (display_name, repository, tag, shm_size_mb, mem_limit_mb,
                     cpu_limit, pull_state, port, provision_kind)
-               VALUES (?, ?, ?, ?, ?, ?, 'pulling', ?, ?)""",
-            (
-                display_name,
-                repository,
-                tag,
-                shm_size_mb or settings.default_shm_size_mb,
-                mem_limit_mb or settings.default_mem_limit_mb,
-                cpu_limit or settings.default_cpu_limit,
-                port if port is not None else 3000,
-                provision_kind,
-            ),
+               VALUES (:display_name, :repository, :tag, :shm_size_mb, :mem_limit_mb,
+                       :cpu_limit, 'pulling', :port, :provision_kind)
+               RETURNING id""",
+            {
+                "display_name": display_name,
+                "repository": repository,
+                "tag": tag,
+                "shm_size_mb": shm_size_mb or settings.default_shm_size_mb,
+                "mem_limit_mb": mem_limit_mb or settings.default_mem_limit_mb,
+                "cpu_limit": cpu_limit or settings.default_cpu_limit,
+                "port": port if port is not None else 3000,
+                "provision_kind": provision_kind,
+            },
         )
-    except sqlite3.IntegrityError as exc:
+    except INTEGRITY_ERRORS as exc:
         raise ConflictError(f"imagem já registrada: {repository}:{tag}") from exc
-    return cur.lastrowid
+    return cur.fetchone()["id"]
 
 
 def version_from_image_info(info: ImageInfo) -> str | None:
@@ -82,46 +86,54 @@ def version_from_image_info(info: ImageInfo) -> str | None:
     return None
 
 
-def set_image_version(conn: sqlite3.Connection, image_id: int, version: str) -> None:
-    conn.execute("UPDATE images SET image_version = ? WHERE id = ?", (version, image_id))
+def set_image_version(conn: DbConnection, image_id: int, version: str) -> None:
+    conn.execute(
+        "UPDATE images SET image_version = :version WHERE id = :image_id",
+        {"version": version, "image_id": image_id},
+    )
 
 
-def get_image(conn: sqlite3.Connection, image_id: int) -> sqlite3.Row:
-    row = conn.execute("SELECT * FROM images WHERE id = ?", (image_id,)).fetchone()
+def get_image(conn: DbConnection, image_id: int) -> RowMapping:
+    row = conn.execute(
+        "SELECT * FROM images WHERE id = :image_id", {"image_id": image_id}
+    ).fetchone()
     if row is None:
         raise NotFoundError(f"imagem não encontrada: {image_id}")
     return row
 
 
-def mark_pull_started(conn: sqlite3.Connection, image_id: int) -> None:
+def mark_pull_started(conn: DbConnection, image_id: int) -> None:
     """Reabre a entrada para provisionamento e limpa o erro/progresso anterior."""
     conn.execute(
         """UPDATE images SET pull_state = 'pulling', pull_progress = NULL,
                pull_error = NULL
-           WHERE id = ?""",
-        (image_id,),
+           WHERE id = :image_id""",
+        {"image_id": image_id},
     )
 
 
-def mark_pull_progress(conn: sqlite3.Connection, image_id: int, progress: str) -> None:
-    conn.execute("UPDATE images SET pull_progress = ? WHERE id = ?", (progress, image_id))
-
-
-def mark_pull_ready(conn: sqlite3.Connection, image_id: int) -> None:
+def mark_pull_progress(conn: DbConnection, image_id: int, progress: str) -> None:
     conn.execute(
-        "UPDATE images SET pull_state = 'ready', pull_error = NULL WHERE id = ?",
-        (image_id,),
+        "UPDATE images SET pull_progress = :progress WHERE id = :image_id",
+        {"progress": progress, "image_id": image_id},
     )
 
 
-def mark_pull_failed(conn: sqlite3.Connection, image_id: int, error: str) -> None:
+def mark_pull_ready(conn: DbConnection, image_id: int) -> None:
     conn.execute(
-        "UPDATE images SET pull_state = 'failed', pull_error = ? WHERE id = ?",
-        (error, image_id),
+        "UPDATE images SET pull_state = 'ready', pull_error = NULL WHERE id = :image_id",
+        {"image_id": image_id},
     )
 
 
-def reopen_for_retry(conn: sqlite3.Connection, image_id: int) -> None:
+def mark_pull_failed(conn: DbConnection, image_id: int, error: str) -> None:
+    conn.execute(
+        "UPDATE images SET pull_state = 'failed', pull_error = :error WHERE id = :image_id",
+        {"error": error, "image_id": image_id},
+    )
+
+
+def reopen_for_retry(conn: DbConnection, image_id: int) -> None:
     """Reabre uma entrada em falha para novo provisionamento, sem recriá-la.
 
     Não decide entre download e build: quem chama consulta
@@ -129,14 +141,14 @@ def reopen_for_retry(conn: sqlite3.Connection, image_id: int) -> None:
     """
     cur = conn.execute(
         """UPDATE images SET pull_state = 'pulling', pull_progress = NULL, pull_error = NULL
-           WHERE id = ? AND pull_state = 'failed'""",
-        (image_id,),
+           WHERE id = :image_id AND pull_state = 'failed'""",
+        {"image_id": image_id},
     )
     if cur.rowcount == 0:
         raise NotFoundError(f"imagem não está em falha: {image_id}")
 
 
-def reopen_for_update(conn: sqlite3.Connection, image_id: int) -> None:
+def reopen_for_update(conn: DbConnection, image_id: int) -> None:
     """Reabre uma entrada pronta para novo download (atualização de imagem).
 
     Semântica distinta de `reopen_for_retry` (recuperação de falha): aqui a
@@ -146,25 +158,31 @@ def reopen_for_update(conn: sqlite3.Connection, image_id: int) -> None:
     """
     cur = conn.execute(
         """UPDATE images SET pull_state = 'pulling', pull_progress = NULL, pull_error = NULL
-           WHERE id = ? AND pull_state = 'ready' AND provision_kind = 'pull'""",
-        (image_id,),
+           WHERE id = :image_id AND pull_state = 'ready' AND provision_kind = 'pull'""",
+        {"image_id": image_id},
     )
     if cur.rowcount == 0:
         raise ConflictError(f"imagem não está pronta para atualização: {image_id}")
 
 
-def disable_image(conn: sqlite3.Connection, image_id: int) -> None:
-    conn.execute("UPDATE images SET enabled = 0 WHERE id = ?", (image_id,))
+def disable_image(conn: DbConnection, image_id: int) -> None:
+    conn.execute(
+        "UPDATE images SET enabled = :enabled WHERE id = :image_id",
+        {"enabled": False, "image_id": image_id},
+    )
 
 
-def enable_image(conn: sqlite3.Connection, image_id: int) -> None:
+def enable_image(conn: DbConnection, image_id: int) -> None:
     """Reativa uma entrada desabilitada (idempotente: ativar ativa é no-op)."""
     get_image(conn, image_id)  # NotFoundError se inexistente
-    conn.execute("UPDATE images SET enabled = 1 WHERE id = ?", (image_id,))
+    conn.execute(
+        "UPDATE images SET enabled = :enabled WHERE id = :image_id",
+        {"enabled": True, "image_id": image_id},
+    )
 
 
 def update_image(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     image_id: int,
     *,
     display_name: str | None = None,
@@ -172,7 +190,7 @@ def update_image(
     mem_limit_mb: int | None = None,
     cpu_limit: float | None = None,
     port: int | None = None,
-) -> sqlite3.Row:
+) -> RowMapping:
     """Edita só os campos recebidos (change edit-catalog-image).
 
     A identidade de provisionamento (repositório, tag, provision_kind), o
@@ -188,35 +206,35 @@ def update_image(
         "cpu_limit": cpu_limit,
     }
     alteracoes: list[str] = []
-    params: list[int | float | str] = []
+    params: dict[str, int | float | str] = {}
     for campo, valor in positivos.items():
         if valor is None:
             continue
         if valor <= 0:
             raise ValidationFailedError(f"{campo} deve ser maior que zero")
-        alteracoes.append(f"{campo} = ?")
-        params.append(valor)
+        alteracoes.append(f"{campo} = :{campo}")
+        params[campo] = valor
     if port is not None:
         if not (1 <= port <= 65535):
             raise ValidationFailedError("port deve estar entre 1 e 65535")
-        alteracoes.append("port = ?")
-        params.append(port)
+        alteracoes.append("port = :port")
+        params["port"] = port
     if display_name is not None:
         if not display_name.strip():
             raise ValidationFailedError("nome de exibição não pode ser vazio")
-        alteracoes.append("display_name = ?")
-        params.append(display_name.strip())
+        alteracoes.append("display_name = :display_name")
+        params["display_name"] = display_name.strip()
 
     if not alteracoes:
         raise ValidationFailedError("nenhum campo para editar")
 
-    params.append(image_id)
-    conn.execute(f"UPDATE images SET {', '.join(alteracoes)} WHERE id = ?", tuple(params))
+    params["image_id"] = image_id
+    conn.execute(f"UPDATE images SET {', '.join(alteracoes)} WHERE id = :image_id", params)
     return get_image(conn, image_id)
 
 
 def set_image_icon(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     image_id: int,
     content: bytes,
     *,
@@ -245,8 +263,8 @@ def set_image_icon(
     (settings.uploads_dir / new_filename).write_bytes(content)
 
     conn.execute(
-        "UPDATE images SET icon_path = ?, icon_source = 'admin' WHERE id = ?",
-        (new_filename, image_id),
+        "UPDATE images SET icon_path = :icon_path, icon_source = 'admin' WHERE id = :image_id",
+        {"icon_path": new_filename, "image_id": image_id},
     )
 
     if previous_icon_path:
@@ -261,11 +279,11 @@ def _delete_icon_file(settings: Settings, icon_path: str) -> None:
         pass
 
 
-def list_catalog_for_admin(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def list_catalog_for_admin(conn: DbConnection) -> list[RowMapping]:
     return conn.execute("SELECT * FROM images ORDER BY id").fetchall()
 
 
-def list_catalog_for_user(conn: sqlite3.Connection, user_id: int) -> list[sqlite3.Row]:
+def list_catalog_for_user(conn: DbConnection, user_id: int) -> list[RowMapping]:
     """Imagens habilitadas, prontas e permitidas a algum grupo do usuário.
 
     A permissão é resolvida por junção (D5 em design.md), não
@@ -277,9 +295,9 @@ def list_catalog_for_user(conn: sqlite3.Connection, user_id: int) -> list[sqlite
            FROM images i
            JOIN group_images gi ON gi.image_id = i.id
            JOIN user_groups ug ON ug.group_id = gi.group_id
-           WHERE ug.user_id = ?
-             AND i.enabled = 1
+           WHERE ug.user_id = :user_id
+             AND i.enabled = :enabled
              AND i.pull_state = 'ready'
            ORDER BY i.id""",
-        (user_id,),
+        {"user_id": user_id, "enabled": True},
     ).fetchall()

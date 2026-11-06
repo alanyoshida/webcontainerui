@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.db import connect
+from app.db import sqlite3_connection
 
 from .conftest import (
     add_user_to_group,
@@ -19,7 +19,7 @@ def _login_as(client, seed_user, email, password="senha-usuario-123"):
 
 def _create_running_instance(client, seed_user, app_settings, email) -> str:
     user_id = _login_as(client, seed_user, email)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, repository=f"repo-{email}")
     group_id = insert_group(conn, name=f"grupo-{email}")
     add_user_to_group(conn, user_id, group_id)
@@ -29,7 +29,7 @@ def _create_running_instance(client, seed_user, app_settings, email) -> str:
 
 
 def _flush(client, app_settings) -> int:
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     try:
         return client.app.state.activity_tracker.flush(conn)
     finally:
@@ -60,7 +60,7 @@ def test_heartbeat_toca_a_atividade_da_instancia(client, seed_user, app_settings
     assert client.post(f"/api/instances/{instance_id}/heartbeat").status_code == 204
     assert _flush(client, app_settings) == 1
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT last_seen_at FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()

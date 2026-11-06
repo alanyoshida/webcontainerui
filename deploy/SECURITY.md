@@ -48,6 +48,22 @@ decisão completa e as demais mitigações do projeto (isolamento de rede dos
 containers de desktop, credencial interna por instância, desligamento dos
 links de compartilhamento do Selkies).
 
+## Banco de dados em produção (change `postgres-for-production`)
+
+O PostgreSQL roda como serviço da composição, na `wcui_net`, sem porta
+publicada no host — só o portal o alcança. A credencial vem de
+`WCUI_POSTGRES_PASSWORD` (ambiente, nunca no repositório) e a URL completa é
+montada no compose.
+
+- O banco guarda os mesmos segredos do antigo SQLite: hashes de senha,
+  hashes de token de sessão, chaves SSH cifradas (Fernet) e env/headers de
+  MCP cifrados. Trate backups (`pg_dump`) com a mesma política do socket do
+  Docker.
+- A senha do banco não é usada por nenhum container de instância; ela existe
+  só no processo do portal (e no serviço `postgres`).
+- O portal só inicia depois do healthcheck do banco; um banco fora do ar
+  impede o portal de subir (falha explícita, sem estado parcial).
+
 ## Plano de dados das sessões (change `external-stream-proxy`)
 
 Em produção o Caddy transporta `/i/{uuid}/` diretamente aos containers das

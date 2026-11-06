@@ -1,7 +1,8 @@
 # Composição de produção (D4 em design.md). Caddy termina TLS e atua como
 # plano de dados das sessões (change external-stream-proxy); o portal fica só
 # na rede interna, sem porta publicada — os webtops que o portal cria também
-# ficam nessa mesma rede, nunca publicados no host.
+# ficam nessa mesma rede, nunca publicados no host. A persistência é
+# PostgreSQL (change postgres-for-production), também só na rede interna.
 #
 # Uso:
 #   cd deploy
@@ -10,6 +11,25 @@
 #   docker compose up -d
 
 services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: wcui
+      POSTGRES_USER: wcui
+      POSTGRES_PASSWORD: ${WCUI_POSTGRES_PASSWORD:?defina WCUI_POSTGRES_PASSWORD para o banco}
+    volumes:
+      # Dados do portal (usuários, catálogo, instâncias, métricas). Sem porta
+      # publicada: só o portal na wcui_net alcança o banco.
+      - wcui_pg_data:/var/lib/postgresql/data
+    networks:
+      - wcui_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U wcui -d wcui"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
   caddy:
     image: caddy:2-alpine
     # Nome fixo: o portal executa `caddy reload` neste container após
@@ -41,7 +61,10 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     environment:
-      WCUI_DB_PATH: /data/webcontainerui.db
+      # PostgreSQL em produção (change postgres-for-production). Sem esta
+      # variável o portal cairia no SQLite de WCUI_DB_PATH — o volume wcui_db
+      # permanece montado para o rollback para a versão anterior.
+      WCUI_DATABASE_URL: postgresql+psycopg://wcui:${WCUI_POSTGRES_PASSWORD:?defina WCUI_POSTGRES_PASSWORD para o banco}@postgres:5432/wcui
       WCUI_DOCKER_NETWORK: wcui_net
       WCUI_ADMIN_EMAIL: ${WCUI_ADMIN_EMAIL:?defina WCUI_ADMIN_EMAIL para provisionar o primeiro administrador}
       WCUI_ADMIN_PASSWORD: ${WCUI_ADMIN_PASSWORD:?defina WCUI_ADMIN_PASSWORD (mínimo 12 caracteres)}
@@ -71,6 +94,9 @@ services:
       - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - wcui_net
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 30s
@@ -91,6 +117,7 @@ networks:
 
 volumes:
   wcui_db:
+  wcui_pg_data:
   caddy_routes:
   caddy_data:
   caddy_config:

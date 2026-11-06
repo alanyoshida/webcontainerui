@@ -1,33 +1,32 @@
-import sqlite3
 from collections.abc import Generator
 from typing import Any
 
 from fastapi import Depends, HTTPException, Request, WebSocket, status
 
-from app.db import connect
+from app.db import DbConnection, connect
 from app.services.sessions import AuthenticatedUser, resolve_session
 
 SESSION_COOKIE_NAME = "wcui_session"
 
 
-def _open_db(app: Any) -> Generator[sqlite3.Connection, None, None]:
+def _open_db(app: Any) -> Generator[DbConnection, None, None]:
     """Abre uma conexão de vida curta, fechando ao final (D5).
 
     Compartilhada entre `get_db` e `get_db_ws`: o schema já existe
     (aplicado no lifespan), então só se abre a conexão aqui.
     """
-    conn = connect(app.state.settings.db_path)
+    conn = connect(app.state.engine)
     try:
         yield conn
     finally:
         conn.close()
 
 
-def get_db(request: Request) -> Generator[sqlite3.Connection, None, None]:
+def get_db(request: Request) -> Generator[DbConnection, None, None]:
     yield from _open_db(request.app)
 
 
-def get_db_ws(websocket: WebSocket) -> Generator[sqlite3.Connection, None, None]:
+def get_db_ws(websocket: WebSocket) -> Generator[DbConnection, None, None]:
     """Equivalente de `get_db` para rotas WebSocket.
 
     FastAPI resolve `Depends` por tipo exato do parâmetro (`Request` vs.
@@ -38,7 +37,7 @@ def get_db_ws(websocket: WebSocket) -> Generator[sqlite3.Connection, None, None]
 
 
 def get_current_user(
-    request: Request, db: sqlite3.Connection = Depends(get_db)
+    request: Request, db: DbConnection = Depends(get_db)
 ) -> AuthenticatedUser:
     """Exige sessão válida. Toda rota não pública deve depender disto.
 

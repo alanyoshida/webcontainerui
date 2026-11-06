@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 
 from .conftest import insert_image, insert_user
 
@@ -105,7 +105,7 @@ def test_ssh_identities_uma_linha_por_usuario(db_conn):
 
 def test_init_db_e_idempotente_com_ssh_identities_ja_presente(tmp_path):
     db_path = tmp_path / "ja-com-ssh-identities.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         init_db(conn)
         user_id = insert_user(conn)
@@ -126,7 +126,7 @@ def test_init_db_e_idempotente_com_ssh_identities_ja_presente(tmp_path):
 
 def test_init_db_normaliza_last_seen_at_no_formato_antigo(tmp_path):
     db_path = tmp_path / "formato-antigo.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         init_db(conn)
         user_id = insert_user(conn)
@@ -151,7 +151,7 @@ def test_init_db_normaliza_last_seen_at_no_formato_antigo(tmp_path):
 
 def test_init_db_normalizacao_e_idempotente_e_nao_mexe_em_valores_ja_corretos(tmp_path):
     db_path = tmp_path / "ja-normalizado.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         init_db(conn)
         user_id = insert_user(conn)
@@ -177,7 +177,7 @@ def test_init_db_normalizacao_e_idempotente_e_nao_mexe_em_valores_ja_corretos(tm
 
 def test_init_db_adiciona_icon_path_a_banco_sem_a_coluna(tmp_path):
     db_path = tmp_path / "legado.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         conn.executescript(
             """
@@ -217,7 +217,7 @@ def test_init_db_adiciona_icon_path_a_banco_sem_a_coluna(tmp_path):
 
 def test_init_db_adiciona_colunas_de_provisionamento_a_banco_sem_elas(tmp_path):
     db_path = tmp_path / "legado-provisionamento.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         conn.executescript(
             """
@@ -262,7 +262,7 @@ def test_init_db_adiciona_colunas_de_provisionamento_a_banco_sem_elas(tmp_path):
 
 def test_init_db_adiciona_icon_source_e_marca_capas_como_admin(tmp_path):
     db_path = tmp_path / "legado-icon-source.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         conn.executescript(
             """
@@ -316,7 +316,7 @@ def test_init_db_adiciona_icon_source_e_marca_capas_como_admin(tmp_path):
 
 def test_init_db_adiciona_tabela_e_coluna_de_agents_md(tmp_path):
     db_path = tmp_path / "legado-agents-md.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         # Banco legado: criado antes da tabela de documentos e da coluna
         # de vínculo existirem.
@@ -403,7 +403,7 @@ def test_init_db_cria_image_version_em_banco_novo(db_conn):
 
 def test_init_db_adiciona_image_version_a_banco_legado(tmp_path):
     db_path = tmp_path / "legado-image-version.db"
-    conn = connect(db_path)
+    conn = sqlite3_connection(db_path)
     try:
         # Banco legado: tabelas sem as colunas image_version (antes da
         # funcionalidade de ciclo de atualização existir).

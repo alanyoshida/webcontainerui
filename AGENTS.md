@@ -6,8 +6,8 @@ Instruções para agentes de código trabalhando neste repositório.
 
 Portal multiusuário para desktops Linux (webtop) e agentes de código em CLI
 dentro do navegador. Stack: **FastAPI** (backend, Python 3.12), **React + Vite**
-(frontend), **SQLite** (persistência, volume `/data`), **Docker** (instâncias
-são containers na rede interna `wcui_net`).
+(frontend), **SQLAlchemy** (SQLite em dev, PostgreSQL em produção), **Docker**
+(instâncias são containers na rede interna `wcui_net`).
 
 Documentação de produto e planejamento vivem em `openspec/`. Leia os specs
 relevantes antes de mudar comportamento — o `openspec show <capability>`
@@ -44,6 +44,7 @@ export WCUI_DOMAIN=desktop.seu-dominio.test
 export WCUI_ADMIN_EMAIL=admin@seu-dominio.test
 export WCUI_ADMIN_PASSWORD="senha com pelo menos 12 caracteres"
 export WCUI_DATA_PLANE_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export WCUI_POSTGRES_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose up -d --build
 ```
 
@@ -59,6 +60,7 @@ Caddy termina TLS na frente. O portal não publica porta — só o Caddy expõe
 | `WCUI_ADMIN_PASSWORD` | Senha inicial (mínimo 12 caracteres) |
 | `WCUI_SSH_KEY_ENCRYPTION_KEY` | Chave Fernet que cifra as chaves SSH em repouso |
 | `WCUI_DATA_PLANE_SECRET` | Segredo compartilhado entre portal e Caddy para o `forward_auth` |
+| `WCUI_POSTGRES_PASSWORD` | Senha do PostgreSQL interno (produção); a URL é montada no compose |
 
 Para gerar a chave Fernet:
 
@@ -85,7 +87,7 @@ cd backend && .venvv/bin/python -m pytest -m e2e  # suíte e2e (exige Docker rea
 Instalação do venv:
 
 ```bash
-cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev]"
+cd backend && python3 -m venv .venv && .venv/bin/pip install -e ".[dev,postgres]"
 ```
 
 ### Frontend
@@ -130,13 +132,26 @@ confira o catálogo, o início de instância e a tela de identidade SSH.
 
 ### Banco e migrações
 
-- SQLite em `/data/webcontainerui.db` (volume nomeado). WAL ligado,
-  `busy_timeout` 5s, `foreign_keys` ligado.
-- Migrações são idempotentes e rodam em `init_db` (`backend/app/db.py`), no
-  padrão `CREATE TABLE IF NOT EXISTS` + `ALTER TABLE` guardado por
-  `PRAGMA table_info`. Siga esse padrão para coluna nova.
-- **Antes de aplicar migração de schema em produção**, faça backup do
-  arquivo SQLite (ver `deploy/README.md`, seção "Reversão").
+- SQLite em `/data/webcontainerui.db` em dev/testes (WAL, `busy_timeout` 5s,
+  `foreign_keys` ligado); PostgreSQL em produção, selecionado por
+  `WCUI_DATABASE_URL` (`postgresql+psycopg://...`). Sem a variável, cai no
+  SQLite de `WCUI_DB_PATH`.
+- Tudo passa por SQLAlchemy Core (`backend/app/db.py`): schema num único
+  `MetaData` criado com `create_all` e migrações idempotentes via
+  `Inspector` (`ALTER TABLE ADD COLUMN` quando a coluna falta) — nunca
+  `PRAGMA`. Conexões expostas aos services são `DbConnection` (wrapper com
+  `execute` em `text()` e parâmetros nomeados `:nome`, linhas acessíveis por
+  nome e `RETURNING id` para inserts que precisam do id).
+- Timestamps são `DateTime` naive em UTC, **gravados com precisão de
+  segundo** nos dois motores (default `now_second`); binds usam
+  `format_ts`/`ts_param`. Ao consumir uma coluna de data, normalize com
+  `as_datetime`/`format_ts` — `text()` não carrega tipo, então no SQLite o
+  valor volta como `str` e no Postgres como `datetime`.
+- `is_admin`/`enabled`/`harden_desktop` são `Boolean`: compare por parâmetro
+  (`= :flag`), nunca com literal `= 1`.
+- Suíte padrão roda em SQLite; os e2e (`pytest -m e2e`) sobem um PostgreSQL
+  efêmero e cobrem o dialeto. **Em produção, faça backup (`pg_dump`) antes
+  de migração de schema** — ver `deploy/README.md`, seção "Reversão".
 
 ### Frontend
 

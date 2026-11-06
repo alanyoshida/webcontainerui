@@ -15,11 +15,12 @@ from __future__ import annotations
 
 import json
 import posixpath
-import sqlite3
 
 from cryptography.fernet import Fernet
+from sqlalchemy.engine import RowMapping
 
 from app.config import Settings
+from app.db import DbConnection, INTEGRITY_ERRORS, format_ts, utcnow
 from app.services import mcp_tool_configs
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 
@@ -51,18 +52,20 @@ def decrypt_dict(settings: Settings, encrypted: bytes | None) -> dict[str, str]:
     return json.loads(_fernet(settings).decrypt(encrypted))
 
 
-def list_mcp_servers(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def list_mcp_servers(conn: DbConnection) -> list[RowMapping]:
     return conn.execute(_SELECT + " ORDER BY m.display_name").fetchall()
 
 
-def get_mcp_server(conn: sqlite3.Connection, mcp_server_id: int) -> sqlite3.Row:
-    row = conn.execute(_SELECT + " WHERE m.id = ?", (mcp_server_id,)).fetchone()
+def get_mcp_server(conn: DbConnection, mcp_server_id: int) -> RowMapping:
+    row = conn.execute(
+        _SELECT + " WHERE m.id = :mcp_server_id", {"mcp_server_id": mcp_server_id}
+    ).fetchone()
     if row is None:
         raise NotFoundError(f"servidor MCP não encontrado: {mcp_server_id}")
     return row
 
 
-def has_secret(row: sqlite3.Row, field: str) -> bool:
+def has_secret(row: RowMapping, field: str) -> bool:
     """Indica só a presença de `env`/`headers`, nunca o valor — usado pela
     resposta de API para o admin saber que um segredo foi cadastrado sem
     reexibi-lo."""
@@ -83,7 +86,7 @@ def _validate_transport_fields(
 
 
 def create_mcp_server(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     display_name: str,
     transport: str,
     *,
@@ -103,25 +106,27 @@ def create_mcp_server(
             """INSERT INTO mcp_servers
                    (display_name, transport, command, args_json, url,
                     env_encrypted, headers_encrypted, enabled)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                display_name,
-                transport,
-                command,
-                json.dumps(args) if args else None,
-                url,
-                _encrypt_dict(settings, env),
-                _encrypt_dict(settings, headers),
-                int(enabled),
-            ),
+               VALUES (:display_name, :transport, :command, :args_json, :url,
+                       :env_encrypted, :headers_encrypted, :enabled)
+               RETURNING id""",
+            {
+                "display_name": display_name,
+                "transport": transport,
+                "command": command,
+                "args_json": json.dumps(args) if args else None,
+                "url": url,
+                "env_encrypted": _encrypt_dict(settings, env),
+                "headers_encrypted": _encrypt_dict(settings, headers),
+                "enabled": bool(enabled),
+            },
         )
-    except sqlite3.IntegrityError as exc:
+    except INTEGRITY_ERRORS as exc:
         raise ConflictError(f"servidor MCP já cadastrado: {display_name}") from exc
-    return cur.lastrowid
+    return cur.fetchone()["id"]
 
 
 def update_mcp_server(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     mcp_server_id: int,
     *,
     settings: Settings,
@@ -157,38 +162,49 @@ def update_mcp_server(
     try:
         conn.execute(
             """UPDATE mcp_servers
-               SET display_name = ?, transport = ?, command = ?, args_json = ?,
-                   url = ?, env_encrypted = ?, headers_encrypted = ?, enabled = ?,
-                   updated_at = datetime('now')
-               WHERE id = ?""",
-            (
-                display_name if display_name is not None else current["display_name"],
-                next_transport,
-                next_command,
-                next_args_json,
-                next_url,
-                next_env_encrypted,
-                next_headers_encrypted,
-                int(enabled) if enabled is not None else current["enabled"],
-                mcp_server_id,
-            ),
+               SET display_name = :display_name, transport = :transport,
+                   command = :command, args_json = :args_json, url = :url,
+                   env_encrypted = :env_encrypted, headers_encrypted = :headers_encrypted,
+                   enabled = :enabled, updated_at = :now
+               WHERE id = :mcp_server_id""",
+            {
+                "display_name": (
+                    display_name if display_name is not None else current["display_name"]
+                ),
+                "transport": next_transport,
+                "command": next_command,
+                "args_json": next_args_json,
+                "url": next_url,
+                "env_encrypted": next_env_encrypted,
+                "headers_encrypted": next_headers_encrypted,
+                "enabled": (
+                    bool(enabled) if enabled is not None else bool(current["enabled"])
+                ),
+                "now": format_ts(utcnow()),
+                "mcp_server_id": mcp_server_id,
+            },
         )
-    except sqlite3.IntegrityError as exc:
+    except INTEGRITY_ERRORS as exc:
         raise ConflictError("nome já usado por outro servidor MCP") from exc
 
 
-def delete_mcp_server(conn: sqlite3.Connection, mcp_server_id: int) -> None:
+def delete_mcp_server(conn: DbConnection, mcp_server_id: int) -> None:
     """Remove o servidor e qualquer vínculo com imagens, sem recusar por
     uso — mesma regra de `agent_skills.delete_skill`. A propagação da
     remoção às instâncias vivas é responsabilidade do chamador (rota),
     igual ao padrão de `set_image_document`/`unlink_skill`."""
-    conn.execute("DELETE FROM image_mcp_servers WHERE mcp_server_id = ?", (mcp_server_id,))
-    cur = conn.execute("DELETE FROM mcp_servers WHERE id = ?", (mcp_server_id,))
+    conn.execute(
+        "DELETE FROM image_mcp_servers WHERE mcp_server_id = :mcp_server_id",
+        {"mcp_server_id": mcp_server_id},
+    )
+    cur = conn.execute(
+        "DELETE FROM mcp_servers WHERE id = :mcp_server_id", {"mcp_server_id": mcp_server_id}
+    )
     if cur.rowcount == 0:
         raise NotFoundError(f"servidor MCP não encontrado: {mcp_server_id}")
 
 
-def list_images_with_mcp_servers(conn: sqlite3.Connection) -> list[sqlite3.Row]:
+def list_images_with_mcp_servers(conn: DbConnection) -> list[RowMapping]:
     """Imagens de agente (`provision_kind = 'build'`) com os servidores
     MCP vinculados — mesma regra de `agent_skills.list_images_with_skills`:
     só essas imagens podem receber vínculo."""
@@ -198,17 +214,18 @@ def list_images_with_mcp_servers(conn: sqlite3.Connection) -> list[sqlite3.Row]:
     ).fetchall()
 
 
-def linked_mcp_server_ids(conn: sqlite3.Connection, image_id: int) -> list[int]:
+def linked_mcp_server_ids(conn: DbConnection, image_id: int) -> list[int]:
     return [
-        row[0]
+        row["mcp_server_id"]
         for row in conn.execute(
-            "SELECT mcp_server_id FROM image_mcp_servers WHERE image_id = ? ORDER BY mcp_server_id",
-            (image_id,),
+            "SELECT mcp_server_id FROM image_mcp_servers WHERE image_id = :image_id"
+            " ORDER BY mcp_server_id",
+            {"image_id": image_id},
         )
     ]
 
 
-def _require_build_image(conn: sqlite3.Connection, image_id: int) -> sqlite3.Row:
+def _require_build_image(conn: DbConnection, image_id: int) -> RowMapping:
     from app.services.images import get_image  # import local: evita ciclo
 
     image = get_image(conn, image_id)
@@ -219,26 +236,28 @@ def _require_build_image(conn: sqlite3.Connection, image_id: int) -> sqlite3.Row
     return image
 
 
-def link_mcp_server(conn: sqlite3.Connection, image_id: int, mcp_server_id: int) -> None:
+def link_mcp_server(conn: DbConnection, image_id: int, mcp_server_id: int) -> None:
     _require_build_image(conn, image_id)
     get_mcp_server(conn, mcp_server_id)  # 404 se o servidor não existe
     conn.execute(
-        "INSERT OR IGNORE INTO image_mcp_servers (image_id, mcp_server_id) VALUES (?, ?)",
-        (image_id, mcp_server_id),
+        "INSERT INTO image_mcp_servers (image_id, mcp_server_id)"
+        " VALUES (:image_id, :mcp_server_id) ON CONFLICT DO NOTHING",
+        {"image_id": image_id, "mcp_server_id": mcp_server_id},
     )
 
 
-def unlink_mcp_server(conn: sqlite3.Connection, image_id: int, mcp_server_id: int) -> None:
+def unlink_mcp_server(conn: DbConnection, image_id: int, mcp_server_id: int) -> None:
     _require_build_image(conn, image_id)
     get_mcp_server(conn, mcp_server_id)  # 404 se o servidor não existe
     conn.execute(
-        "DELETE FROM image_mcp_servers WHERE image_id = ? AND mcp_server_id = ?",
-        (image_id, mcp_server_id),
+        "DELETE FROM image_mcp_servers"
+        " WHERE image_id = :image_id AND mcp_server_id = :mcp_server_id",
+        {"image_id": image_id, "mcp_server_id": mcp_server_id},
     )
 
 
 def resolve_image_mcp_servers(
-    conn: sqlite3.Connection, settings: Settings, image_id: int
+    conn: DbConnection, settings: Settings, image_id: int
 ) -> list[dict]:
     """Servidores MCP vinculados à imagem, com `env`/`headers` já
     decifrados — pronto pra passar a um tradutor de `mcp_tool_configs.py`.
@@ -250,9 +269,9 @@ def resolve_image_mcp_servers(
                   m.env_encrypted, m.headers_encrypted, m.enabled
            FROM image_mcp_servers i
            JOIN mcp_servers m ON m.id = i.mcp_server_id
-           WHERE i.image_id = ?
+           WHERE i.image_id = :image_id
            ORDER BY m.display_name""",
-        (image_id,),
+        {"image_id": image_id},
     ).fetchall()
     resolved = []
     for row in rows:
@@ -277,10 +296,10 @@ def resolve_image_mcp_servers(
 
 
 async def apply_mcp_config_to_container(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime,
     settings: Settings,
-    image: sqlite3.Row,
+    image: RowMapping,
     container_id: str,
 ) -> list[str]:
     """Escreve o arquivo nativo da ferramenta da imagem com os MCPs
@@ -326,21 +345,21 @@ async def apply_mcp_config_to_container(
     return mcp_tool_configs.validate_tool_config(payload_read, mcp_tool_configs.MCP_JSON_SCHEMAS[tool])
 
 
-def _live_instances_of_image(conn: sqlite3.Connection, image_id: int) -> list[sqlite3.Row]:
+def _live_instances_of_image(conn: DbConnection, image_id: int) -> list[RowMapping]:
     """Instâncias vivas da imagem — mesma consulta de
     `agents_md._live_instances_of_image`: container criado e em execução
     (uma parada recebe a config nova no próximo start, via
     `_inject_mcp_servers`)."""
     return conn.execute(
         """SELECT id AS instance_id, container_id FROM instances
-           WHERE image_id = ? AND deleted_at IS NULL
+           WHERE image_id = :image_id AND deleted_at IS NULL
              AND container_id IS NOT NULL AND state = 'running'""",
-        (image_id,),
+        {"image_id": image_id},
     ).fetchall()
 
 
 async def propagate_mcp_servers_to_live_instances(
-    conn: sqlite3.Connection, runtime, settings: Settings, image_id: int
+    conn: DbConnection, runtime, settings: Settings, image_id: int
 ) -> tuple[list[dict], list[dict]]:
     """Reescreve o config de MCP em todas as instâncias vivas da imagem
     (tarefa 8.1), no padrão de
@@ -350,7 +369,8 @@ async def propagate_mcp_servers_to_live_instances(
     (tarefa 7.3), também por instância. Nunca levanta por falha
     individual."""
     image = conn.execute(
-        "SELECT id, repository, provision_kind FROM images WHERE id = ?", (image_id,)
+        "SELECT id, repository, provision_kind FROM images WHERE id = :image_id",
+        {"image_id": image_id},
     ).fetchone()
     if image is None:
         return [], []
@@ -375,7 +395,7 @@ async def propagate_mcp_servers_to_live_instances(
 
 
 async def propagate_mcp_removal_to_live_instances(
-    conn: sqlite3.Connection, runtime, settings: Settings, image_ids: list[int]
+    conn: DbConnection, runtime, settings: Settings, image_ids: list[int]
 ) -> tuple[list[dict], list[dict]]:
     """Propaga a remoção de um MCP (tarefa 3.2): recomputa o estado inteiro
     das imagens afetadas — que já não contêm o servidor removido, pois as

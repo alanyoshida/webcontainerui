@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import sqlite3_connection
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image, insert_user
 
@@ -10,7 +10,7 @@ def _login_admin(client, seed_user, email="admin@exemplo.test", password="senha-
 
 def test_lista_usuarios(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     insert_user(conn, "a@exemplo.test")
     conn.close()
 
@@ -22,7 +22,7 @@ def test_lista_usuarios(client, seed_user, app_settings):
 
 def test_lista_grupos_membros_e_imagens_concedidas(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     user_id = insert_user(conn, "membro@exemplo.test")
     image_id = insert_image(conn)
     group_id = insert_group(conn, "equipe")

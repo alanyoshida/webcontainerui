@@ -1,4 +1,3 @@
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
@@ -28,6 +27,8 @@ from app.services.images import (
     set_image_icon,
 )
 from app.services.sessions import AuthenticatedUser
+from app.db import DbConnection, format_ts
+from sqlalchemy.engine import RowMapping
 
 admin_router = APIRouter(dependencies=[Depends(require_admin)])
 catalog_router = APIRouter()
@@ -68,7 +69,7 @@ class ImageResponse(BaseModel):
     created_at: str
 
 
-def _to_response(row: sqlite3.Row) -> ImageResponse:
+def _to_response(row: RowMapping) -> ImageResponse:
     icon_path = row["icon_path"]
     return ImageResponse(
         id=row["id"],
@@ -85,7 +86,7 @@ def _to_response(row: sqlite3.Row) -> ImageResponse:
         icon_url=f"/uploads/{icon_path}" if icon_path else None,
         image_version=row["image_version"],
         provision_kind=row["provision_kind"],
-        created_at=row["created_at"],
+        created_at=format_ts(row["created_at"]),
     )
 
 
@@ -94,7 +95,7 @@ async def create_image_endpoint(
     body: CreateImageRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageResponse:
     # async def (não def): precisa rodar na thread do event loop para que
     # `spawn` consiga agendar a tarefa de fundo com `asyncio.create_task`.
@@ -116,7 +117,7 @@ async def create_image_endpoint(
 
     spawn(
         request.app,
-        run_pull(settings.db_path, request.app.state.runtime, image_id, body.repository, body.tag),
+        run_pull(request.app.state.engine, request.app.state.runtime, image_id, body.repository, body.tag),
     )
     audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
           ip=request.client.host if request.client else None,
@@ -130,7 +131,7 @@ async def retry_pull_endpoint(
     image_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageResponse:
     try:
         row = get_image(db, image_id)
@@ -159,7 +160,7 @@ async def retry_pull_endpoint(
         spawn(
             request.app,
             run_build(
-                settings.db_path,
+                request.app.state.engine,
                 runtime,
                 image_id,
                 row["repository"],
@@ -171,7 +172,7 @@ async def retry_pull_endpoint(
     else:
         spawn(
             request.app,
-            run_pull(settings.db_path, runtime, image_id, row["repository"], row["tag"]),
+            run_pull(request.app.state.engine, runtime, image_id, row["repository"], row["tag"]),
         )
 
     audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
@@ -185,7 +186,7 @@ async def update_image_endpoint(
     image_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageResponse:
     """Re-baixa a referência de uma entrada pronta do catálogo.
 
@@ -207,7 +208,7 @@ async def update_image_endpoint(
     settings = request.app.state.settings
     spawn(
         request.app,
-        run_pull(settings.db_path, request.app.state.runtime, image_id, row["repository"], row["tag"]),
+        run_pull(request.app.state.engine, request.app.state.runtime, image_id, row["repository"], row["tag"]),
     )
     audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
           ip=request.client.host if request.client else None,
@@ -222,7 +223,7 @@ async def upload_image_icon_endpoint(
     request: Request,
     file: UploadFile,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageResponse:
     settings = request.app.state.settings
     # Lê no máximo um byte além do limite configurado: o corpo da
@@ -249,7 +250,7 @@ def disable_image_endpoint(
     image_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     disable_image(db, image_id)
     audit("admin.image.changed", actor_id=admin.id, actor_email=admin.email,
@@ -262,7 +263,7 @@ async def enable_image_endpoint(
     image_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     try:
         enable_image(db, image_id)
@@ -279,7 +280,7 @@ async def edit_image_endpoint(
     body: UpdateImageRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageResponse:
     campos = body.model_dump(exclude_unset=True)
     if not campos:
@@ -299,12 +300,12 @@ async def edit_image_endpoint(
 
 
 @admin_router.get("/images", response_model=list[ImageResponse])
-def list_images_admin_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[ImageResponse]:
+def list_images_admin_endpoint(db: DbConnection = Depends(get_db)) -> list[ImageResponse]:
     return [_to_response(row) for row in list_catalog_for_admin(db)]
 
 
 @catalog_router.get("/catalog", response_model=list[ImageResponse])
 def list_catalog_endpoint(
-    user: AuthenticatedUser = Depends(get_current_user), db: sqlite3.Connection = Depends(get_db)
+    user: AuthenticatedUser = Depends(get_current_user), db: DbConnection = Depends(get_db)
 ) -> list[ImageResponse]:
     return [_to_response(row) for row in list_catalog_for_user(db, user.id)]

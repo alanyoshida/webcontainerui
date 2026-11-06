@@ -3,7 +3,7 @@
 import io
 import tarfile
 
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.services.agents_md import create_document, set_image_document
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
@@ -23,7 +23,7 @@ def _login_as(client, seed_user, email, password="senha-usuario-123"):
 
 def _permitted_image(client, seed_user, app_settings, email, group_name="grupo", **image_kwargs):
     user_id = _login_as(client, seed_user, email)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     image_id = insert_image(conn, **image_kwargs)
     group_id = insert_group(conn, group_name)
@@ -35,7 +35,7 @@ def _permitted_image(client, seed_user, app_settings, email, group_name="grupo",
 
 def test_criacao_injeta_o_documento_vinculado(client, seed_user, app_settings, fake_runtime):
     user_id, image_id = _permitted_image(client, seed_user, app_settings, "doc@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     create_document(conn, "Regras", "# Regras do time", settings=app_settings)
     conn.execute("UPDATE images SET agents_md_id = ?", (1,))
     conn.close()
@@ -61,7 +61,7 @@ def test_criacao_sem_vinculo_nao_injeta_documento(client, seed_user, app_setting
 
 def test_dono_do_documento_conforme_provision_kind(client, seed_user, app_settings, fake_runtime):
     user_id = _login_as(client, seed_user, "dono-unique@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     image_agente = insert_image(conn, repository="wcui-agent-teste", provision_kind="build")
     image_webtop = insert_image(conn, repository="lscr.io/linuxserver/webtop", tag="v2")
@@ -94,7 +94,7 @@ def test_falha_de_injecao_do_documento_nao_impede_a_instancia(
     from app.runtime.errors import RuntimeOperationError
 
     _user_id, image_id = _permitted_image(client, seed_user, app_settings, "falhadoc@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     create_document(conn, "Regras", "# R", settings=app_settings)
     conn.execute("UPDATE images SET agents_md_id = ?", (1,))
     conn.close()

@@ -18,7 +18,7 @@ import aiodocker
 import pytest
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.runtime.docker_runtime import AioDockerContainerRuntime
 from app.services.agents_md import build_agents_md_archive
 from app.services.agents_md import create_document, set_image_document
@@ -66,7 +66,7 @@ async def test_webtop_via_fluxo_real_recebe_documento_com_dono_puid(tmp_path):
         volume_prefix=f"wcui-e2e-{uuid.uuid4().hex[:8]}",
         container_prefix=f"wcui-e2e-{uuid.uuid4().hex[:8]}",
     )
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     user_id = conn.execute(
         "INSERT INTO users (email, password_hash) VALUES (?, ?)",
@@ -83,7 +83,7 @@ async def test_webtop_via_fluxo_real_recebe_documento_com_dono_puid(tmp_path):
     runtime = AioDockerContainerRuntime()
     docker = aiodocker.Docker()
     try:
-        conn = connect(settings.db_path)
+        conn = sqlite3_connection(settings.db_path)
         instance = await create_instance(conn, runtime, settings, user_id, image_id)
         conn.close()
         container_id = instance["container_id"]
@@ -103,7 +103,7 @@ async def test_webtop_via_fluxo_real_recebe_documento_com_dono_puid(tmp_path):
             ["sh", "-c", 'test "$(stat -c %a /config/AGENTS.md)" = "644"'],
         ) == 0
 
-        conn = connect(settings.db_path)
+        conn = sqlite3_connection(settings.db_path)
         conn.execute("UPDATE instances SET deleted_at = datetime('now')")
         conn.close()
         await docker.containers.container(container_id).delete(force=True)

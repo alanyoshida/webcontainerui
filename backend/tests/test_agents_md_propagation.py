@@ -3,7 +3,7 @@
 import io
 import tarfile
 
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.runtime.errors import RuntimeOperationError
 from app.services.agents_md import (
     create_document,
@@ -32,7 +32,7 @@ def _login(client, email, password="senha-usuario-123"):
 def _criar_usuario_com_imagens(seed_user, client, app_settings, email, repositories):
     seed_user(email, "senha-usuario-123")
     user_id = _login(client, email)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     image_ids = []
     for repository in repositories:
@@ -52,13 +52,13 @@ async def test_editar_documento_propaga_para_instancias_vivas(client, seed_user,
     user_id, image_ids, document_id = _criar_usuario_com_imagens(
         seed_user, client, app_settings, "prop-edita@exemplo.test", ["r-prop-a", "r-prop-b"]
     )
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     for image_id in image_ids:
         await create_instance(conn, fake_runtime, app_settings, user_id, image_id)
     conn.close()
     fake_runtime.put_archive_calls.clear()
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     update_document(conn, document_id, content="# versao 2", settings=app_settings)
     failures = await propagate_document_to_live_instances(
         conn, fake_runtime, app_settings, document_id
@@ -75,7 +75,7 @@ async def test_propagacao_nao_alcanca_instancia_parada(client, seed_user, app_se
     user_id, image_ids, document_id = _criar_usuario_com_imagens(
         seed_user, client, app_settings, "prop-parada@exemplo.test", ["r-parada"]
     )
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     await create_instance(conn, fake_runtime, app_settings, user_id, image_ids[0])
     conn.execute("UPDATE instances SET state = 'stopped'")
     fake_runtime.put_archive_calls.clear()
@@ -94,7 +94,7 @@ async def test_vincular_propaga_para_instancias_vivas(client, seed_user, app_set
         seed_user, client, app_settings, "prop-vincula@exemplo.test", ["r-vinc"]
     )
     image_id = image_ids[0]
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     instance = await create_instance(conn, fake_runtime, app_settings, user_id, image_id)
     fake_runtime.put_archive_calls.clear()
     set_image_document(conn, image_id, document_id)
@@ -113,7 +113,7 @@ async def test_desvincular_remove_das_instancias_vivas(client, seed_user, app_se
         seed_user, client, app_settings, "prop-desvincula@exemplo.test", ["r-desvinc"]
     )
     image_id = image_ids[0]
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     await create_instance(conn, fake_runtime, app_settings, user_id, image_id)
     container_id = conn.execute(
         "SELECT container_id FROM instances WHERE container_id IS NOT NULL"
@@ -121,7 +121,7 @@ async def test_desvincular_remove_das_instancias_vivas(client, seed_user, app_se
     fake_runtime.exec_calls.clear()
     conn.close()
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     set_image_document(conn, image_id, None)
     failures = await remove_document_from_live_instances(conn, fake_runtime, image_id)
     conn.close()
@@ -137,7 +137,7 @@ async def test_desvincular_isola_falha_por_instancia(client, seed_user, app_sett
     seed_user("prop-falha-b@exemplo.test", "senha-usuario-123")
     user_a = _login(client, "prop-falha-a@exemplo.test", "senha-usuario-1234")
     user_b = _login(client, "prop-falha-b@exemplo.test", "senha-usuario-123")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     image_a = insert_image(conn, repository="r-falha-a")
     image_b = insert_image(conn, repository="r-falha-b")
@@ -152,15 +152,15 @@ async def test_desvincular_isola_falha_por_instancia(client, seed_user, app_sett
     set_image_document(conn, image_b, document_id)
     conn.close()
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     await create_instance(conn, fake_runtime, app_settings, user_a, image_a)
     conn.close()
-    conn = connect(app_settings.db_path)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     await create_instance(conn, fake_runtime, app_settings, user_b, image_b)
     conn.close()
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     fake_runtime.exec_calls.clear()
     fake_runtime.fail_next("exec", RuntimeOperationError("docker exec falhou"))
     failures_a = await remove_document_from_live_instances(conn, fake_runtime, image_a)

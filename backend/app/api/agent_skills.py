@@ -7,7 +7,6 @@ no mesmo padrão de `spawn` usado por `create_image_endpoint`/
 `retry_pull_endpoint` em `api/images.py`.
 """
 
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -30,6 +29,8 @@ from app.services.agent_skills import (
 from app.services.background import spawn
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
 from app.services.images import mark_pull_started
+from app.db import DbConnection, format_ts
+from sqlalchemy.engine import RowMapping
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -69,7 +70,7 @@ class ImageSkillsResponse(BaseModel):
     pull_error: str | None
 
 
-def _to_response(row: sqlite3.Row) -> SkillResponse:
+def _to_response(row: RowMapping) -> SkillResponse:
     return SkillResponse(
         id=row["id"],
         display_name=row["display_name"],
@@ -77,12 +78,12 @@ def _to_response(row: sqlite3.Row) -> SkillResponse:
         repo_name=row["repo_name"],
         subpath=row["subpath"],
         linked_images=row["linked_images"],
-        updated_at=row["updated_at"],
+        updated_at=format_ts(row["updated_at"]),
     )
 
 
 @router.get("/agent-skills", response_model=list[SkillResponse])
-def list_skills_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[SkillResponse]:
+def list_skills_endpoint(db: DbConnection = Depends(get_db)) -> list[SkillResponse]:
     return [_to_response(row) for row in list_skills(db)]
 
 
@@ -91,7 +92,7 @@ def create_skill_endpoint(
     body: CreateSkillRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> SkillResponse:
     try:
         skill_id = create_skill(
@@ -113,7 +114,7 @@ def update_skill_endpoint(
     body: UpdateSkillRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> SkillResponse:
     try:
         update_skill(
@@ -141,7 +142,7 @@ def delete_skill_endpoint(
     skill_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     try:
         delete_skill(db, skill_id)
@@ -152,7 +153,7 @@ def delete_skill_endpoint(
           outcome="success", detail="op=excluir")
 
 
-def _image_response(row: sqlite3.Row, skill_ids: list[int]) -> ImageSkillsResponse:
+def _image_response(row: RowMapping, skill_ids: list[int]) -> ImageSkillsResponse:
     return ImageSkillsResponse(
         id=row["id"],
         display_name=row["display_name"],
@@ -167,7 +168,7 @@ def _image_response(row: sqlite3.Row, skill_ids: list[int]) -> ImageSkillsRespon
 
 @router.get("/agent-skills/images", response_model=list[ImageSkillsResponse])
 def list_image_links_endpoint(
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> list[ImageSkillsResponse]:
     return [
         _image_response(row, linked_skill_ids(db, row["id"]))
@@ -177,7 +178,7 @@ def list_image_links_endpoint(
 
 async def _link_or_unlink(
     request: Request,
-    db: sqlite3.Connection,
+    db: DbConnection,
     image_id: int,
     skill_id: int,
     *,
@@ -203,13 +204,13 @@ async def _link_or_unlink(
     mark_pull_started(db, image_id)
     image_row = db.execute(
         "SELECT id, display_name, repository, tag, pull_state, pull_progress, pull_error"
-        " FROM images WHERE id = ?",
-        (image_id,),
+        " FROM images WHERE id = :image_id",
+        {"image_id": image_id},
     ).fetchone()
 
     settings = request.app.state.settings
     runtime = request.app.state.runtime
-    spawn(request.app, rebuild_agent_image(settings, runtime, image_id))
+    spawn(request.app, rebuild_agent_image(request.app.state.engine, runtime, image_id))
     audit("admin.skill.changed", actor_id=admin.id, actor_email=admin.email,
           ip=request.client.host if request.client else None, target=f"imagem {image_id}",
           outcome="success", detail=f"op={'vincular' if link else 'desvincular'} skill {skill_id}")
@@ -223,7 +224,7 @@ async def link_skill_endpoint(
     skill_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageSkillsResponse:
     return await _link_or_unlink(request, db, image_id, skill_id, link=True, admin=admin)
 
@@ -234,6 +235,6 @@ async def unlink_skill_endpoint(
     skill_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> ImageSkillsResponse:
     return await _link_or_unlink(request, db, image_id, skill_id, link=False, admin=admin)

@@ -9,13 +9,14 @@ bem-sucedido. Falha de uma imagem não impede as demais nem o startup.
 from __future__ import annotations
 
 import hashlib
-import sqlite3
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from sqlalchemy.engine import Engine, RowMapping
+
 from app.config import Settings
-from app.db import connect
+from app.db import DbConnection, connect
 from app.runtime.errors import RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime
 from app.services.agent_skills import resolve_image_skill_refs
@@ -147,7 +148,7 @@ def find_agent_image(repository: str, tag: str) -> AgentImageSpec | None:
 
 
 async def run_build(
-    db_path: Path,
+    engine: Engine,
     runtime: ContainerRuntime,
     image_id: int,
     repository: str,
@@ -162,7 +163,7 @@ async def run_build(
     O hash só é gravado após sucesso: assim uma falha é tentada de novo no
     próximo startup (em vez de ser tratada como contexto já construído).
     """
-    conn = connect(db_path)
+    conn = connect(engine)
     try:
         mark_pull_started(conn, image_id)
         async for progress in runtime.build_image(
@@ -172,7 +173,8 @@ async def run_build(
                 mark_pull_progress(conn, image_id, progress.detail)
         if build_hash is not None:
             conn.execute(
-                "UPDATE images SET build_hash = ? WHERE id = ?", (build_hash, image_id)
+                "UPDATE images SET build_hash = :build_hash WHERE id = :image_id",
+                {"build_hash": build_hash, "image_id": image_id},
             )
         mark_pull_ready(conn, image_id)
     except RuntimeOperationError as exc:
@@ -194,20 +196,21 @@ async def _build_base(runtime: ContainerRuntime, base_dir: Path) -> None:
         pass
 
 
-def _find_row(conn: sqlite3.Connection, spec: AgentImageSpec) -> sqlite3.Row | None:
+def _find_row(conn: DbConnection, spec: AgentImageSpec) -> RowMapping | None:
     return conn.execute(
         "SELECT id, pull_state, provision_kind, build_hash FROM images"
-        " WHERE repository = ? AND tag = ?",
-        (spec.repository, spec.tag),
+        " WHERE repository = :repository AND tag = :tag",
+        {"repository": spec.repository, "tag": spec.tag},
     ).fetchone()
 
 
 async def _provision_agent(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     settings: Settings,
     runtime: ContainerRuntime,
     spec: AgentImageSpec,
     base_dir: Path,
+    engine: Engine,
 ) -> None:
     row = _find_row(conn, spec)
 
@@ -232,7 +235,7 @@ async def _provision_agent(
             # para seguir a mesma regra "sempre a partir do banco" de baixo.
             skill_refs = resolve_image_skill_refs(conn, image_id)
             await run_build(
-                settings.db_path,
+                engine,
                 runtime,
                 image_id,
                 spec.repository,
@@ -250,7 +253,7 @@ async def _provision_agent(
     if row["build_hash"] == current_hash and row["pull_state"] == "ready":
         return
     await run_build(
-        settings.db_path,
+        engine,
         runtime,
         row["id"],
         spec.repository,
@@ -262,7 +265,7 @@ async def _provision_agent(
 
 
 async def rebuild_agent_image(
-    settings: Settings,
+    engine: Engine,
     runtime: ContainerRuntime,
     image_id: int,
     *,
@@ -277,10 +280,10 @@ async def rebuild_agent_image(
     `provision_kind == 'build'` (mesma checagem de `agent_skills.link_skill`).
     """
     root = Path(base_dir) if base_dir is not None else default_agent_images_dir()
-    conn = connect(settings.db_path)
+    conn = connect(engine)
     try:
         row = conn.execute(
-            "SELECT repository, tag FROM images WHERE id = ?", (image_id,)
+            "SELECT repository, tag FROM images WHERE id = :image_id", {"image_id": image_id}
         ).fetchone()
         if row is None:
             return
@@ -292,7 +295,7 @@ async def rebuild_agent_image(
         conn.close()
 
     await run_build(
-        settings.db_path,
+        engine,
         runtime,
         image_id,
         spec.repository,
@@ -307,6 +310,7 @@ async def seed_agent_images(
     settings: Settings,
     runtime: ContainerRuntime,
     *,
+    engine: Engine,
     base_dir: Path | str | None = None,
 ) -> None:
     """Garante a base e as 5 imagens de agente no catálogo (idempotente).
@@ -318,11 +322,11 @@ async def seed_agent_images(
 
     await _build_base(runtime, root)
 
-    conn = connect(settings.db_path)
+    conn = connect(engine)
     try:
         for spec in AGENT_IMAGES:
             try:
-                await _provision_agent(conn, settings, runtime, spec, root)
+                await _provision_agent(conn, settings, runtime, spec, root, engine)
             except Exception as exc:
                 row = _find_row(conn, spec)
                 if row is not None:

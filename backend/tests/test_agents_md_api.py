@@ -1,6 +1,6 @@
 """Testes de API da biblioteca de documentos AGENTS.md."""
 
-from app.db import connect
+from app.db import sqlite3_connection
 from app.services.agents_md import create_document
 
 from .conftest import insert_image
@@ -79,7 +79,7 @@ def test_usuario_comum_nao_gerencia_documentos(client, seed_user, app_settings):
 
 def test_remocao_de_documento_em_uso_retorna_409(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     conn.close()
 
@@ -107,7 +107,7 @@ def test_remocao_de_documento_em_uso_retorna_409(client, seed_user, app_settings
 
 def test_vinculo_e_listagem_por_imagem(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     conn.close()
 

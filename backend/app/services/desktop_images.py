@@ -11,13 +11,13 @@ administrador prevalecem (change seed-desktop-images, D1).
 from __future__ import annotations
 
 import logging
-import sqlite3
 from dataclasses import dataclass
 
 from fastapi import FastAPI
+from sqlalchemy.engine import Engine, RowMapping
 
 from app.config import Settings
-from app.db import connect
+from app.db import DbConnection, connect
 from app.runtime.protocol import ContainerRuntime
 from app.services.background import spawn
 from app.services.errors import ConflictError
@@ -45,18 +45,20 @@ DESKTOP_IMAGES: tuple[DesktopImageSpec, ...] = (
 )
 
 
-def seed_desktop_images(app: FastAPI, settings: Settings, runtime: ContainerRuntime) -> None:
+def seed_desktop_images(
+    app: FastAPI, settings: Settings, runtime: ContainerRuntime, *, engine: Engine
+) -> None:
     """Garante as entradas de desktop no catálogo (idempotente, D1).
 
     Cada entrada é isolada: falha ao registrar uma não impede as demais nem o
     startup. O download é disparado em segundo plano (`spawn`, D2) — o portal
     sobe sem esperar os pulls, que aparecem com progresso no painel.
     """
-    conn = connect(settings.db_path)
+    conn = connect(engine)
     try:
         for spec in DESKTOP_IMAGES:
             try:
-                _provision_desktop(app, settings, runtime, conn, spec)
+                _provision_desktop(app, settings, runtime, conn, spec, engine)
             except Exception:
                 logger.exception(
                     "falha ao garantir a entrada de desktop %s:%s", spec.repository, spec.tag
@@ -69,11 +71,13 @@ def _provision_desktop(
     app: FastAPI,
     settings: Settings,
     runtime: ContainerRuntime,
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     spec: DesktopImageSpec,
+    engine: Engine,
 ) -> None:
     exists = conn.execute(
-        "SELECT 1 FROM images WHERE repository = ? AND tag = ?", (spec.repository, spec.tag)
+        "SELECT 1 FROM images WHERE repository = :repository AND tag = :tag",
+        {"repository": spec.repository, "tag": spec.tag},
     ).fetchone()
     if exists is not None:
         return
@@ -91,4 +95,4 @@ def _provision_desktop(
         # corrida improvável (worker único): a entrada já existe — fica como está
         return
 
-    spawn(app, run_pull(settings.db_path, runtime, image_id, spec.repository, spec.tag))
+    spawn(app, run_pull(engine, runtime, image_id, spec.repository, spec.tag))

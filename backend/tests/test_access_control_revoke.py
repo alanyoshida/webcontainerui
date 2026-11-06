@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import sqlite3_connection
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
 
@@ -21,7 +21,7 @@ def test_preview_informa_impacto_sem_alterar_nada(client, seed_user, app_setting
     _login_admin(client, seed_user)
     with TestClient(client.app, base_url="http://testserver") as client_usuario:
         user_id = _login_as(client_usuario, seed_user, "prever@exemplo.test")
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         image_id = insert_image(conn)
         group_id = insert_group(conn)
         add_user_to_group(conn, user_id, group_id)
@@ -34,7 +34,7 @@ def test_preview_informa_impacto_sem_alterar_nada(client, seed_user, app_setting
         assert preview.json()["affected_instance_count"] == 1
 
         # nada muda sem confirmação: o grant continua valendo
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         total_grants = conn.execute(
             "SELECT COUNT(*) FROM group_images WHERE group_id = ? AND image_id = ?",
             (group_id, image_id),
@@ -52,14 +52,14 @@ def test_revogacao_com_instancia_em_execucao_para_e_preserva_volume(client, seed
     _login_admin(client, seed_user)
     with TestClient(client.app, base_url="http://testserver") as client_usuario:
         user_id = _login_as(client_usuario, seed_user, "revogado@exemplo.test")
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         image_id = insert_image(conn)
         group_id = insert_group(conn)
         add_user_to_group(conn, user_id, group_id)
         grant_image_to_group(conn, group_id, image_id)
         conn.close()
         instance_id = client_usuario.post("/api/instances", json={"image_id": image_id}).json()["id"]
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         volume_name = conn.execute(
             "SELECT volume_name FROM instances WHERE id = ?", (instance_id,)
         ).fetchone()["volume_name"]
@@ -68,7 +68,7 @@ def test_revogacao_com_instancia_em_execucao_para_e_preserva_volume(client, seed
         resp = client.delete(f"/api/admin/groups/{group_id}/images/{image_id}?confirm=true")
         assert resp.status_code == 204
 
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         row = conn.execute("SELECT state FROM instances WHERE id = ?", (instance_id,)).fetchone()
         conn.close()
         assert row["state"] == "stopped"
@@ -81,7 +81,7 @@ def test_revogacao_com_instancia_em_execucao_para_e_preserva_volume(client, seed
 
 def test_sem_confirmacao_revogacao_nao_e_aplicada(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     grant_image_to_group(conn, group_id, image_id)
@@ -90,7 +90,7 @@ def test_sem_confirmacao_revogacao_nao_e_aplicada(client, seed_user, app_setting
     resp = client.delete(f"/api/admin/groups/{group_id}/images/{image_id}")
     assert resp.status_code == 400
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     total = conn.execute(
         "SELECT COUNT(*) FROM group_images WHERE group_id = ? AND image_id = ?", (group_id, image_id)
     ).fetchone()[0]
@@ -106,7 +106,7 @@ def test_permissao_remanescente_por_outro_grupo_nao_para_a_instancia(
     _login_admin(client, seed_user)
     with TestClient(client.app, base_url="http://testserver") as client_usuario:
         user_id = _login_as(client_usuario, seed_user, "duplogrupo@exemplo.test")
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         image_id = insert_image(conn)
         grupo_a = insert_group(conn, "grupo-a")
         grupo_b = insert_group(conn, "grupo-b")
@@ -120,7 +120,7 @@ def test_permissao_remanescente_por_outro_grupo_nao_para_a_instancia(
         resp = client.delete(f"/api/admin/groups/{grupo_a}/images/{image_id}?confirm=true")
         assert resp.status_code == 204
 
-        conn = connect(app_settings.db_path)
+        conn = sqlite3_connection(app_settings.db_path)
         row = conn.execute("SELECT state FROM instances WHERE id = ?", (instance_id,)).fetchone()
         conn.close()
         assert row["state"] == "running"  # não foi parada: grupo_b ainda concede

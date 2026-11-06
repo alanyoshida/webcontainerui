@@ -1,6 +1,6 @@
 import base64
 
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 
 from .conftest import (
     add_user_to_group,
@@ -21,7 +21,7 @@ def _login_as(client, seed_user, email, password="senha-usuario-123"):
 
 def _create_running_instance(client, seed_user, app_settings, email, *, tag="latest") -> tuple[str, int]:
     user_id = _login_as(client, seed_user, email)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, tag=tag)
     group_id = insert_group(conn, name=f"grupo-{email}")
     add_user_to_group(conn, user_id, group_id)
@@ -40,7 +40,7 @@ def test_dono_alcanca_a_propria_instancia_e_credencial_interna_e_injetada(
     proxy_client, seed_user, app_settings
 ):
     instance_id, _ = _create_running_instance(proxy_client, seed_user, app_settings, "dona@exemplo.test")
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     row = conn.execute(
         "SELECT inner_user, inner_password FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()
@@ -197,7 +197,7 @@ def test_base_url_padrao_usa_a_porta_da_imagem_de_cada_instancia(app_settings):
     from app.api.session_proxy import default_backend_base_url
     from app.services.instances import get_owned_instance
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     user_id = insert_user(conn, "portas@exemplo.test")
     imagem_3000 = insert_image(conn, repository="repo-a", tag="latest", port=3000)

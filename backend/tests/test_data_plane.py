@@ -4,7 +4,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.db import connect
+from app.db import sqlite3_connection
 from app.main import create_app
 from app.services.passwords import hash_password
 
@@ -40,7 +40,7 @@ def _authorize(client, secret=SECRET, uri=None):
 
 
 def _login_as(client, settings, email, password="senha-usuario-123"):
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         conn.execute(
             "INSERT INTO users (email, password_hash) VALUES (?, ?)",
@@ -55,7 +55,7 @@ def _login_as(client, settings, email, password="senha-usuario-123"):
 
 def _create_running_instance(client, settings, email) -> str:
     user_id = _login_as(client, settings, email)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     image_id = insert_image(conn, repository=f"repo-{email}")
     group_id = insert_group(conn, name=f"grupo-{email}")
     add_user_to_group(conn, user_id, group_id)
@@ -104,7 +104,7 @@ def test_data_plane_authorize_uri_sem_instancia_recusa(dpa):
 def test_data_plane_authorize_dono_aprovado_com_credencial(dpa):
     client, settings = dpa
     instance_id = _create_running_instance(client, settings, "dono@exemplo.test")
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     row = conn.execute(
         "SELECT inner_user, inner_password FROM instances WHERE id = ?", (instance_id,)
     ).fetchone()
@@ -148,7 +148,7 @@ def test_data_plane_authorize_aprovado_registra_atividade(dpa):
 
     assert _authorize(client, uri=f"/i/{instance_id}/").status_code == 200
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     assert client.app.state.activity_tracker.flush(conn) == 1
     row = conn.execute(
         "SELECT last_seen_at FROM instances WHERE id = ?", (instance_id,)

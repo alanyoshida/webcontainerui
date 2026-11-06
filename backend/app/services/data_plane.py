@@ -12,10 +12,10 @@ Ver change external-stream-proxy (design.md D2).
 import asyncio
 import os
 import re
-import sqlite3
 from pathlib import Path
 
 from app.config import Settings
+from app.db import DbConnection
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime
 from app.services.audit_log import audit
@@ -172,7 +172,7 @@ async def withdraw_route(
 
 
 async def publish_live_routes(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings
+    conn: DbConnection, runtime: ContainerRuntime, settings: Settings
 ) -> None:
     """Sincroniza o diretório de rotas com o banco (startup/reconciliação).
 

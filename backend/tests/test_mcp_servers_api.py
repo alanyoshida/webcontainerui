@@ -3,7 +3,7 @@ da propagação reportada nas respostas (tarefas 3.2, 3.3, 3.4, 4.2, 4.3 e 8.2).
 
 import json
 
-from app.db import connect
+from app.db import sqlite3_connection
 from app.services.instances import create_instance
 from app.services.mcp_servers import create_mcp_server, link_mcp_server
 
@@ -140,7 +140,7 @@ def test_vinculo_e_desvinculo_via_api_com_imagem_de_build(
     client, seed_user, app_settings
 ):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = _agent_image_id(conn, "wcui-agent-claude-code")
     conn.close()
 
@@ -169,7 +169,7 @@ def test_vinculo_e_desvinculo_via_api_com_imagem_de_build(
 
 def test_vinculo_a_imagem_pull_e_recusado(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, repository="linuxserver/webtop", provision_kind="pull")
     conn.close()
 
@@ -188,7 +188,7 @@ async def test_remocao_via_api_desvincula_e_propaga(
     """Tarefa 3.2: remover um MCP vinculado a 2 imagens desvincula de ambas
     e propaga a reescrita às instâncias vivas delas."""
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_1 = _agent_image_id(conn, "wcui-agent-claude-code")
     image_2 = _agent_image_id(conn, "wcui-agent-oh-my-pi")
     mcp_id = create_mcp_server(conn, "Local", "stdio", settings=app_settings, command="npx")
@@ -202,7 +202,7 @@ async def test_remocao_via_api_desvincula_e_propaga(
     assert resp.status_code == 200
     assert resp.json()["propagation_failures"] == []
     assert resp.json()["schema_validation_errors"] == []
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     vinculos = dict(conn.execute("SELECT image_id, COUNT(*) FROM image_mcp_servers GROUP BY image_id"))
     conn.close()
     assert vinculos == {}  # cascade nas duas imagens
@@ -217,7 +217,7 @@ async def test_resposta_de_vinculo_revela_quebra_de_contrato_nomeando_campo(
     """Tarefa 8.2: vincular um MCP com campo inválido numa imagem com
     instância viva relata a quebra nomeando o MCP e o campo."""
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = _agent_image_id(conn, "wcui-agent-claude-code")
     mcp_id = create_mcp_server(
         conn, "Quebrado", "stdio", settings=app_settings, command="npx", args=["-y"]
@@ -245,7 +245,7 @@ def test_listagem_tolera_linha_com_args_corrompido(client, seed_user, app_settin
     quebra futura) não pode derrubar a listagem inteira com 500 — a linha
     volta com args vazio, mesmo isolamento de MCP malformado do resto."""
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     mcp_ok = conn.execute(
         "INSERT INTO mcp_servers (display_name, transport, command) VALUES ('Ok', 'stdio', 'npx')"
     ).lastrowid

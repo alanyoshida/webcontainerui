@@ -18,7 +18,6 @@ from __future__ import annotations
 import io
 import json
 import re
-import sqlite3
 import tarfile
 import time
 from typing import Callable
@@ -213,7 +212,7 @@ MCP_JSON_SCHEMAS: dict[str, dict] = {
 }
 
 
-def tool_for_image(image: sqlite3.Row) -> str | None:
+def tool_for_image(image: RowMapping) -> str | None:
     """Ferramenta dona da imagem, ou `None` se não for uma das 5 de agente
     (imagens webtop não participam — o vínculo já é bloqueado antes, mas
     a propagação nunca deve presumir)."""

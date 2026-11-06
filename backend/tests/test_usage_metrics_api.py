@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import sqlite3_connection
 
 from .conftest import add_user_to_group, grant_image_to_group, insert_group, insert_image
 
@@ -17,7 +17,7 @@ def _login_as(client, seed_user, email, password="senha-usuario-123"):
 
 def _setup_running_instance(client, seed_user, app_settings, email):
     user_id = _login_as(client, seed_user, email)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn)
     group_id = insert_group(conn)
     add_user_to_group(conn, user_id, group_id)
@@ -66,7 +66,7 @@ def test_runs_pagina_e_filtra_fora_da_janela_de_30_dias(client, seed_user, app_s
         usuario_client.post(f"/api/instances/{instance_id}/stop")
 
     # um segundo run, bem fora da janela de 30 dias
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     conn.execute(
         """INSERT INTO instance_runs (instance_id, user_id, image_id, started_at, ended_at, ended_reason)
            VALUES (?, ?, ?, '2000-01-01 00:00:00', '2000-01-01 01:00:00', 'user_stop')""",

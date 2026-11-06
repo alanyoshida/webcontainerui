@@ -2,7 +2,7 @@
 
 import asyncio
 
-from app.db import connect
+from app.db import sqlite3_connection
 from app.services.agent_images import AGENT_IMAGES
 
 from .conftest import insert_image
@@ -88,7 +88,7 @@ def test_usuario_comum_nao_gerencia_skills(client, seed_user):
 
 def test_remocao_permitida_mesmo_vinculada_e_desvincula(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, provision_kind="build")
     conn.close()
 
@@ -114,7 +114,7 @@ def test_remocao_de_skill_inexistente_e_404(client, seed_user):
 
 def test_vinculo_e_desvinculo_via_api(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, provision_kind="build")
     conn.close()
 
@@ -141,7 +141,7 @@ def test_vinculo_e_desvinculo_via_api(client, seed_user, app_settings):
 
 def test_vincular_a_imagem_pull_retorna_400(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, provision_kind="pull")
     conn.close()
 
@@ -167,7 +167,7 @@ def test_vincular_imagem_inexistente_e_404(client, seed_user):
 
 def test_vincular_skill_inexistente_e_404(client, seed_user, app_settings):
     _login_admin(client, seed_user)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = insert_image(conn, provision_kind="build")
     conn.close()
 
@@ -184,7 +184,7 @@ async def test_vincular_dispara_rebuild_em_background_com_buildargs_corretos(
     alvo = AGENT_IMAGES[0]
     # `client` já sobe a aplicação real, cujo lifespan semeia as 5 imagens
     # de agente no startup (ver seed_agent_images) — a linha já existe.
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     image_id = conn.execute(
         "SELECT id FROM images WHERE repository = ?", (alvo.repository,)
     ).fetchone()[0]
@@ -201,7 +201,7 @@ async def test_vincular_dispara_rebuild_em_background_com_buildargs_corretos(
     assert resp.status_code == 200
 
     # a resposta já voltou: o build ainda está em andamento (delay simulado)
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     em_andamento = conn.execute(
         "SELECT pull_state FROM images WHERE id = ?", (image_id,)
     ).fetchone()["pull_state"]
@@ -210,7 +210,7 @@ async def test_vincular_dispara_rebuild_em_background_com_buildargs_corretos(
 
     await asyncio.sleep(0.4)  # espera o build de fundo concluir
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     pronto = conn.execute(
         "SELECT pull_state FROM images WHERE id = ?", (image_id,)
     ).fetchone()["pull_state"]

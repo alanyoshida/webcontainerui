@@ -6,7 +6,6 @@ no formato da regeneracao de chave SSH, para o admin ver quais instancias
 ficaram desatualizadas.
 """
 
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -25,6 +24,8 @@ from app.services.agents_md import (
     update_document,
 )
 from app.services.errors import ConflictError, NotFoundError, ValidationFailedError
+from app.db import DbConnection, format_ts
+from sqlalchemy.engine import RowMapping
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -70,18 +71,18 @@ class ImageLinkResponse(BaseModel):
     document_id: int | None
 
 
-def _to_response(row: sqlite3.Row) -> DocumentResponse:
+def _to_response(row: RowMapping) -> DocumentResponse:
     return DocumentResponse(
         id=row["id"],
         name=row["name"],
         content=row["content"],
         linked_images=row["linked_images"],
-        updated_at=row["updated_at"],
+        updated_at=format_ts(row["updated_at"]),
     )
 
 
 @router.get("/agents-md", response_model=list[DocumentResponse])
-def list_documents_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[DocumentResponse]:
+def list_documents_endpoint(db: DbConnection = Depends(get_db)) -> list[DocumentResponse]:
     return [_to_response(row) for row in list_documents(db)]
 
 
@@ -90,7 +91,7 @@ def create_document_endpoint(
     body: CreateDocumentRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> DocumentResponse:
     settings = request.app.state.settings
     try:
@@ -111,7 +112,7 @@ async def update_document_endpoint(
     body: UpdateDocumentRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> UpdateDocumentResponse:
     settings = request.app.state.settings
     try:
@@ -147,7 +148,7 @@ def delete_document_endpoint(
     document_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     try:
         delete_document(db, document_id)
@@ -161,7 +162,7 @@ def delete_document_endpoint(
 
 
 @router.get("/agents-md/images", response_model=list[ImageLinkResponse])
-def list_image_links_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[ImageLinkResponse]:
+def list_image_links_endpoint(db: DbConnection = Depends(get_db)) -> list[ImageLinkResponse]:
     return [
         ImageLinkResponse(
             id=row["id"],
@@ -180,10 +181,10 @@ async def link_document_endpoint(
     body: LinkDocumentRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> LinkDocumentResponse:
     previous_id = db.execute(
-        "SELECT agents_md_id FROM images WHERE id = ?", (image_id,)
+        "SELECT agents_md_id FROM images WHERE id = :image_id", {"image_id": image_id}
     ).fetchone()
 
     try:

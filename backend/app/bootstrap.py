@@ -1,10 +1,9 @@
-import sqlite3
-
 from app.config import Settings
+from app.db import DbConnection
 from app.services.users import create_user
 
 
-def ensure_admin(conn: sqlite3.Connection, settings: Settings) -> None:
+def ensure_admin(conn: DbConnection, settings: Settings) -> None:
     """Provisiona o primeiro administrador, se configurado e o banco estiver vazio.
 
     Com banco já contendo qualquer usuário, não cria nem sobrescreve nada
@@ -14,8 +13,8 @@ def ensure_admin(conn: sqlite3.Connection, settings: Settings) -> None:
     if not settings.bootstrap_admin:
         return
 
-    (user_count,) = conn.execute("SELECT COUNT(*) FROM users").fetchone()
-    if user_count > 0:
+    row = conn.execute("SELECT COUNT(*) AS total FROM users").fetchone()
+    if row["total"] > 0:
         return
 
     create_user(

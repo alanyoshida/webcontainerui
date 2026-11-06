@@ -3,7 +3,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.config import Settings
-from app.db import connect
+from app.db import sqlite3_connection
 from app.main import create_app
 from app.services import data_plane
 from app.services.passwords import hash_password
@@ -36,7 +36,7 @@ def plane(tmp_path, fake_runtime, fake_backend):
 
 
 def _create_running_instance(client, settings, email="dono@exemplo.test") -> str:
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         conn.execute(
             "INSERT INTO users (email, password_hash) VALUES (?, ?)",

@@ -1,8 +1,8 @@
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 
+from app.db import DbConnection
 from app.deps import SESSION_COOKIE_NAME, get_current_user, get_db
 from app.services.audit_log import audit
 from app.services.login_throttle import LoginThrottle
@@ -55,7 +55,7 @@ def login(
     body: LoginRequest,
     request: Request,
     response: Response,
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> SessionUserResponse:
     # Limite consultado antes de qualquer acesso ao banco ou Argon2: a recusa
     # é idêntica para conta existente e inexistente (anti-enumeração) e poupa
@@ -78,8 +78,8 @@ def login(
         )
 
     row = db.execute(
-        "SELECT id, email, password_hash, is_admin, disabled_at FROM users WHERE email = ?",
-        (body.email,),
+        "SELECT id, email, password_hash, is_admin, disabled_at FROM users WHERE email = :email",
+        {"email": body.email},
     ).fetchone()
 
     if row is None:
@@ -131,7 +131,7 @@ def login(
 def logout(
     request: Request,
     response: Response,
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     token = request.cookies.get(SESSION_COOKIE_NAME)
     if token is not None:

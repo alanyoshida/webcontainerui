@@ -3,7 +3,7 @@
 import pytest
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.services.agents_md import (
     create_document,
     delete_document,

@@ -1,4 +1,3 @@
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -8,6 +7,7 @@ from app.services.access_control import grant, preview_revoke, revoke
 from app.services.audit_log import audit
 from app.services.sessions import AuthenticatedUser
 from app.services.instances import stop_instance
+from app.db import DbConnection
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -26,7 +26,7 @@ def grant_image_endpoint(
     body: GrantImageRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     grant(db, group_id, body.image_id)
     audit("admin.grant.changed", actor_id=admin.id, actor_email=admin.email,
@@ -37,7 +37,7 @@ def grant_image_endpoint(
 
 @router.get("/groups/{group_id}/images/{image_id}/revoke-preview", response_model=RevokePreviewResponse)
 def revoke_preview_endpoint(
-    group_id: int, image_id: int, db: sqlite3.Connection = Depends(get_db)
+    group_id: int, image_id: int, db: DbConnection = Depends(get_db)
 ) -> RevokePreviewResponse:
     """Só informa o impacto; não altera nada — a revogação em si exige
     outra chamada, confirmada explicitamente pelo administrador."""
@@ -52,7 +52,7 @@ async def revoke_image_endpoint(
     request: Request,
     confirm: bool = False,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     if not confirm:
         # mesma convenção de desktop-instances: operação com perda de

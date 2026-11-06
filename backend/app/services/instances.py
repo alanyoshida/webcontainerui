@@ -1,9 +1,12 @@
 import json
 import secrets
-import sqlite3
 import uuid
 
+from sqlalchemy.engine import RowMapping
+from sqlalchemy.exc import IntegrityError
+
 from app.config import Settings
+from app.db import DbConnection, format_ts, utcnow
 from app.runtime.errors import ContainerNotFoundError, RuntimeOperationError
 from app.runtime.protocol import ContainerRuntime, ContainerSpec
 from app.services import data_plane, ssh_identity
@@ -31,39 +34,44 @@ _INSTANCE_SELECT = """
 """
 
 
-def _find_live(conn: sqlite3.Connection, user_id: int, image_id: int) -> sqlite3.Row | None:
+def _find_live(conn: DbConnection, user_id: int, image_id: int) -> RowMapping | None:
     return conn.execute(
-        _INSTANCE_SELECT + " WHERE i.user_id = ? AND i.image_id = ? AND i.deleted_at IS NULL",
-        (user_id, image_id),
+        _INSTANCE_SELECT
+        + " WHERE i.user_id = :user_id AND i.image_id = :image_id AND i.deleted_at IS NULL",
+        {"user_id": user_id, "image_id": image_id},
     ).fetchone()
 
 
-def _get_by_id(conn: sqlite3.Connection, instance_id: str) -> sqlite3.Row:
-    return conn.execute(_INSTANCE_SELECT + " WHERE i.id = ?", (instance_id,)).fetchone()
+def _get_by_id(conn: DbConnection, instance_id: str) -> RowMapping:
+    return conn.execute(
+        _INSTANCE_SELECT + " WHERE i.id = :instance_id", {"instance_id": instance_id}
+    ).fetchone()
 
 
-def get_owned_instance(conn: sqlite3.Connection, instance_id: str, user_id: int) -> sqlite3.Row:
+def get_owned_instance(conn: DbConnection, instance_id: str, user_id: int) -> RowMapping:
     """Busca a instância garantindo que pertence ao usuário.
 
     Instância inexistente e instância de outro usuário levantam o mesmo
     erro — a chamada não deve revelar qual dos dois casos ocorreu.
     """
     row = conn.execute(
-        _INSTANCE_SELECT + " WHERE i.id = ? AND i.deleted_at IS NULL", (instance_id,)
+        _INSTANCE_SELECT + " WHERE i.id = :instance_id AND i.deleted_at IS NULL",
+        {"instance_id": instance_id},
     ).fetchone()
     if row is None or row["user_id"] != user_id:
         raise NotFoundError(f"instância não encontrada: {instance_id}")
     return row
 
 
-def list_instances_for_user(conn: sqlite3.Connection, user_id: int) -> list[sqlite3.Row]:
+def list_instances_for_user(conn: DbConnection, user_id: int) -> list[RowMapping]:
     return conn.execute(
-        _INSTANCE_SELECT + " WHERE i.user_id = ? AND i.deleted_at IS NULL ORDER BY i.created_at",
-        (user_id,),
+        _INSTANCE_SELECT
+        + " WHERE i.user_id = :user_id AND i.deleted_at IS NULL ORDER BY i.created_at",
+        {"user_id": user_id},
     ).fetchall()
 
 
-def _open_run(conn: sqlite3.Connection, instance_id: str, user_id: int, image_id: int) -> None:
+def _open_run(conn: DbConnection, instance_id: str, user_id: int, image_id: int) -> None:
     """Abre um registro de execução para métricas de uso (D1/design.md).
 
     O `WHERE NOT EXISTS` torna a chamada idempotente: chamar de novo para
@@ -74,14 +82,15 @@ def _open_run(conn: sqlite3.Connection, instance_id: str, user_id: int, image_id
     """
     conn.execute(
         """INSERT INTO instance_runs (instance_id, user_id, image_id)
-           SELECT ?, ?, ? WHERE NOT EXISTS (
-               SELECT 1 FROM instance_runs WHERE instance_id = ? AND ended_at IS NULL
+           SELECT CAST(:instance_id AS VARCHAR), :user_id, :image_id WHERE NOT EXISTS (
+               SELECT 1 FROM instance_runs
+               WHERE instance_id = :instance_id AND ended_at IS NULL
            )""",
-        (instance_id, user_id, image_id, instance_id),
+        {"instance_id": instance_id, "user_id": user_id, "image_id": image_id},
     )
 
 
-def _close_run(conn: sqlite3.Connection, instance_id: str, reason: str) -> None:
+def _close_run(conn: DbConnection, instance_id: str, reason: str) -> None:
     """Fecha o registro de execução aberto da instância, se houver.
 
     `WHERE ended_at IS NULL` torna a chamada idempotente: fechar de novo
@@ -89,15 +98,15 @@ def _close_run(conn: sqlite3.Connection, instance_id: str, reason: str) -> None:
     instância já parada) não altera nenhuma linha.
     """
     conn.execute(
-        """UPDATE instance_runs SET ended_at = datetime('now'), ended_reason = ?
-           WHERE instance_id = ? AND ended_at IS NULL""",
-        (reason, instance_id),
+        """UPDATE instance_runs SET ended_at = :now, ended_reason = :reason
+           WHERE instance_id = :instance_id AND ended_at IS NULL""",
+        {"now": format_ts(utcnow()), "reason": reason, "instance_id": instance_id},
     )
 
 
 def _build_spec(
     settings: Settings,
-    image: sqlite3.Row,
+    image: RowMapping,
     instance_id: str,
     container_name: str,
     volume_name: str,
@@ -133,7 +142,7 @@ def _build_spec(
     )
 
 
-def _ssh_owner_uid_gid(settings: Settings, image: sqlite3.Row) -> tuple[int, int]:
+def _ssh_owner_uid_gid(settings: Settings, image: RowMapping) -> tuple[int, int]:
     """Dono dos arquivos da identidade SSH injetada (design.md D3): root
     para imagens de agente (`provision_kind == "build"`, rodam como root),
     PUID/PGID para imagens webtop (`"pull"`, rodam como o usuário que o
@@ -144,7 +153,7 @@ def _ssh_owner_uid_gid(settings: Settings, image: sqlite3.Row) -> tuple[int, int
 
 
 async def _inject_ssh_identity(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, image: sqlite3.Row,
+    conn: DbConnection, runtime: ContainerRuntime, settings: Settings, image: RowMapping,
     container_id: str, user_id: int,
 ) -> None:
     """Disponibiliza a identidade SSH do dono no container recém-criado
@@ -163,10 +172,10 @@ async def _inject_ssh_identity(
 
 
 async def _inject_agents_md(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime: ContainerRuntime,
     settings: Settings,
-    image: sqlite3.Row,
+    image: RowMapping,
     container_id: str,
 ) -> None:
     """Grava o documento AGENTS.md vinculado à imagem no container
@@ -186,10 +195,10 @@ async def _inject_agents_md(
 
 
 async def _inject_mcp_servers(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime: ContainerRuntime,
     settings: Settings,
-    image: sqlite3.Row,
+    image: RowMapping,
     container_id: str,
 ) -> list[str]:
     """Escreve os MCPs vinculados à imagem no config nativo da ferramenta
@@ -207,7 +216,7 @@ async def _inject_mcp_servers(
 
 
 async def propagate_ssh_identity_to_live_instances(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, user_id: int
+    conn: DbConnection, runtime: ContainerRuntime, settings: Settings, user_id: int
 ) -> list[dict]:
     """Reaplica a identidade SSH atual do usuário em todas as instâncias
     vivas dele — em execução ou paradas, qualquer uma com container já
@@ -221,8 +230,9 @@ async def propagate_ssh_identity_to_live_instances(
     rows = conn.execute(
         """SELECT i.id AS instance_id, i.container_id, img.provision_kind
            FROM instances i JOIN images img ON img.id = i.image_id
-           WHERE i.user_id = ? AND i.deleted_at IS NULL AND i.container_id IS NOT NULL""",
-        (user_id,),
+           WHERE i.user_id = :user_id AND i.deleted_at IS NULL
+             AND i.container_id IS NOT NULL""",
+        {"user_id": user_id},
     ).fetchall()
 
     failures: list[dict] = []
@@ -238,13 +248,13 @@ async def propagate_ssh_identity_to_live_instances(
 
 
 async def _provision_and_start(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime: ContainerRuntime,
     settings: Settings,
-    image: sqlite3.Row,
-    row: sqlite3.Row,
+    image: RowMapping,
+    row: RowMapping,
     container_name: str,
-) -> sqlite3.Row:
+) -> RowMapping:
     """Cria o container do zero e inicia, reaproveitando o volume e as
     credenciais já associadas a `row` (tanto numa instância nova quanto
     numa recriação após o container ter desaparecido do runtime)."""
@@ -257,7 +267,8 @@ async def _provision_and_start(
         container_id = await runtime.create_container(spec)
     except RuntimeOperationError as exc:
         conn.execute(
-            "UPDATE instances SET state = 'error', error_message = ? WHERE id = ?", (str(exc), row["id"])
+            "UPDATE instances SET state = 'error', error_message = :error WHERE id = :instance_id",
+            {"error": str(exc), "instance_id": row["id"]},
         )
         audit("instance.failed", target=row["id"], outcome="failure",
               detail=f"criação: {str(exc)[:300]}")
@@ -276,7 +287,8 @@ async def _provision_and_start(
         except (ContainerNotFoundError, RuntimeOperationError):
             pass
         conn.execute(
-            "UPDATE instances SET state = 'error', error_message = ? WHERE id = ?", (str(exc), row["id"])
+            "UPDATE instances SET state = 'error', error_message = :error WHERE id = :instance_id",
+            {"error": str(exc), "instance_id": row["id"]},
         )
         audit("instance.failed", target=row["id"], outcome="failure",
               detail=f"start: {str(exc)[:300]}")
@@ -284,15 +296,20 @@ async def _provision_and_start(
 
     conn.execute(
         "UPDATE instances SET state = 'running', error_message = NULL,"
-        " mcp_validation_errors = ?, container_id = ?, container_name = ?,"
-        " image_version = ? WHERE id = ?",
-        (
-            json.dumps(mcp_validation_errors, ensure_ascii=False) if mcp_validation_errors else None,
-            container_id,
-            container_name,
-            image["image_version"],
-            row["id"],
-        ),
+        " mcp_validation_errors = :mcp_validation_errors, container_id = :container_id,"
+        " container_name = :container_name, image_version = :image_version"
+        " WHERE id = :instance_id",
+        {
+            "mcp_validation_errors": (
+                json.dumps(mcp_validation_errors, ensure_ascii=False)
+                if mcp_validation_errors
+                else None
+            ),
+            "container_id": container_id,
+            "container_name": container_name,
+            "image_version": image["image_version"],
+            "instance_id": row["id"],
+        },
     )
     _open_run(conn, row["id"], row["user_id"], row["image_id"])
     await data_plane.publish_route(
@@ -302,8 +319,8 @@ async def _provision_and_start(
 
 
 async def _resume_existing(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, image: sqlite3.Row, row: sqlite3.Row
-) -> sqlite3.Row:
+    conn: DbConnection, runtime: ContainerRuntime, settings: Settings, image: RowMapping, row: RowMapping
+) -> RowMapping:
     """Religa uma instância parada ou em erro.
 
     `stop_instance` nunca remove o container, só o para — então religar é
@@ -319,12 +336,15 @@ async def _resume_existing(
             pass  # container não existe mais: recria abaixo
         except RuntimeOperationError as exc:
             conn.execute(
-                "UPDATE instances SET state = 'error', error_message = ? WHERE id = ?", (str(exc), row["id"])
+                "UPDATE instances SET state = 'error', error_message = :error WHERE id = :instance_id",
+            {"error": str(exc), "instance_id": row["id"]},
             )
             return _get_by_id(conn, row["id"])
         else:
             conn.execute(
-                "UPDATE instances SET state = 'running', error_message = NULL WHERE id = ?", (row["id"],)
+                "UPDATE instances SET state = 'running', error_message = NULL"
+                " WHERE id = :instance_id",
+                {"instance_id": row["id"]},
             )
             _open_run(conn, row["id"], row["user_id"], row["image_id"])
             await data_plane.publish_route(
@@ -337,8 +357,8 @@ async def _resume_existing(
 
 
 async def create_instance(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, user_id: int, image_id: int
-) -> sqlite3.Row:
+    conn: DbConnection, runtime: ContainerRuntime, settings: Settings, user_id: int, image_id: int
+) -> RowMapping:
     image = get_image(conn, image_id)  # levanta NotFoundError se não existir
     if not image["enabled"] or image["pull_state"] != "ready":
         raise ValidationFailedError("imagem não está pronta para uso")
@@ -363,10 +383,18 @@ async def create_instance(
         conn.execute(
             """INSERT INTO instances
                    (id, user_id, image_id, volume_name, inner_user, inner_password, state)
-               VALUES (?, ?, ?, ?, ?, ?, 'starting')""",
-            (instance_id, user_id, image_id, volume_name, inner_user, inner_password),
+               VALUES (:instance_id, :user_id, :image_id, :volume_name,
+                       :inner_user, :inner_password, 'starting')""",
+            {
+                "instance_id": instance_id,
+                "user_id": user_id,
+                "image_id": image_id,
+                "volume_name": volume_name,
+                "inner_user": inner_user,
+                "inner_password": inner_password,
+            },
         )
-    except sqlite3.IntegrityError:
+    except IntegrityError:
         # outra criação concorrente para o mesmo par (usuário, imagem) venceu
         # a corrida; a unicidade é garantida pelo índice parcial (D5/2.2).
         return _find_live(conn, user_id, image_id)
@@ -376,7 +404,7 @@ async def create_instance(
 
 
 async def stop_instance(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime: ContainerRuntime,
     instance_id: str,
     user_id: int,
@@ -398,14 +426,17 @@ async def stop_instance(
         except ContainerNotFoundError:
             pass
     _close_run(conn, instance_id, reason)
-    conn.execute("UPDATE instances SET state = 'stopped' WHERE id = ?", (instance_id,))
+    conn.execute(
+        "UPDATE instances SET state = 'stopped' WHERE id = :instance_id",
+        {"instance_id": instance_id},
+    )
     if settings is not None:
         await data_plane.withdraw_route(runtime, settings, instance_id)
 
 
 async def update_instance(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, settings: Settings, instance_id: str, user_id: int
-) -> sqlite3.Row:
+    conn: DbConnection, runtime: ContainerRuntime, settings: Settings, instance_id: str, user_id: int
+) -> RowMapping:
     """Recria o container do tag atual da imagem, preservando o volume.
 
     Caminho de recriação existente (D3): para (se rodando — fecha o run de
@@ -432,8 +463,8 @@ async def update_instance(
             pass
         conn.execute(
             "UPDATE instances SET container_id = NULL, container_name = NULL,"
-            " state = 'stopped' WHERE id = ?",
-            (instance_id,),
+            " state = 'stopped' WHERE id = :instance_id",
+            {"instance_id": instance_id},
         )
         await data_plane.withdraw_route(runtime, settings, instance_id)
 
@@ -442,7 +473,7 @@ async def update_instance(
 
 
 async def delete_instance(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime: ContainerRuntime,
     instance_id: str,
     user_id: int,
@@ -461,12 +492,15 @@ async def delete_instance(
             pass
     await runtime.remove_volume(row["volume_name"])
     _close_run(conn, instance_id, "deleted")
-    conn.execute("UPDATE instances SET deleted_at = datetime('now') WHERE id = ?", (instance_id,))
+    conn.execute(
+        "UPDATE instances SET deleted_at = :now WHERE id = :instance_id",
+        {"now": format_ts(utcnow()), "instance_id": instance_id},
+    )
     if settings is not None:
         await data_plane.withdraw_route(runtime, settings, instance_id)
 
 
-def backfill_open_runs(conn: sqlite3.Connection) -> None:
+def backfill_open_runs(conn: DbConnection) -> None:
     """Abre um run para toda instância já 'running' sem run aberto (D3/design.md).
 
     Cobre instâncias que já estavam em execução antes desta funcionalidade
@@ -487,15 +521,22 @@ def backfill_open_runs(conn: sqlite3.Connection) -> None:
     for row in rows:
         conn.execute(
             """INSERT INTO instance_runs (instance_id, user_id, image_id, started_at)
-               SELECT ?, ?, ?, ? WHERE NOT EXISTS (
-                   SELECT 1 FROM instance_runs WHERE instance_id = ? AND ended_at IS NULL
+               SELECT CAST(:instance_id AS VARCHAR), :user_id, :image_id, :started_at
+               WHERE NOT EXISTS (
+                   SELECT 1 FROM instance_runs
+                   WHERE instance_id = :instance_id AND ended_at IS NULL
                )""",
-            (row["id"], row["user_id"], row["image_id"], row["approx_started_at"], row["id"]),
+            {
+                "instance_id": row["id"],
+                "user_id": row["user_id"],
+                "image_id": row["image_id"],
+                "started_at": format_ts(row["approx_started_at"]),
+            },
         )
 
 
 async def stop_all_running_for_user(
-    conn: sqlite3.Connection,
+    conn: DbConnection,
     runtime: ContainerRuntime,
     user_id: int,
     settings: Settings | None = None,
@@ -503,8 +544,9 @@ async def stop_all_running_for_user(
     """Usada ao desabilitar uma conta: para tudo que estiver em execução,
     preservando os volumes."""
     rows = conn.execute(
-        "SELECT id FROM instances WHERE user_id = ? AND state = 'running' AND deleted_at IS NULL",
-        (user_id,),
+        "SELECT id FROM instances WHERE user_id = :user_id"
+        " AND state = 'running' AND deleted_at IS NULL",
+        {"user_id": user_id},
     ).fetchall()
     for row in rows:
         await stop_instance(conn, runtime, row["id"], user_id, settings=settings)

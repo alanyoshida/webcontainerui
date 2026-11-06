@@ -1,4 +1,4 @@
-from pathlib import Path
+from sqlalchemy.engine import Engine
 
 from app.db import connect
 from app.runtime.errors import RuntimeOperationError
@@ -13,14 +13,14 @@ from app.services.images import (
 
 
 async def run_pull(
-    db_path: Path, runtime: ContainerRuntime, image_id: int, repository: str, tag: str
+    engine: Engine, runtime: ContainerRuntime, image_id: int, repository: str, tag: str
 ) -> None:
     """Executa o download em segundo plano e atualiza o estado da entrada.
 
     Abre sua própria conexão porque roda fora do ciclo de uma requisição —
     não há `request` nem conexão de quem agendou esta tarefa para herdar.
     """
-    conn = connect(db_path)
+    conn = connect(engine)
     try:
         async for progress in runtime.pull_image(repository, tag):
             if progress.detail:

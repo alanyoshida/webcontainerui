@@ -1,4 +1,3 @@
-import sqlite3
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel
@@ -19,6 +18,7 @@ from app.services.groups import (
 )
 from app.services.instances import stop_all_running_for_user
 from app.services.users import create_user, disable_user, list_users
+from app.db import DbConnection
 
 router = APIRouter(dependencies=[Depends(require_admin)])
 
@@ -76,7 +76,7 @@ def create_user_endpoint(
     body: CreateUserRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> UserResponse:
     settings = request.app.state.settings
     try:
@@ -104,7 +104,7 @@ def create_user_endpoint(
 
 
 @router.get("/users", response_model=list[UserListItemResponse])
-def list_users_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[UserListItemResponse]:
+def list_users_endpoint(db: DbConnection = Depends(get_db)) -> list[UserListItemResponse]:
     return [
         UserListItemResponse(
             id=row["id"], email=row["email"], is_admin=bool(row["is_admin"]), disabled=row["disabled_at"] is not None
@@ -117,7 +117,7 @@ def list_users_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[UserLi
 async def disable_user_endpoint(
     user_id: int,
     request: Request,
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
     admin: AuthenticatedUser = Depends(require_admin),
 ) -> None:
     try:
@@ -139,7 +139,7 @@ async def disable_user_endpoint(
 
 
 @router.get("/groups", response_model=list[GroupResponse])
-def list_groups_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[GroupResponse]:
+def list_groups_endpoint(db: DbConnection = Depends(get_db)) -> list[GroupResponse]:
     return [GroupResponse(id=row["id"], name=row["name"]) for row in list_groups(db)]
 
 
@@ -148,7 +148,7 @@ def create_group_endpoint(
     body: CreateGroupRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> GroupResponse:
     try:
         group_id = create_group(db, body.name)
@@ -166,7 +166,7 @@ def rename_group_endpoint(
     body: RenameGroupRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> GroupResponse:
     try:
         rename_group(db, group_id, body.name)
@@ -183,7 +183,7 @@ def delete_group_endpoint(
     group_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     delete_group(db, group_id)
     audit("admin.group.changed", actor_id=admin.id, actor_email=admin.email,
@@ -197,7 +197,7 @@ def add_member_endpoint(
     body: AddMemberRequest,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     add_member(db, group_id, body.user_id)
     audit("admin.group.changed", actor_id=admin.id, actor_email=admin.email,
@@ -211,7 +211,7 @@ def remove_member_endpoint(
     user_id: int,
     request: Request,
     admin: AuthenticatedUser = Depends(require_admin),
-    db: sqlite3.Connection = Depends(get_db),
+    db: DbConnection = Depends(get_db),
 ) -> None:
     remove_member(db, group_id, user_id)
     audit("admin.group.changed", actor_id=admin.id, actor_email=admin.email,
@@ -220,13 +220,13 @@ def remove_member_endpoint(
 
 
 @router.get("/groups/{group_id}/members", response_model=list[GroupMemberResponse])
-def list_members_endpoint(group_id: int, db: sqlite3.Connection = Depends(get_db)) -> list[GroupMemberResponse]:
+def list_members_endpoint(group_id: int, db: DbConnection = Depends(get_db)) -> list[GroupMemberResponse]:
     return [GroupMemberResponse(id=row["id"], email=row["email"]) for row in list_members(db, group_id)]
 
 
 @router.get("/groups/{group_id}/images", response_model=list[GrantedImageResponse])
 def list_granted_images_endpoint(
-    group_id: int, db: sqlite3.Connection = Depends(get_db)
+    group_id: int, db: DbConnection = Depends(get_db)
 ) -> list[GrantedImageResponse]:
     return [
         GrantedImageResponse(

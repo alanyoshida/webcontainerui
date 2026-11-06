@@ -13,6 +13,11 @@ class Settings(BaseSettings):
 
     db_path: Path = Path("/data/webcontainerui.db")
 
+    # URL do SQLAlchemy. Presente -> usa o banco apontado (PostgreSQL em
+    # produção); ausente -> SQLite em `db_path` (dev/testes). Formato:
+    # postgresql+psycopg://usuario:senha@host:5432/banco
+    database_url: str | None = None
+
     # Build do front-end a servir em "/". Ausente em desenvolvimento (o
     # Vite serve o front-end ali, não o FastAPI) — por isso a montagem é
     # condicional, não um requisito de inicialização.
@@ -85,6 +90,11 @@ class Settings(BaseSettings):
     # Nome/ID do container do Caddy para o `reload` após publicar rotas.
     # Só é usado quando `caddy_routes_dir` está definido.
     caddy_container: str = "wcui-caddy"
+
+    @field_validator("database_url", mode="before")
+    @classmethod
+    def _blank_database_url_is_none(cls, value):
+        return None if value in ("", None) else value
 
     @field_validator("caddy_routes_dir", mode="before")
     @classmethod

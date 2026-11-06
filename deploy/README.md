@@ -16,6 +16,7 @@ export WCUI_DOMAIN=desktop.seu-dominio.test
 export WCUI_ADMIN_EMAIL=admin@seu-dominio.test
 export WCUI_ADMIN_PASSWORD="uma senha com pelo menos 12 caracteres"
 export WCUI_DATA_PLANE_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
+export WCUI_POSTGRES_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_urlsafe(32))')"
 docker compose up -d --build
 ```
 
@@ -75,6 +76,40 @@ quebrar na inicialização).
 | `WCUI_ADMIN_EMAIL` | E-mail do primeiro administrador |
 | `WCUI_ADMIN_PASSWORD` | Senha inicial dele (mínimo 12 caracteres) |
 | `WCUI_DATA_PLANE_SECRET` | Segredo compartilhado entre portal e Caddy; o `forward_auth` o apresenta ao endpoint interno de autorização (`secrets.token_urlsafe(32)`) |
+| `WCUI_POSTGRES_PASSWORD` | Senha do PostgreSQL interno; o portal recebe a URL completa montada a partir dela |
+
+### Banco de dados (PostgreSQL)
+
+Em produção a persistência é o serviço `postgres` (imagem
+`postgres:17-alpine`) na rede interna, sem porta publicada no host. O portal
+recebe `WCUI_DATABASE_URL` montada no compose a partir de
+`WCUI_POSTGRES_PASSWORD` e só inicia depois do healthcheck do banco
+(`pg_isready`), via `depends_on: condition: service_healthy`.
+
+- Os dados ficam no volume nomeado `wcui_pg_data` e sobrevivem a
+  `docker compose down` (sem `-v`).
+- **A produção nasce com banco vazio**: não há migração automática do SQLite
+  antigo. Antes de atualizar um deploy existente, encerre as instâncias em
+  execução; o volume `wcui_db` continua montado no portal, intacto, para o
+  rollback.
+- Desenvolvimento e testes seguem em SQLite (`WCUI_DB_PATH`), sem
+  `WCUI_DATABASE_URL` — ver `docker-compose.dev.yml`.
+
+Backup e restauração do banco de produção:
+
+```bash
+# backup lógico
+docker compose exec -T postgres pg_dump -U wcui wcui > wcui-$(date +%F).sql
+
+# restauração (com o portal parado)
+docker compose stop portal
+docker compose exec -T postgres psql -U wcui wcui < wcui-2026-11-06.sql
+docker compose start portal
+```
+
+**Rollback para a versão anterior (SQLite):** remova o serviço `postgres` e a
+variável `WCUI_DATABASE_URL` da composição (ou volte à imagem anterior) — o
+arquivo SQLite no volume `wcui_db` nunca é tocado pela versão com Postgres.
 
 ### Plano de dados das sessões
 
@@ -175,6 +210,8 @@ Os volumes `wcui_db` (ou `wcui_db_dev`) e o volume Docker de cada desktop de
 usuário são nomeados e sobrevivem a `docker compose down`. Derrubar a
 composição não apaga nada.
 
+O banco de produção não tem migração de dados a partir do SQLite (a
+instalação nasce nova); os backups do Postgres são o caminho de recuperação.
 O plano de dados não guarda estado além dos snippets em `caddy_routes`:
 para voltar a entregar tudo pelo portal, restaure o `Caddyfile` anterior (ou
 remova o volume e reinicie o Caddy) — as instâncias e volumes não mudam.

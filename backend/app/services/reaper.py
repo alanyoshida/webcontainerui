@@ -1,25 +1,24 @@
 import asyncio
 import logging
-import sqlite3
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
+
+from sqlalchemy.engine import Engine, RowMapping
 
 from app.config import Settings
-from app.db import connect
+from app.db import DbConnection, connect, format_ts, utcnow
 from app.runtime.errors import ContainerNotFoundError
 from app.runtime.protocol import ContainerRuntime, ContainerState
 from app.services.instances import _close_run, stop_instance
 from app.services.sessions import purge_sessions
 
 
-def _cutoff_iso(idle_timeout_minutes: int) -> str:
-    # Sem offset explícito: mesma convenção usada em `activity._now_iso` e
-    # em toda coluna de timestamp gravada via `datetime('now')` do SQLite.
-    cutoff = datetime.now(timezone.utc) - timedelta(minutes=idle_timeout_minutes)
-    return cutoff.strftime("%Y-%m-%d %H:%M:%S")
+def _cutoff(idle_timeout_minutes: int) -> str:
+    return format_ts(utcnow() - timedelta(minutes=idle_timeout_minutes))
 
 
-def find_idle_running_instances(conn: sqlite3.Connection, idle_timeout_minutes: int) -> list[sqlite3.Row]:
+def find_idle_running_instances(
+    conn: DbConnection, idle_timeout_minutes: int
+) -> list[RowMapping]:
     """Instâncias em execução sem acesso há mais tempo que o limite.
 
     Uma instância nunca acessada (sem `last_seen_at`) conta a partir da
@@ -28,13 +27,13 @@ def find_idle_running_instances(conn: sqlite3.Connection, idle_timeout_minutes: 
     return conn.execute(
         """SELECT id, user_id FROM instances
            WHERE state = 'running' AND deleted_at IS NULL
-             AND COALESCE(last_seen_at, created_at) < ?""",
-        (_cutoff_iso(idle_timeout_minutes),),
+             AND COALESCE(last_seen_at, created_at) < :cutoff""",
+        {"cutoff": _cutoff(idle_timeout_minutes)},
     ).fetchall()
 
 
 async def reap_idle_instances(
-    conn: sqlite3.Connection, runtime: ContainerRuntime, idle_timeout_minutes: int
+    conn: DbConnection, runtime: ContainerRuntime, idle_timeout_minutes: int
 ) -> list[str]:
     """Para as instâncias ociosas encontradas, preservando os volumes
     (`stop_instance` nunca toca em volume)."""
@@ -44,7 +43,7 @@ async def reap_idle_instances(
     return [row["id"] for row in rows]
 
 
-async def reconcile_instance_states(conn: sqlite3.Connection, runtime: ContainerRuntime) -> list[str]:
+async def reconcile_instance_states(conn: DbConnection, runtime: ContainerRuntime) -> list[str]:
     """Corrige o estado registrado quando ele diverge do container real.
 
     Chamada uma vez na inicialização (D8/design.md, seção de riscos):
@@ -65,13 +64,16 @@ async def reconcile_instance_states(conn: sqlite3.Connection, runtime: Container
             state = None
         if state != ContainerState.RUNNING:
             _close_run(conn, row["id"], "reconciled")
-            conn.execute("UPDATE instances SET state = 'stopped' WHERE id = ?", (row["id"],))
+            conn.execute(
+                "UPDATE instances SET state = 'stopped' WHERE id = :instance_id",
+                {"instance_id": row["id"]},
+            )
             reconciled.append(row["id"])
     return reconciled
 
 
 async def run_reaper(
-    db_path: Path,
+    engine: Engine,
     runtime: ContainerRuntime,
     idle_timeout_minutes: int,
     interval_seconds: int,
@@ -95,7 +97,7 @@ async def run_reaper(
     while True:
         await asyncio.sleep(interval_seconds)
         try:
-            conn = connect(db_path)
+            conn = connect(engine)
             try:
                 reconciled = await reconcile_instance_states(conn, runtime)
                 stopped = await reap_idle_instances(conn, runtime, idle_timeout_minutes)

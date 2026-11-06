@@ -4,7 +4,7 @@ import sqlite3
 from pathlib import Path
 
 from app.config import Settings
-from app.db import connect, init_db
+from app.db import engine_for_path, init_db, sqlite3_connection
 from app.runtime.fake import FakeContainerRuntime
 from app.services.image_covers import (
     LOGOS,
@@ -39,7 +39,7 @@ def _make_covers_dir(root: Path, keys: set[str] | None = None) -> Path:
 
 
 def _rows(settings: Settings) -> list[sqlite3.Row]:
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     try:
         return conn.execute(
             "SELECT id, display_name, icon_path, icon_source FROM images ORDER BY id"
@@ -82,14 +82,14 @@ def test_resolve_sem_correspondencia_usa_capa_generica():
 
 def test_seed_cadastra_capa_em_todas_as_entradas_sem_capa(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     insert_image(conn, display_name="Webtop XFCE", repository="lscr.io/linuxserver/webtop")
     insert_image(conn, display_name="Hermes", repository="wcui-agent-hermes")
     conn.close()
 
     covers = _make_covers_dir(tmp_path)
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
 
     rows = {row["display_name"]: row for row in _rows(settings)}
     assert rows["Webtop XFCE"]["icon_path"].startswith("1-default-")
@@ -107,7 +107,7 @@ def test_seed_cadastra_capa_em_todas_as_entradas_sem_capa(tmp_path):
 
 def test_seed_preserva_capa_do_admin(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     image_id = insert_image(conn, display_name="Claude Code")
     conn.execute(
@@ -120,7 +120,7 @@ def test_seed_preserva_capa_do_admin(tmp_path):
     (settings.uploads_dir).mkdir(parents=True, exist_ok=True)
     (settings.uploads_dir / "1-admin-enviada.png").write_bytes(_PNG_1X1 + b"admin")
 
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
 
     row = _rows(settings)[0]
     assert row["icon_path"] == "1-admin-enviada.png"
@@ -129,13 +129,13 @@ def test_seed_preserva_capa_do_admin(tmp_path):
 
 def test_seed_usa_capa_generica_para_nome_desconhecido(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     insert_image(conn, display_name="Coisa Estranha")
     conn.close()
 
     covers = _make_covers_dir(tmp_path)
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
 
     row = _rows(settings)[0]
     assert row["icon_source"] == "default"
@@ -145,18 +145,18 @@ def test_seed_usa_capa_generica_para_nome_desconhecido(tmp_path):
 
 def test_seed_e_idempotente_com_asset_inalterado(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     insert_image(conn, display_name="Claude Code")
     conn.close()
 
     covers = _make_covers_dir(tmp_path)
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
     primeiro = _rows(settings)[0]["icon_path"]
     arquivo = settings.uploads_dir / primeiro
     stat_antes = arquivo.stat().st_mtime_ns
 
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
 
     assert _rows(settings)[0]["icon_path"] == primeiro
     assert arquivo.stat().st_mtime_ns == stat_antes  # nada foi regravado
@@ -164,19 +164,19 @@ def test_seed_e_idempotente_com_asset_inalterado(tmp_path):
 
 def test_seed_substitui_capa_padrao_quando_asset_muda(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     insert_image(conn, display_name="Claude Code")
     conn.close()
 
     covers = _make_covers_dir(tmp_path)
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
     primeira = _rows(settings)[0]["icon_path"]
     antigo = settings.uploads_dir / primeira
     assert antigo.exists()
 
     (covers / "claude.png").write_bytes(_PNG_1X1 + b"nova versao")
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
 
     segunda = _rows(settings)[0]["icon_path"]
     assert segunda != primeira
@@ -187,7 +187,7 @@ def test_seed_substitui_capa_padrao_quando_asset_muda(tmp_path):
 
 def test_seed_isola_falha_de_asset_ausente(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     insert_image(conn, display_name="Claude Code", repository="wcui-agent-claude")  # logo existe
     insert_image(
@@ -196,7 +196,7 @@ def test_seed_isola_falha_de_asset_ausente(tmp_path):
     conn.close()
 
     covers = _make_covers_dir(tmp_path, keys={"claude"})
-    seed_image_covers(settings, base_dir=covers)  # não propaga exceção
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)  # não propaga exceção
 
     rows = {row["display_name"]: row for row in _rows(settings)}
     assert rows["Claude Code"]["icon_source"] == "default"
@@ -205,7 +205,7 @@ def test_seed_isola_falha_de_asset_ausente(tmp_path):
 
 def test_seed_cobre_entrada_desabilitada_e_em_falha(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     insert_image(
         conn, display_name="Webtop XFCE", repository="lscr.io/linuxserver/webtop", enabled=False
@@ -214,7 +214,7 @@ def test_seed_cobre_entrada_desabilitada_e_em_falha(tmp_path):
     conn.close()
 
     covers = _make_covers_dir(tmp_path)
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
 
     rows = {row["display_name"]: row for row in _rows(settings)}
     assert rows["Webtop XFCE"]["icon_source"] == "default"
@@ -223,27 +223,27 @@ def test_seed_cobre_entrada_desabilitada_e_em_falha(tmp_path):
 
 def test_imagem_registrada_depois_do_startup_so_recebe_capa_no_proximo_seed(tmp_path):
     settings = _settings(tmp_path)
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
 
     covers = _make_covers_dir(tmp_path)
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
     assert _rows(settings) == []
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     insert_image(conn, display_name="Claude Code")
     conn.close()
     assert _rows(settings)[0]["icon_path"] is None  # nada automático na criação
 
-    seed_image_covers(settings, base_dir=covers)
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)
     assert _rows(settings)[0]["icon_source"] == "default"
 
 
 async def test_startup_cadastra_capa_nas_entradas_existentes(client, app_settings):
     """Integração via TestClient: o lifespan roda seed_agent_images +
     seed_image_covers, então as entradas de agente ganham capa no startup."""
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     try:
         rows = conn.execute(
             "SELECT display_name, icon_path, icon_source FROM images ORDER BY id"
@@ -272,15 +272,15 @@ async def test_seed_de_capas_nao_dispara_rebuild_de_imagem(app_settings, fake_ru
     altera build_hash nem dispara rebuild no próximo seed de agentes."""
     from app.services.agent_images import BASE_IMAGE_REPOSITORY, seed_agent_images
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     init_db(conn)
     conn.close()
     covers = _make_covers_dir(app_settings.db_path.parent)
-    seed_image_covers(app_settings, base_dir=covers)
-    await seed_agent_images(app_settings, fake_runtime)
+    seed_image_covers(app_settings, engine=engine_for_path(app_settings.db_path), base_dir=covers)
+    await seed_agent_images(app_settings, fake_runtime, engine=engine_for_path(app_settings.db_path))
     hash_antes = {
         row["repository"]: row["build_hash"]
-        for row in connect(app_settings.db_path).execute(
+        for row in sqlite3_connection(app_settings.db_path).execute(
             "SELECT repository, build_hash FROM images"
         )
     }
@@ -290,10 +290,10 @@ async def test_seed_de_capas_nao_dispara_rebuild_de_imagem(app_settings, fake_ru
     )
 
     (covers / "claude.png").write_bytes(_PNG_1X1 + b"versao nova da capa")
-    seed_image_covers(app_settings, base_dir=covers)
-    await seed_agent_images(app_settings, fake_runtime)
+    seed_image_covers(app_settings, engine=engine_for_path(app_settings.db_path), base_dir=covers)
+    await seed_agent_images(app_settings, fake_runtime, engine=engine_for_path(app_settings.db_path))
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     hash_depois = {
         row["repository"]: row["build_hash"]
         for row in conn.execute("SELECT repository, build_hash FROM images")
@@ -332,15 +332,15 @@ async def test_falha_de_build_de_agente_nao_impede_capa_nem_startup(
     settings = Settings(
         db_path=tmp_path / "falha-build.db", uploads_dir=tmp_path / "uploads-falha"
     )
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     init_db(conn)
     conn.close()
     covers = _make_covers_dir(tmp_path)
 
-    await seed_agent_images(settings, RuntimeComFalha())
-    seed_image_covers(settings, base_dir=covers)  # não propaga exceção
+    await seed_agent_images(settings, RuntimeComFalha(), engine=engine_for_path(settings.db_path))
+    seed_image_covers(settings, engine=engine_for_path(settings.db_path), base_dir=covers)  # não propaga exceção
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     rows = {row["display_name"]: row for row in conn.execute(
         "SELECT display_name, pull_state, icon_path, icon_source FROM images"
     )}
@@ -367,7 +367,7 @@ async def test_falha_do_seed_de_capas_nao_impede_o_startup(app_settings, fake_ru
     with TestClient(app, base_url="http://testserver") as c:
         c.get("/api/me")  # se o startup falhasse, o TestClient teria explodido
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     rows = conn.execute("SELECT icon_path, icon_source FROM images").fetchall()
     conn.close()
     assert len(rows) == 9  # 5 agentes + 4 desktops do seed (seed-desktop-images)

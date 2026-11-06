@@ -24,7 +24,7 @@ from app.api.ssh_identity import router as ssh_identity_router
 from app.api.usage_metrics import router as usage_metrics_router
 from app.bootstrap import ensure_admin
 from app.config import Settings, get_settings
-from app.db import connect, init_db
+from app.db import connect, init_db, make_engine
 from app.runtime.docker_runtime import AioDockerContainerRuntime
 from app.runtime.protocol import ContainerRuntime
 from app.services.activity import ActivityTracker
@@ -125,42 +125,46 @@ def create_app(
         # linha JSON por evento, na saída padrão.
         install_handler()
 
-        conn = connect(resolved_settings.db_path)
-        init_db(conn)
+        engine = make_engine(resolved_settings.database_url, resolved_settings.db_path)
+        app.state.engine = engine
+        init_db(engine)
+        conn = connect(engine)
         ensure_admin(conn, resolved_settings)
         # Reconciliação uma vez no start (risco "worker é ponto único de
         # falha", design.md): recupera a visão correta depois de um
         # reinício do processo, caso containers tenham sido encerrados
         # por fora enquanto não havia ninguém observando.
-        await reconcile_instance_states(conn, resolved_runtime)
-        # Depois da reconciliação: uma instância que parecia "running" mas
-        # já estava morta por fora já foi corrigida para "stopped" acima,
-        # então só abre run retroativo para quem de fato segue em execução
-        # (métricas de uso, D3/design.md).
-        backfill_open_runs(conn)
-        # Publica as rotas das instâncias que sobreviveram à reconciliação e
-        # remove rotas órfãs deixadas no volume compartilhado por um processo
-        # anterior (plano de dados externo; no-op sem caddy_routes_dir).
-        await publish_live_routes(conn, resolved_runtime, resolved_settings)
-        conn.close()
+        try:
+            await reconcile_instance_states(conn, resolved_runtime)
+            # Depois da reconciliação: uma instância que parecia "running" mas
+            # já estava morta por fora já foi corrigida para "stopped" acima,
+            # então só abre run retroativo para quem de fato segue em execução
+            # (métricas de uso, D3/design.md).
+            backfill_open_runs(conn)
+            # Publica as rotas das instâncias que sobreviveram à reconciliação e
+            # remove rotas órfãs deixadas no volume compartilhado por um processo
+            # anterior (plano de dados externo; no-op sem caddy_routes_dir).
+            await publish_live_routes(conn, resolved_runtime, resolved_settings)
+        finally:
+            conn.close()
 
         # Garante a base e as 5 imagens de agente no catálogo. Aguarda os
         # builds (D8), mas cada falha é isolada e não impede o startup (D5).
-        await seed_agent_images(resolved_settings, resolved_runtime)
+        await seed_agent_images(resolved_settings, resolved_runtime, engine=engine)
 
         # Entradas de desktop padrão (change seed-desktop-images): pull em
         # segundo plano, antes do seed de capas — assim as capas padrão
         # (xfce/kde/mate/vscode) caem no mesmo boot do registro.
-        seed_desktop_images(app, resolved_settings, resolved_runtime)
+        seed_desktop_images(app, resolved_settings, resolved_runtime, engine=engine)
 
         # Capas padrão para toda entrada existente no catálogo: independe do
         # resultado do build e nunca sobrescreve capa enviada pelo admin.
-        seed_image_covers(resolved_settings)
+        seed_image_covers(resolved_settings, engine=engine)
 
         spawn(
             app,
             run_activity_flusher(
-                resolved_settings.db_path,
+                engine,
                 app.state.activity_tracker,
                 resolved_settings.activity_debounce_seconds,
             ),
@@ -168,7 +172,7 @@ def create_app(
         spawn(
             app,
             run_reaper(
-                resolved_settings.db_path,
+                engine,
                 resolved_runtime,
                 resolved_settings.idle_timeout_minutes,
                 resolved_settings.reaper_interval_seconds,
@@ -180,6 +184,7 @@ def create_app(
         yield
 
         await cancel_all(app)
+        app.state.engine.dispose()
         close = getattr(resolved_runtime, "close", None)
         if close is not None:
             await close()

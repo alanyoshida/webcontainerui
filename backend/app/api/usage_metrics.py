@@ -1,8 +1,7 @@
-import sqlite3
-
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
+from app.db import DbConnection
 from app.deps import get_db, require_admin
 from app.services import usage_metrics
 
@@ -81,7 +80,7 @@ class SummaryResponse(BaseModel):
     peak_concurrency: int
 
 
-def _live_to_response(row: sqlite3.Row) -> LiveRunResponse:
+def _live_to_response(row) -> LiveRunResponse:
     return LiveRunResponse(
         instance_id=row["instance_id"],
         user_id=row["user_id"],
@@ -90,12 +89,12 @@ def _live_to_response(row: sqlite3.Row) -> LiveRunResponse:
         image_display_name=row["image_display_name"],
         image_repository=row["image_repository"],
         image_tag=row["image_tag"],
-        started_at=row["started_at"],
+        started_at=usage_metrics.format_ts(row["started_at"]),
         duration_seconds=usage_metrics.duration_seconds(row["started_at"], None),
     )
 
 
-def _run_to_response(row: sqlite3.Row) -> RunResponse:
+def _run_to_response(row) -> RunResponse:
     return RunResponse(
         id=row["id"],
         instance_id=row["instance_id"],
@@ -105,21 +104,21 @@ def _run_to_response(row: sqlite3.Row) -> RunResponse:
         image_display_name=row["image_display_name"],
         image_repository=row["image_repository"],
         image_tag=row["image_tag"],
-        started_at=row["started_at"],
-        ended_at=row["ended_at"],
+        started_at=usage_metrics.format_ts(row["started_at"]),
+        ended_at=usage_metrics.format_ts(row["ended_at"]),
         ended_reason=row["ended_reason"],
         duration_seconds=usage_metrics.duration_seconds(row["started_at"], row["ended_at"]),
     )
 
 
 @router.get("/usage/live", response_model=list[LiveRunResponse])
-def list_live_usage_endpoint(db: sqlite3.Connection = Depends(get_db)) -> list[LiveRunResponse]:
+def list_live_usage_endpoint(db: DbConnection = Depends(get_db)) -> list[LiveRunResponse]:
     return [_live_to_response(row) for row in usage_metrics.list_live_runs(db)]
 
 
 @router.get("/usage/runs", response_model=RunsPageResponse)
 def list_usage_runs_endpoint(
-    limit: int = 50, offset: int = 0, db: sqlite3.Connection = Depends(get_db)
+    limit: int = 50, offset: int = 0, db: DbConnection = Depends(get_db)
 ) -> RunsPageResponse:
     since, until = usage_metrics.default_period()
     rows, total = usage_metrics.list_runs(db, since, until, limit=limit, offset=offset)
@@ -127,7 +126,7 @@ def list_usage_runs_endpoint(
 
 
 @router.get("/usage/summary", response_model=SummaryResponse)
-def usage_summary_endpoint(db: sqlite3.Connection = Depends(get_db)) -> SummaryResponse:
+def usage_summary_endpoint(db: DbConnection = Depends(get_db)) -> SummaryResponse:
     since, until = usage_metrics.default_period()
     return SummaryResponse(
         by_user=[UserHoursResponse(**entry) for entry in usage_metrics.hours_by_user(db, since, until)],

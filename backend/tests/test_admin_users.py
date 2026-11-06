@@ -1,4 +1,4 @@
-from app.db import connect
+from app.db import sqlite3_connection
 
 
 def _login(client, seed_user, email="admin@exemplo.test", password="senha-admin-123", is_admin=True):
@@ -49,7 +49,7 @@ def test_senha_inicial_curta_e_recusada(client, seed_user, app_settings):
     resp = client.post("/api/admin/users", json={"email": "x@exemplo.test", "password": "curta"})
 
     assert resp.status_code == 400
-    total = connect(app_settings.db_path).execute(
+    total = sqlite3_connection(app_settings.db_path).execute(
         "SELECT COUNT(*) FROM users WHERE email = 'x@exemplo.test'"
     ).fetchone()[0]
     assert total == 0
@@ -87,7 +87,7 @@ def test_desabilitar_conta_revoga_sessao_existente(client, seed_user):
         assert apos_desabilitar.status_code == 401
 
     # a conta não foi apagada: o registro continua existindo, apenas desabilitado
-    conn = connect(client.app.state.settings.db_path)
+    conn = sqlite3_connection(client.app.state.settings.db_path)
     row = conn.execute("SELECT disabled_at FROM users WHERE id = ?", (user_id,)).fetchone()
     conn.close()
     assert row is not None
@@ -125,7 +125,7 @@ def test_remocao_de_grupo_preserva_contas_dos_membros(client, seed_user, app_set
     resp = client.delete(f"/api/admin/groups/{group_id}")
     assert resp.status_code == 204
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     ainda_existe = conn.execute(
         "SELECT disabled_at FROM users WHERE id = ?", (membro_id,)
     ).fetchone()
@@ -150,7 +150,7 @@ def test_usuario_pode_pertencer_a_multiplos_grupos_e_remover_um_preserva_o_outro
 
     client.delete(f"/api/admin/groups/{grupo_a}/members/{membro_id}")
 
-    conn = connect(app_settings.db_path)
+    conn = sqlite3_connection(app_settings.db_path)
     try:
         assert groups_for_user(conn, membro_id) == [grupo_b]
     finally:
@@ -198,7 +198,7 @@ def test_segunda_inicializacao_nao_cria_nem_sobrescreve(tmp_path):
     with TestClient(create_app(settings, runtime=FakeContainerRuntime())):
         pass
 
-    conn = connect(settings.db_path)
+    conn = sqlite3_connection(settings.db_path)
     total = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
     conn.close()
     assert total == 1

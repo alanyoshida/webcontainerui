@@ -14,12 +14,13 @@ from __future__ import annotations
 
 import hashlib
 import re
-import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
+from sqlalchemy.engine import Engine, RowMapping
+
 from app.config import Settings
-from app.db import connect
+from app.db import DbConnection, connect
 from app.services.agent_images import default_agent_images_dir
 from app.services.images import list_catalog_for_admin
 
@@ -105,7 +106,9 @@ def _default_filename(image_id: int, content: bytes) -> str:
     return f"{image_id}-default-{digest}.png"
 
 
-def seed_image_covers(settings: Settings, *, base_dir: Path | str | None = None) -> None:
+def seed_image_covers(
+    settings: Settings, *, engine: Engine, base_dir: Path | str | None = None
+) -> None:
     """Garante capa padrão em toda entrada existente no catálogo (idempotente).
 
     Percorre inclusive entradas desabilitadas e em falha — a capa não depende
@@ -113,7 +116,7 @@ def seed_image_covers(settings: Settings, *, base_dir: Path | str | None = None)
     disco, etc.) é isolada e não impede as demais nem o startup.
     """
     root = Path(base_dir) if base_dir is not None else default_covers_dir()
-    conn = connect(settings.db_path)
+    conn = connect(engine)
     try:
         for row in list_catalog_for_admin(conn):
             try:
@@ -127,8 +130,8 @@ def seed_image_covers(settings: Settings, *, base_dir: Path | str | None = None)
 
 
 def _ensure_cover(
-    conn: sqlite3.Connection,
-    row: sqlite3.Row,
+    conn: DbConnection,
+    row: RowMapping,
     root: Path,
     settings: Settings,
 ) -> None:
@@ -150,8 +153,8 @@ def _ensure_cover(
         _delete_icon_file(settings, row["icon_path"])
 
     conn.execute(
-        "UPDATE images SET icon_path = ?, icon_source = 'default' WHERE id = ?",
-        (filename, row["id"]),
+        "UPDATE images SET icon_path = :icon_path, icon_source = 'default' WHERE id = :image_id",
+        {"icon_path": filename, "image_id": row["id"]},
     )
 
 
