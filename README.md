@@ -3,6 +3,16 @@
   <img src="docs/logo-light.png" alt="webcontainerui" width="320">
 </picture>
 
+[![Licença: MIT](https://img.shields.io/badge/licen%C3%A7a-MIT-yellow.svg)](LICENSE)
+![Python 3.12+](https://img.shields.io/badge/python-3.12%2B-3776AB?logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white)
+![React 18](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=black)
+![Vite 6](https://img.shields.io/badge/Vite-6-646CFF?logo=vite&logoColor=white)
+![PostgreSQL 17](https://img.shields.io/badge/PostgreSQL-17-4169E1?logo=postgresql&logoColor=white)
+![Caddy 2](https://img.shields.io/badge/Caddy-2-1F88C0?logo=caddy&logoColor=white)
+![Docker Compose](https://img.shields.io/badge/Docker%20Compose-v2-2496ED?logo=docker&logoColor=white)
+[![Último commit](https://img.shields.io/github/last-commit/alanyoshida/webcontainerui)](https://github.com/alanyoshida/webcontainerui/commits/main)
+
 Portal multiusuário para rodar desktops Linux completos dentro do navegador,
 usando as imagens [webtop](https://docs.linuxserver.io/images/docker-webtop/) do
 LinuxServer.io.
@@ -216,3 +226,7 @@ O administrador também mantém uma biblioteca de documentos `AGENTS.md` (aba
 "AGENTS.md" no painel administrativo) e vincula cada imagem do catálogo a um
 deles; o texto é injetado como `/config/AGENTS.md` nas instâncias e propagado
 às instâncias vivas quando o admin salva alterações.
+
+## Licença
+
+Distribuído sob a licença MIT. Veja [LICENSE](LICENSE).
