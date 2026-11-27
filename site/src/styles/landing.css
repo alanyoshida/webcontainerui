@@ -1,0 +1,161 @@
+/* CSS da landing. Os docs usam o tema do Starlight (theme.css); os dois
+   partem dos mesmos tokens. */
+@import './fonts.css';
+@import './tokens.css';
+
+*,
+*::before,
+*::after {
+	box-sizing: border-box;
+}
+
+html {
+	scroll-behavior: smooth;
+	-webkit-text-size-adjust: 100%;
+}
+
+body {
+	margin: 0;
+	background: var(--wc-bg);
+	color: var(--wc-text);
+	font-family: var(--wc-font);
+	font-size: 1.0625rem;
+	line-height: 1.6;
+	-webkit-font-smoothing: antialiased;
+}
+
+img {
+	display: block;
+	max-width: 100%;
+	height: auto;
+}
+
+h1,
+h2,
+h3 {
+	margin: 0;
+	font-weight: 650;
+	line-height: 1.1;
+	letter-spacing: -0.025em;
+	text-wrap: balance;
+}
+
+p {
+	margin: 0;
+	text-wrap: pretty;
+}
+
+a {
+	color: var(--wc-accent-text);
+	text-underline-offset: 0.2em;
+	text-decoration-thickness: 1px;
+}
+
+.wrap {
+	width: min(100% - 2.5rem, 72rem);
+	margin-inline: auto;
+}
+
+.section {
+	padding-block: clamp(4rem, 9vw, 7.5rem);
+}
+
+.section-title {
+	font-size: clamp(1.9rem, 1.2rem + 2.6vw, 3rem);
+	max-width: 22ch;
+}
+
+.section-lead {
+	margin-top: 1.1rem;
+	max-width: 58ch;
+	font-size: 1.15rem;
+	color: var(--wc-muted);
+}
+
+.button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5rem;
+	min-height: 3rem;
+	padding: 0.7rem 1.4rem;
+	border-radius: 999px;
+	border: 1.5px solid transparent;
+	font: inherit;
+	font-weight: 600;
+	text-decoration: none;
+	cursor: pointer;
+	transition:
+		background-color 160ms ease-out,
+		border-color 160ms ease-out,
+		transform 160ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.button:active {
+	transform: translateY(1px);
+}
+.button.primary {
+	background: var(--wc-accent);
+	color: var(--wc-accent-ink);
+}
+.button.primary:hover {
+	background: color-mix(in srgb, var(--wc-accent) 86%, var(--wc-text));
+}
+.button.ghost {
+	border-color: var(--wc-line);
+	color: var(--wc-text);
+}
+.button.ghost:hover {
+	border-color: var(--wc-muted);
+	background: var(--wc-paper);
+}
+
+.arrow-link {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	font-weight: 600;
+	text-decoration: none;
+}
+.arrow-link::after {
+	content: '';
+	width: 0.5em;
+	height: 0.5em;
+	border-top: 2px solid currentColor;
+	border-right: 2px solid currentColor;
+	transform: rotate(45deg);
+	transition: translate 200ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+.arrow-link:hover::after {
+	translate: 0.25em 0;
+}
+
+/* Moldura das capturas reais do portal. */
+.shot {
+	border-radius: 14px;
+	overflow: hidden;
+	background: var(--wc-paper);
+	box-shadow: var(--wc-shadow);
+}
+.shot img {
+	width: 100%;
+}
+
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	html {
+		scroll-behavior: auto;
+	}
+	*,
+	*::before,
+	*::after {
+		animation: none !important;
+		transition: none !important;
+	}
+}

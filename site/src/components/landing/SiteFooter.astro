@@ -1,0 +1,64 @@
+---
+import Wordmark from '../Wordmark.astro';
+import { href, REPO_URL, type Locale } from '../../lib/paths';
+
+interface Props {
+	locale: Locale;
+	t: Record<string, string>;
+}
+const { locale, t } = Astro.props;
+---
+
+<footer>
+	<div class="wrap inner">
+		<div>
+			<Wordmark href={href(locale)} />
+			<p>{t.license}</p>
+			<p class="fine">{t.trademarks}</p>
+		</div>
+		<nav aria-label="Footer">
+			<a href={href(locale, 'getting-started/introduction')}>{t.docs}</a>
+			<a href={href(locale, 'security/audits')}>{t.audits}</a>
+			<a href={REPO_URL}>{t.source}</a>
+		</nav>
+	</div>
+</footer>
+
+<style>
+	footer {
+		padding-block: 3.5rem;
+		border-top: 1px solid var(--wc-line);
+		color: var(--wc-muted);
+		font-size: 0.95rem;
+	}
+	.inner {
+		display: flex;
+		flex-wrap: wrap;
+		justify-content: space-between;
+		gap: 2rem;
+	}
+	footer :global(.wordmark) {
+		color: var(--wc-text);
+	}
+	p {
+		margin-top: 0.75rem;
+		max-width: 52ch;
+	}
+	.fine {
+		font-size: 0.85rem;
+	}
+	nav {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.5rem 1.75rem;
+		align-content: start;
+		font-weight: 600;
+	}
+	nav a {
+		color: var(--wc-text);
+		text-decoration: none;
+	}
+	nav a:hover {
+		text-decoration: underline;
+	}
+</style>

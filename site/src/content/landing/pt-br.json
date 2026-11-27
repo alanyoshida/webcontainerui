@@ -1,0 +1,122 @@
+{
+	"meta": {
+		"title": "WebContainerUI — desktops Linux e agentes de código no navegador",
+		"description": "Portal multiusuário auto-hospedado: cada pessoa inicia desktops Linux completos e agentes de código em CLI a partir de um catálogo e trabalha neles pelo navegador."
+	},
+	"nav": {
+		"docs": "Docs",
+		"security": "Segurança",
+		"github": "GitHub",
+		"themeToggle": "Alternar tema claro/escuro",
+		"languageSwitch": "English",
+		"skip": "Pular para o conteúdo"
+	},
+	"hero": {
+		"title": "Desktops Linux completos e agentes de código, numa aba do navegador.",
+		"lead": "WebContainerUI é um portal multiusuário que você hospeda. Cada pessoa escolhe uma imagem do catálogo, inicia a própria instância em Docker e trabalha nela pelo navegador, sem cliente para instalar e sem porta exposta por container.",
+		"primary": "Instalar",
+		"secondary": "Testar na sua máquina",
+		"screenshotAlt": "Catálogo do portal com as imagens de desktop e de agentes de código disponíveis para iniciar."
+	},
+	"sessions": {
+		"title": "Um catálogo, dois tipos de sessão",
+		"lead": "O administrador decide o que entra no catálogo e quem enxerga cada entrada. O usuário clica, espera o container subir e a sessão abre dentro do portal.",
+		"desktop": {
+			"title": "Desktops Linux",
+			"body": "Imagens webtop do LinuxServer.io: um ambiente gráfico inteiro transmitido para o navegador, com terminal, navegador e arquivos do próprio usuário. O catálogo nasce com XFCE, KDE, MATE e VS Code, e aceita qualquer outra imagem webtop.",
+			"coversLabel": "Ambientes com capa padrão no catálogo",
+			"screenshotAlt": "Sessão de desktop KDE aberta dentro do portal, com a barra de ações da instância no topo."
+		},
+		"agent": {
+			"title": "Agentes de código em CLI",
+			"body": "Um terminal no navegador já com o agente instalado: Claude Code, OpenCode, Hermes, Antigravity ou oh-my-pi. Cada imagem pode receber um AGENTS.md, servidores MCP e skills definidos pelo administrador, e a identidade SSH do usuário para falar com o Git.",
+			"coversLabel": "Agentes com imagem pronta",
+			"screenshotAlt": "Sessão do agente OpenCode rodando em um terminal dentro do portal."
+		}
+	},
+	"how": {
+		"title": "Uma origem, nenhuma porta publicada",
+		"lead": "Interface, API e sessões saem do mesmo endereço. Não existe um segundo caminho de rede até o desktop de outra pessoa.",
+		"points": [
+			{
+				"title": "Cada instância é um caminho",
+				"body": "A sessão vive em /i/<uuid>/ na mesma origem do portal. O container é criado já sabendo esse prefixo, então nada precisa de subdomínio nem de porta própria."
+			},
+			{
+				"title": "O Caddy transporta, o portal decide",
+				"body": "Em produção os frames vão do Caddy direto ao container. Antes de cada requisição, o Caddy pergunta ao portal se há sessão válida, se quem pede é o dono e se a instância está rodando."
+			},
+			{
+				"title": "Containers só na rede interna",
+				"body": "Nenhum container de instância publica porta no host. O isolamento entre usuários é da topologia da rede, e a checagem de dono vem por cima."
+			}
+		],
+		"link": "Ler a arquitetura"
+	},
+	"security": {
+		"title": "Quatro barreiras entre um usuário e a sessão de outro",
+		"lead": "Uma requisição a /i/<uuid>/ só chega ao container depois de passar por todas, nesta ordem.",
+		"layers": [
+			{
+				"title": "Sessão autenticada",
+				"body": "Cookie de sessão com token aleatório de 256 bits, guardado só como hash. Senhas em Argon2 e limite de tentativas de login por conta e por origem."
+			},
+			{
+				"title": "Dono da instância",
+				"body": "O portal confere, a cada autorização, se a instância pertence a quem está pedindo e se está em execução."
+			},
+			{
+				"title": "Credencial por instância",
+				"body": "Cada container exige uma credencial aleatória própria. Só a resposta aprovada do portal a carrega, e o navegador nunca a vê."
+			},
+			{
+				"title": "Rede interna",
+				"body": "Os containers ficam numa rede Docker sem porta publicada no host. Fora do portal, não há endereço para alcançá-los."
+			}
+		],
+		"audit": {
+			"title": "Auditado, com o resultado publicado",
+			"body": "O pentest de 1 de novembro de 2026 não encontrou falha crítica nem alta: foram 3 achados médios, 5 baixos e 5 informativos. A documentação lista cada um com o status atual, inclusive os que continuam em aberto.",
+			"link": "Ver o status de cada achado"
+		}
+	},
+	"warning": {
+		"title": "O portal equivale a root no host.",
+		"paragraphs": [
+			"Para criar containers, o processo do portal precisa do socket do Docker, e quem cria container pode montar o sistema de arquivos do host. Um socket-proxy restrito não resolve: a permissão necessária é exatamente a perigosa. Trate o portal como componente de confiança do plano de controle.",
+			"O usuário também tem root dentro do próprio desktop: as imagens webtop trazem um terminal com sudo sem senha. Trate cada sessão como um login SSH numa máquina da sua rede, e não exponha o portal à internet sem autenticação robusta na frente."
+		],
+		"link": "Ler a superfície de confiança"
+	},
+	"admin": {
+		"title": "O administrador decide quem vê o quê",
+		"lead": "Tudo o que um usuário pode iniciar passa por uma concessão explícita.",
+		"items": [
+			"Usuários, grupos e concessão de acesso por imagem do catálogo",
+			"Imagens com limites de CPU e memória e capa própria",
+			"Biblioteca de documentos AGENTS.md vinculada às imagens",
+			"Servidores MCP e skills entregues aos agentes",
+			"Métricas de uso das instâncias e trilha de eventos de segurança"
+		],
+		"screenshotAlt": "Painel administrativo do portal na seção de catálogo de imagens."
+	},
+	"install": {
+		"title": "No ar com um script",
+		"lead": "Você precisa de um host com Docker e Docker Compose v2, e de um domínio apontando para ele. O Caddy obtém o certificado sozinho.",
+		"productionLabel": "Produção",
+		"productionNote": "O script confere os pré-requisitos, pergunta domínio e credenciais do primeiro administrador, gera os segredos e sobe Caddy, portal e PostgreSQL.",
+		"localLabel": "Teste local",
+		"localNote": "Sem domínio e sem TLS. O portal responde em http://127.0.0.1:8000 e só escuta na própria máquina.",
+		"copy": "Copiar",
+		"copied": "Copiado",
+		"guide": "Guia de instalação",
+		"manual": "Subida manual e variáveis"
+	},
+	"footer": {
+		"license": "Distribuído sob a licença MIT.",
+		"trademarks": "Os logos dos ambientes e agentes são marcas dos respectivos projetos, usados apenas para identificar as entradas do catálogo.",
+		"docs": "Documentação",
+		"source": "Código-fonte",
+		"audits": "Auditorias"
+	}
+}

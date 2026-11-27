@@ -1,0 +1,123 @@
+{
+	"meta": {
+		"title": "WebContainerUI — Linux desktops and coding agents in the browser",
+		"description": "Self-hosted multi-user portal: each person starts full Linux desktops and CLI coding agents from a catalog and works in them through the browser."
+	},
+	"nav": {
+		"docs": "Docs",
+		"security": "Security",
+		"github": "GitHub",
+		"themeToggle": "Toggle light/dark theme",
+		"languageSwitch": "Português",
+		"skip": "Skip to content"
+	},
+	"hero": {
+		"title": "Full Linux desktops and coding agents, in a browser tab.",
+		"lead": "WebContainerUI is a multi-user portal you host yourself. Each person picks an image from the catalog, starts their own instance in Docker and works in it through the browser, with no client to install and no port exposed per container.",
+		"primary": "Install",
+		"secondary": "Try it on your machine",
+		"screenshotAlt": "The portal catalog listing the desktop and coding agent images available to start."
+	},
+	"sessions": {
+		"title": "One catalog, two kinds of session",
+		"lead": "The administrator decides what goes into the catalog and who sees each entry. The user clicks, waits for the container to start, and the session opens inside the portal.",
+		"desktop": {
+			"title": "Linux desktops",
+			"body": "LinuxServer.io webtop images: a whole graphical environment streamed to the browser, with the user's own terminal, browser and files. The catalog ships with XFCE, KDE, MATE and VS Code, and accepts any other webtop image.",
+			"coversLabel": "Environments with a default cover in the catalog",
+			"screenshotAlt": "A KDE desktop session open inside the portal, with the instance action bar at the top."
+		},
+		"agent": {
+			"title": "CLI coding agents",
+			"body": "A terminal in the browser with the agent already installed: Claude Code, OpenCode, Hermes, Antigravity or oh-my-pi. Each image can receive an AGENTS.md, MCP servers and skills defined by the administrator, plus the user's SSH identity for talking to Git.",
+			"coversLabel": "Agents with a ready-made image",
+			"screenshotAlt": "An OpenCode agent session running in a terminal inside the portal."
+		}
+	},
+	"how": {
+		"title": "One origin, no published ports",
+		"lead": "Interface, API and sessions are served from the same address. There is no second network path to someone else's desktop.",
+		"points": [
+			{
+				"title": "Every instance is a path",
+				"body": "The session lives at /i/<uuid>/ on the portal's own origin. The container is created already knowing that prefix, so nothing needs a subdomain or a port of its own."
+			},
+			{
+				"title": "Caddy carries, the portal decides",
+				"body": "In production the frames go from Caddy straight to the container. Before each request, Caddy asks the portal whether there is a valid session, whether the requester is the owner and whether the instance is running."
+			},
+			{
+				"title": "Containers on the internal network only",
+				"body": "No instance container publishes a port on the host. Isolation between users comes from the network topology, with the ownership check on top."
+			}
+		],
+		"link": "Read the architecture"
+	},
+	"security": {
+		"title": "Four barriers between one user and another's session",
+		"lead": "A request to /i/<uuid>/ only reaches the container after clearing all of them, in this order.",
+		"layers": [
+			{
+				"title": "Authenticated session",
+				"body": "A session cookie holding a random 256-bit token, stored only as a hash. Passwords in Argon2 and login attempts limited per account and per origin."
+			},
+			{
+				"title": "Instance owner",
+				"body": "On every authorisation, the portal checks that the instance belongs to whoever is asking and that it is running."
+			},
+			{
+				"title": "Per-instance credential",
+				"body": "Each container requires its own random credential. Only the portal's approved response carries it, and the browser never sees it."
+			},
+			{
+				"title": "Internal network",
+				"body": "Containers sit on a Docker network with no port published on the host. Outside the portal, there is no address to reach them at."
+			}
+		],
+		"audit": {
+			"title": "Audited, with the results published",
+			"body": "The penetration test of 1 November 2026 found no critical or high-severity flaw: there were 3 medium, 5 low and 5 informational findings. The documentation lists each one with its current status, including those that remain open.",
+			"link": "See the status of each finding"
+		}
+	},
+	"warning": {
+		"title": "The portal is equivalent to root on the host.",
+		"paragraphs": [
+			"To create containers, the portal process needs the Docker socket, and whoever can create a container can mount the host's filesystem. A restricted socket-proxy does not help: the permission the portal needs is exactly the dangerous one. Treat the portal as a trusted component of the control plane.",
+			"The user also has root inside their own desktop: webtop images ship a terminal with passwordless sudo. Treat each session like an SSH login to a machine on your network, and do not expose the portal to the internet without strong authentication in front of it."
+		],
+		"link": "Read the trust surface"
+	},
+	"admin": {
+		"title": "The administrator decides who sees what",
+		"lead": "Everything a user can start goes through an explicit grant.",
+		"items": [
+			"Users, groups and access grants per catalog image",
+			"Images with CPU and memory limits and their own cover",
+			"A library of AGENTS.md documents linked to images",
+			"MCP servers and skills delivered to the agents",
+			"Instance usage metrics and a security event trail"
+		],
+		"screenshotAlt": "The portal's admin console on the image catalog section."
+	},
+	"install": {
+		"title": "Up and running with one script",
+		"lead": "You need a host with Docker and Docker Compose v2, and a domain pointing at it. Caddy obtains the certificate on its own.",
+		"productionLabel": "Production",
+		"productionNote": "The script checks the prerequisites, asks for the domain and the first administrator's credentials, generates the secrets and starts Caddy, the portal and PostgreSQL.",
+		"localLabel": "Local trial",
+		"localNote": "No domain and no TLS. The portal answers at http://127.0.0.1:8000 and only listens on your own machine.",
+		"copy": "Copy",
+		"copied": "Copied",
+		"guide": "Installation guide",
+		"manual": "Manual deployment and variables"
+	},
+	"footer": {
+		"license": "Distributed under the MIT license.",
+		"trademarks": "Environment and agent logos are trademarks of their respective projects, used only to identify catalog entries.",
+		"docs": "Docs",
+		"source": "Source code",
+		"audits": "Audits"
+	},
+	"sourceHash": "44f7e1b83eac36a7c7942c0b169ebca5738c79f902ce501b694272363e7717f0"
+}

@@ -1,0 +1,71 @@
+---
+// Alternância claro/escuro compartilhada por landing e docs. Grava na mesma
+// chave do Starlight ("starlight-theme") para a escolha valer nos dois.
+interface Props {
+	label: string;
+}
+const { label } = Astro.props;
+---
+
+<button type="button" class="theme-toggle" data-theme-toggle aria-label={label} title={label}>
+	<svg class="sun" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+		<circle cx="12" cy="12" r="4"></circle>
+		<path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path>
+	</svg>
+	<svg class="moon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+		<path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"></path>
+	</svg>
+</button>
+
+<script is:inline>
+	(() => {
+		if (window.__wcThemeToggle) return;
+		window.__wcThemeToggle = true;
+		document.addEventListener('click', (event) => {
+			const button = event.target.closest?.('[data-theme-toggle]');
+			if (!button) return;
+			const next = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+			document.documentElement.dataset.theme = next;
+			try {
+				localStorage.setItem('starlight-theme', next);
+			} catch {}
+		});
+	})();
+</script>
+
+<style>
+	.theme-toggle {
+		display: inline-grid;
+		place-items: center;
+		width: 2.25rem;
+		height: 2.25rem;
+		padding: 0;
+		border: 0;
+		border-radius: 999px;
+		background: transparent;
+		color: inherit;
+		cursor: pointer;
+		transition: background-color 160ms ease-out;
+	}
+	.theme-toggle:hover {
+		background: color-mix(in srgb, currentColor 14%, transparent);
+	}
+	svg {
+		grid-area: 1 / 1;
+		fill: none;
+		stroke: currentColor;
+		stroke-width: 1.8;
+		stroke-linecap: round;
+		stroke-linejoin: round;
+	}
+	/* No escuro o botão oferece o sol (ir para o claro), e vice-versa. */
+	.moon {
+		display: none;
+	}
+	:global([data-theme='light']) .sun {
+		display: none;
+	}
+	:global([data-theme='light']) .moon {
+		display: block;
+	}
+</style>

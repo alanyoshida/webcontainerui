@@ -1,0 +1,114 @@
+---
+title: Session data plane
+description: How Caddy carries /i/{uuid}/ traffic straight to the containers in production, consulting the portal through forward_auth before each request.
+sidebar:
+  order: 2
+sourceHash: fd9fc900371dc052151cf60e59b94274202087f712d393ec23a3d672626b80c6
+---
+
+In production, a session's traffic (HTTP and WebSocket under `/i/{uuid}/*`) goes from the browser to the container through Caddy, without passing through the portal process. The portal is still the one that decides: before each request, Caddy consults it through `forward_auth`. In development, without Caddy, the portal itself delivers the sessions.
+
+## Division of responsibilities
+
+| Component | Responsibility |
+|---|---|
+| Caddy | Terminates TLS, carries the session bytes and consults the portal before forwarding |
+| Portal | Decides authorization (session, owner, instance running), publishes the routes and records activity |
+| Container | Receives the request already carrying the instance's internal credential |
+
+The portal **does not carry frames**. Authorization is one short call per HTTP request; the WebSocket channel is authorized once, when it opens, not per message.
+
+## Authorization through `forward_auth`
+
+The internal endpoint is `GET /internal/data-plane/authorize`. Caddy's `forward_auth` rewrites the URI to this endpoint and sends the original URI in the `X-Forwarded-Uri` header, from which the portal extracts the instance identifier. The user's session cookie accompanies the subrequest.
+
+The portal responds:
+
+| Response | Situation |
+|---|---|
+| `401` | Data plane secret missing or incorrect |
+| `404` | Forwarded URI does not match a `/i/{uuid}/` path |
+| `401` | No valid authenticated session |
+| `404` | Instance does not exist or belongs to another user |
+| `409` | Instance is not running |
+| `200` | Approved; the response carries the instance credential in the `Authorization` header |
+
+Any response other than `2xx` makes Caddy return that response to the client and forward nothing to the container. The same applies when the portal is unavailable: without approval, there is no forwarding.
+
+### Shared secret
+
+The endpoint only answers callers that present `WCUI_DATA_PLANE_SECRET` in the `X-Data-Plane-Secret` header, compared in constant time. With the secret empty in the portal, the endpoint is disabled and nobody is approved; this is the case in development and tests, which have no Caddy in front.
+
+The endpoint does not appear in the public API schema, and the [`Caddyfile`](https://github.com/alanyoshida/webcontainerui/blob/main/deploy/Caddyfile) responds `404` to `/internal/*` coming from the edge. Only `forward_auth`, from inside the internal network, can reach it.
+
+### Instance credential
+
+Only the approved response carries the instance's internal credential. Caddy copies it into the forwarded request (`copy_headers Authorization`), replacing any credential sent by the client. It is never returned to the browser.
+
+## Route publication
+
+Caddy does not know the instances in advance. The portal writes one `<uuid>.caddy` file per running instance in the `WCUI_CADDY_ROUTES_DIR` directory, mounted on the shared volume `caddy_routes`, and the `Caddyfile` imports that directory. Each file has this form:
+
+```text
+handle /i/<uuid>/* {
+	forward_auth portal:8000 {
+		uri /internal/data-plane/authorize
+		header_up -Upgrade
+		header_up -Connection
+		header_up -Sec-WebSocket-Key
+		header_up -Sec-WebSocket-Version
+		header_up -Sec-WebSocket-Protocol
+		header_up -Sec-WebSocket-Extensions
+		header_up X-Data-Plane-Secret {$WCUI_DATA_PLANE_SECRET}
+		copy_headers Authorization
+	}
+	reverse_proxy <container-name>:<port> {
+		transport http {
+			read_timeout 3600s
+			write_timeout 3600s
+		}
+	}
+}
+```
+
+The upgrade headers are removed from the authorization subrequest because the internal endpoint only accepts HTTP; without that, opening the WebSocket would fail. The port is the one defined in the catalog entry, and the 3600-second timeouts keep a long, idle session from being cut off.
+
+### Lifecycle
+
+- **On creating or starting** an instance, the portal publishes the route and reloads Caddy.
+- **On stopping or deleting**, it withdraws the route and reloads.
+- **At startup**, it synchronizes the directory with the database: it writes the routes of running instances, removes the rest and reloads once.
+
+Publication is idempotent (a file with the expected content is not rewritten and does not cause a reload), the write is atomic and the operations are serialized by a lock. A placeholder file keeps the directory with at least one importable file at all times.
+
+### Caddy reload
+
+The reload is done through `docker exec` in the Caddy container (`WCUI_CADDY_CONTAINER`, `wcui-caddy` by default), with a command fixed in the code:
+
+```bash
+caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile
+```
+
+The command is never derived from user input. The instance identifier and the container name, which go into the route file, are generated by the portal and validated against a restricted set of characters before the write. Reload failures are recorded in the [audit log](/security/audit-log/); the route stays written and is applied on the next reload.
+
+Without `WCUI_CADDY_ROUTES_DIR` configured, all publication is a no-op. This is the development and test mode.
+
+## Idle detection
+
+Since the portal does not see session traffic in production, the activity that feeds the automatic stop of idle instances comes from two sources:
+
+- **Approved authorizations**: each `200` response from the internal endpoint records an activity touch.
+- **Session view heartbeat**: while the session is open in the portal, the front end calls `POST /api/instances/{id}/heartbeat`. The portal accepts at most one touch per instance every 30 seconds (`WCUI_HEARTBEAT_MIN_SECONDS`).
+
+Touches are accumulated in memory and written in batches. Nothing is written per message carried.
+
+## In-process proxy in development
+
+The proxy inside the portal (`backend/app/api/session_proxy.py`) remains registered in every environment. It serves `/i/{instance_id}/...` over HTTP and WebSocket with the same checks (session, owner, instance running) and the same credential injection.
+
+- In **development and the test suite**, it is what delivers the sessions.
+- In **production**, it is shadowed by the edge routing: Caddy's `handle /i/<uuid>/*` routes take precedence over the general `reverse_proxy` to the portal. A request to an `/i/<uuid>/` with no published route falls through to the portal and goes through the same checks, which also makes it a defense in depth.
+
+## Formal reference
+
+The behavior contract is in the [`stream-data-plane`](https://github.com/alanyoshida/webcontainerui/blob/main/openspec/specs/stream-data-plane/spec.md) and [`session-proxy`](https://github.com/alanyoshida/webcontainerui/blob/main/openspec/specs/session-proxy/spec.md) specs. The variables mentioned here are in [Environment variables](/operations/environment-variables/).

@@ -1,0 +1,119 @@
+---
+import { href, type Locale } from '../../lib/paths';
+
+interface Props {
+	locale: Locale;
+	t: {
+		title: string;
+		lead: string;
+		layers: { title: string; body: string }[];
+		audit: { title: string; body: string; link: string };
+	};
+}
+const { locale, t } = Astro.props;
+---
+
+<section class="section security">
+	<div class="wrap grid">
+		<div>
+			<h2 class="section-title">{t.title}</h2>
+			<p class="section-lead">{t.lead}</p>
+			<div class="audit">
+				<h3>{t.audit.title}</h3>
+				<p>{t.audit.body}</p>
+				<a class="arrow-link" href={href(locale, 'security/audits')}>{t.audit.link}</a>
+			</div>
+		</div>
+		{/* A ordem é a ordem real em que a requisição é barrada. */}
+		<ol class="layers">
+			{
+				t.layers.map((layer) => (
+					<li>
+						<h3>{layer.title}</h3>
+						<p>{layer.body}</p>
+					</li>
+				))
+			}
+		</ol>
+	</div>
+</section>
+
+<style>
+	.security {
+		background: var(--wc-paper);
+	}
+	.grid {
+		display: grid;
+		gap: clamp(2.5rem, 6vw, 5rem);
+	}
+	@media (min-width: 60rem) {
+		.grid {
+			grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+			align-items: start;
+		}
+	}
+	.audit {
+		margin-top: 3rem;
+		padding-top: 1.5rem;
+		border-top: 1px solid var(--wc-line);
+	}
+	.audit h3 {
+		font-size: 1.15rem;
+		letter-spacing: -0.01em;
+	}
+	.audit p {
+		margin: 0.6rem 0 1.1rem;
+		max-width: 52ch;
+		color: var(--wc-muted);
+		font-size: 1rem;
+	}
+	.layers {
+		margin: 0;
+		padding: 0;
+		list-style: none;
+		counter-reset: layer;
+	}
+	/* Cada barreira é mais estreita que a anterior: o que passa por uma
+	   ainda tem a próxima pela frente. */
+	.layers li {
+		counter-increment: layer;
+		position: relative;
+		padding: 1.4rem 1.5rem 1.4rem 4.25rem;
+		background: var(--wc-bg);
+		border-radius: 14px;
+		margin-inline-start: calc((var(--i) - 1) * clamp(0.5rem, 2vw, 1.75rem));
+	}
+	.layers li + li {
+		margin-top: 0.6rem;
+	}
+	.layers li:nth-child(1) { --i: 1; }
+	.layers li:nth-child(2) { --i: 2; }
+	.layers li:nth-child(3) { --i: 3; }
+	.layers li:nth-child(4) { --i: 4; }
+	.layers li::before {
+		content: counter(layer);
+		position: absolute;
+		left: 1.5rem;
+		top: 1.3rem;
+		width: 1.9rem;
+		height: 1.9rem;
+		display: grid;
+		place-items: center;
+		border-radius: 999px;
+		background: var(--wc-accent);
+		color: var(--wc-accent-ink);
+		font-weight: 700;
+		font-size: 0.95rem;
+		font-variant-numeric: tabular-nums;
+	}
+	.layers h3 {
+		font-size: 1.15rem;
+		letter-spacing: -0.01em;
+		line-height: 1.3;
+	}
+	.layers p {
+		margin-top: 0.4rem;
+		color: var(--wc-muted);
+		font-size: 1rem;
+	}
+</style>

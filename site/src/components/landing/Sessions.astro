@@ -1,0 +1,133 @@
+---
+import { Image } from 'astro:assets';
+import desktopShot from '../../assets/screenshots/desktop-session.png';
+import agentShot from '../../assets/screenshots/agent-session.png';
+import kde from '../../assets/covers/kde.png';
+import xfce from '../../assets/covers/xfce.png';
+import mate from '../../assets/covers/mate.png';
+import vscode from '../../assets/covers/vscode.png';
+import claude from '../../assets/covers/claude.png';
+import opencode from '../../assets/covers/opencode.png';
+import hermes from '../../assets/covers/hermes.png';
+import agy from '../../assets/covers/agy.png';
+import ohMyPi from '../../assets/covers/oh-my-pi.png';
+
+interface Kind {
+	title: string;
+	body: string;
+	coversLabel: string;
+	screenshotAlt: string;
+}
+interface Props {
+	t: { title: string; lead: string; desktop: Kind; agent: Kind };
+}
+const { t } = Astro.props;
+
+// Capas padrão reais do catálogo (agent-images/covers/). O nome vira o alt.
+const rows = [
+	{
+		kind: t.desktop,
+		shot: desktopShot,
+		covers: [
+			{ src: xfce, name: 'XFCE' },
+			{ src: kde, name: 'KDE' },
+			{ src: mate, name: 'MATE' },
+			{ src: vscode, name: 'Visual Studio Code' },
+		],
+	},
+	{
+		kind: t.agent,
+		shot: agentShot,
+		covers: [
+			{ src: claude, name: 'Claude Code' },
+			{ src: opencode, name: 'OpenCode' },
+			{ src: hermes, name: 'Hermes Agent' },
+			{ src: agy, name: 'Antigravity' },
+			{ src: ohMyPi, name: 'oh-my-pi' },
+		],
+	},
+];
+---
+
+<section class="section sessions">
+	<div class="wrap">
+		<h2 class="section-title">{t.title}</h2>
+		<p class="section-lead">{t.lead}</p>
+
+		{
+			rows.map((row, index) => (
+				<div class:list={['row', { flip: index % 2 === 1 }]}>
+					<div class="text">
+						<h3>{row.kind.title}</h3>
+						<p>{row.kind.body}</p>
+						<p class="covers-label" id={`covers-${index}`}>{row.kind.coversLabel}</p>
+						<ul class="covers" style={`--n: ${row.covers.length}`} aria-labelledby={`covers-${index}`}>
+							{row.covers.map((cover) => (
+								<li>
+									<Image src={cover.src} alt={cover.name} width={300} title={cover.name} />
+								</li>
+							))}
+						</ul>
+					</div>
+					<div class="shot">
+						<Image src={row.shot} alt={row.kind.screenshotAlt} widths={[480, 800, 1200]} sizes="(min-width: 60rem) 42rem, 94vw" />
+					</div>
+				</div>
+			))
+		}
+	</div>
+</section>
+
+<style>
+	.sessions {
+		background: var(--wc-paper);
+		/* Espaço para a captura do hero que avança sobre esta seção. */
+		padding-top: clamp(7rem, 14vw, 12rem);
+	}
+	.row {
+		display: grid;
+		gap: clamp(2rem, 5vw, 4rem);
+		align-items: center;
+		margin-top: clamp(3rem, 7vw, 5.5rem);
+	}
+	@media (min-width: 60rem) {
+		.row {
+			grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+		}
+		.row.flip .text {
+			order: 2;
+		}
+		.row.flip {
+			grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		}
+	}
+	h3 {
+		font-size: clamp(1.5rem, 1.2rem + 1vw, 2rem);
+	}
+	.text > p {
+		margin-top: 1rem;
+		max-width: 52ch;
+		color: var(--wc-muted);
+	}
+	.text > .covers-label {
+		margin-top: 2rem;
+		font-size: 0.9rem;
+		font-weight: 600;
+		color: var(--wc-text);
+	}
+	.covers {
+		display: grid;
+		grid-template-columns: repeat(var(--n), minmax(0, 1fr));
+		gap: 0.6rem;
+		margin: 0.75rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	.covers li {
+		border-radius: 8px;
+		overflow: hidden;
+	}
+	.sessions .shot {
+		background: var(--wc-bg);
+	}
+</style>

@@ -1,0 +1,10 @@
+{/* Inline para evitar flash: escuro é o padrão, a escolha gravada prevalece. */}
+<script is:inline>
+	(() => {
+		let stored = null;
+		try {
+			stored = localStorage.getItem('starlight-theme');
+		} catch {}
+		document.documentElement.dataset.theme = stored === 'light' ? 'light' : 'dark';
+	})();
+</script>

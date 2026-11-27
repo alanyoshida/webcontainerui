@@ -81,7 +81,7 @@ cd deploy && docker compose -f docker-compose.dev.yml down -v # apaga volumes (C
 
 ```bash
 cd backend && .venv/bin/python -m pytest        # suíte padrão (sem Docker)
-cd backend && .venvv/bin/python -m pytest -m e2e  # suíte e2e (exige Docker real)
+cd backend && .venv/bin/python -m pytest -m e2e  # suíte e2e (exige Docker real)
 ```
 
 Instalação do venv:
@@ -128,7 +128,8 @@ confira o catálogo, o início de instância e a tela de identidade SSH.
   ignorado pelo git; use `.env.example` como modelo.
 - A chave privada SSH de cada usuário é cifrada em repouso (Fernet). O
   portal nunca recebe nem armazena chave privada pré-existente — só gera.
-- Antes de expor o portal além da própria máquina, leia `deploy/SECURITY.md`.
+- Antes de expor o portal além da própria máquina, leia `deploy/SECURITY.md`
+  e a seção Segurança do site (`site/src/content/docs/pt-br/security/`).
 
 ### Banco e migrações
 
@@ -151,7 +152,8 @@ confira o catálogo, o início de instância e a tela de identidade SSH.
   (`= :flag`), nunca com literal `= 1`.
 - Suíte padrão roda em SQLite; os e2e (`pytest -m e2e`) sobem um PostgreSQL
   efêmero e cobrem o dialeto. **Em produção, faça backup (`pg_dump`) antes
-  de migração de schema** — ver `deploy/README.md`, seção "Reversão".
+  de migração de schema** — ver a página de reversão do site
+  (`site/src/content/docs/pt-br/operations/rollback.md`).
 
 ### Frontend
 
@@ -205,6 +207,29 @@ confira o catálogo, o início de instância e a tela de identidade SSH.
   `runtime.exec` — operação do protocolo `ContainerRuntime` (implementada
   com `docker exec`). O comando é sempre fixo no código do portal, nunca
   derivado de input de usuário.
+
+### Site de produto (`site/`)
+
+- Projeto Astro + Starlight independente do portal, publicado no GitHub
+  Pages pelos workflows em `.github/workflows/`. Comandos: `cd site && npm ci`,
+  `npm run dev`, `npm test`, `npm run build` (o build roda antes a checagem
+  de traduções e valida os links internos).
+- **O português é a origem.** Toda página nasce em
+  `site/src/content/docs/pt-br/`; a tradução inglesa fica no mesmo caminho
+  sem o `pt-br/`. Textos da landing: `site/src/content/landing/pt-br.json` e
+  `en.json`.
+- Alterou uma página em português? Revise a inglesa e recarimbe:
+  `node scripts/check-translations.mjs --stamp <arquivo em inglês>`. Sem
+  isso o build falha — é de propósito, não contorne.
+- Links internos no Markdown são escritos a partir da raiz do site, sem
+  idioma e sem caminho base (`/security/audits/`); um plugin acrescenta os
+  dois.
+- O site é o lugar canônico dos textos longos de arquitetura, segurança e
+  operação. `README.md`, `deploy/README.md` e `deploy/SECURITY.md` só
+  resumem e apontam para lá — não reintroduza cópia do texto completo.
+- Relatório de segurança novo em `docs/` pede atualização da página
+  `security/audits` (status de cada achado, com evidência no código).
+- A regra "sem CSS próprio" vale para `frontend/`, não para `site/`.
 
 ### OpenSpec (planejamento)
 
