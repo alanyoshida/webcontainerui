@@ -55,9 +55,9 @@
 
 ## 9. Publicação
 
-- [ ] 9.1 Criar `.github/workflows/site-check.yml` (pull requests que tocam `site/**` ou os workflows: instalar, checar traduções, build) e verificar que o workflow roda e passa no pull request desta change
+- [x] 9.1 Criar `.github/workflows/site-check.yml` (pull requests que tocam `site/**` ou os workflows: instalar, checar traduções, build) e verificar que o workflow roda e passa no pull request desta change
 - [ ] 9.2 Criar `.github/workflows/site-deploy.yml` (push em `main` nos mesmos caminhos e disparo manual; mesmos passos e publicação no Pages com permissões `contents: read`, `pages: write`, `id-token: write` e concorrência por grupo) e verificar a sintaxe com um linter de workflows ou pela aceitação do arquivo no GitHub
-- [ ] 9.3 Mantenedor: habilitar o GitHub Pages com origem "GitHub Actions" nas configurações do repositório antes do merge; verificar que `gh api repos/alanyoshida/webcontainerui/pages` deixa de responder 404
+- [x] 9.3 Mantenedor: habilitar o GitHub Pages com origem "GitHub Actions" nas configurações do repositório antes do merge; verificar que `gh api repos/alanyoshida/webcontainerui/pages` deixa de responder 404
 
 ## 10. Verificação integrada
 
