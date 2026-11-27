@@ -1,0 +1,58 @@
+# Publica o site de produto no GitHub Pages a cada mudança em `main`.
+# Pré-requisito (uma vez): Settings > Pages > Source = "GitHub Actions".
+name: site-deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "site/**"
+      - ".github/workflows/site-*.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Uma publicação por vez; uma nova cancela a que estiver em andamento.
+concurrency:
+  group: site-deploy
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: site
+    env:
+      # Para domínio próprio: troque as duas e adicione site/public/CNAME.
+      SITE_URL: https://alanyoshida.github.io
+      SITE_BASE: /webcontainerui
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: site/.nvmrc
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+      - run: npm ci
+      - run: npm test
+      # Tradução defasada ou link interno quebrado falham aqui: nada é
+      # publicado e a versão anterior do site permanece no ar.
+      - run: npm run build
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

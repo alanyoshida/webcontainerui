@@ -1,0 +1,63 @@
+---
+import { href, type Locale } from '../../lib/paths';
+
+interface Props {
+	locale: Locale;
+	t: { title: string; paragraphs: string[]; link: string };
+}
+const { locale, t } = Astro.props;
+---
+
+<section class="warning">
+	<div class="wrap grid">
+		<h2>{t.title}</h2>
+		<div class="body">
+			{t.paragraphs.map((paragraph) => <p>{paragraph}</p>)}
+			<a class="arrow-link" href={href(locale, 'security/trust-surface')}>{t.link}</a>
+		</div>
+	</div>
+</section>
+
+<style>
+	/* Seção própria e em cor cheia: o aviso não pode passar despercebido. */
+	.warning {
+		background: var(--wc-accent);
+		color: var(--wc-accent-ink);
+		padding-block: clamp(4rem, 9vw, 7rem);
+	}
+	.grid {
+		display: grid;
+		gap: clamp(2rem, 5vw, 4rem);
+	}
+	@media (min-width: 60rem) {
+		.grid {
+			grid-template-columns: minmax(0, 5fr) minmax(0, 6fr);
+			align-items: start;
+		}
+	}
+	h2 {
+		font-size: clamp(2.2rem, 1.2rem + 4vw, 4rem);
+		letter-spacing: -0.035em;
+		max-width: 12ch;
+	}
+	.body p {
+		max-width: 60ch;
+		font-size: 1.1rem;
+	}
+	.body p + p {
+		margin-top: 1.1rem;
+	}
+	.body a {
+		margin-top: 1.75rem;
+		color: inherit;
+		border-bottom: 1.5px solid currentColor;
+		padding-bottom: 0.15rem;
+	}
+	.warning :global(:focus-visible) {
+		outline-color: var(--wc-accent-ink);
+	}
+	.warning ::selection {
+		background: var(--wc-accent-ink);
+		color: var(--wc-accent);
+	}
+</style>

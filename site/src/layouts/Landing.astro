@@ -1,0 +1,61 @@
+---
+// Landing: um só layout para os dois idiomas; só os textos mudam
+// (src/content/landing/{en,pt-br}.json).
+import '../styles/landing.css';
+import ThemeBoot from '../components/ThemeBoot.astro';
+import SiteHeader from '../components/landing/SiteHeader.astro';
+import Hero from '../components/landing/Hero.astro';
+import Sessions from '../components/landing/Sessions.astro';
+import HowItWorks from '../components/landing/HowItWorks.astro';
+import SecurityLayers from '../components/landing/SecurityLayers.astro';
+import DeployWarning from '../components/landing/DeployWarning.astro';
+import AdminSection from '../components/landing/AdminSection.astro';
+import Install from '../components/landing/Install.astro';
+import SiteFooter from '../components/landing/SiteFooter.astro';
+import { href, type Locale } from '../lib/paths';
+import en from '../content/landing/en.json';
+import ptBr from '../content/landing/pt-br.json';
+
+interface Props {
+	locale: Locale;
+}
+const { locale } = Astro.props;
+const t = locale === 'en' ? en : ptBr;
+const lang = locale === 'en' ? 'en' : 'pt-BR';
+const absolute = (target: Locale) => new URL(href(target), Astro.site).toString();
+const favicon = `${import.meta.env.BASE_URL.replace(/\/$/, '')}/favicon.svg`;
+---
+
+<!doctype html>
+<html lang={lang} data-theme="dark">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>{t.meta.title}</title>
+		<meta name="description" content={t.meta.description} />
+		<link rel="canonical" href={absolute(locale)} />
+		<link rel="alternate" hreflang="en" href={absolute('en')} />
+		<link rel="alternate" hreflang="pt-BR" href={absolute('pt-br')} />
+		<link rel="alternate" hreflang="x-default" href={absolute('en')} />
+		<link rel="icon" type="image/svg+xml" href={favicon} />
+		<meta property="og:type" content="website" />
+		<meta property="og:title" content={t.meta.title} />
+		<meta property="og:description" content={t.meta.description} />
+		<meta property="og:url" content={absolute(locale)} />
+		<meta name="theme-color" content="#fb7185" />
+		<ThemeBoot />
+	</head>
+	<body>
+		<SiteHeader locale={locale} t={t.nav} />
+		<main id="main">
+			<Hero locale={locale} t={t.hero} />
+			<Sessions t={t.sessions} />
+			<HowItWorks locale={locale} t={t.how} />
+			<SecurityLayers locale={locale} t={t.security} />
+			<DeployWarning locale={locale} t={t.warning} />
+			<AdminSection t={t.admin} />
+			<Install locale={locale} t={t.install} />
+		</main>
+		<SiteFooter locale={locale} t={t.footer} />
+	</body>
+</html>

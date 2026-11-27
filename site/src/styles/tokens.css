@@ -1,0 +1,56 @@
+/* Tokens de cor copiados de frontend/src/theme.js (paletas dark e light).
+   Escuro é o padrão; o claro entra por data-theme="light" no <html>. */
+:root {
+	--wc-bg: #121417;
+	--wc-paper: #1a1d21;
+	--wc-raise: #22262b;
+	--wc-line: #2c3138;
+	--wc-text: #e6e8eb;
+	--wc-muted: #a3aab3;
+	--wc-accent: #fb7185;
+	--wc-accent-ink: #121417;
+	--wc-accent-text: #fda4af;
+	--wc-accent-low: #3d1620;
+	--wc-ok: #66bb6a;
+	--wc-shadow: 0 24px 60px -24px rgb(0 0 0 / 0.7);
+
+	--wc-font: 'Inter Variable', 'Roboto', 'Helvetica', 'Arial', sans-serif;
+	--wc-font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+	--wc-font-logo: 'Caveat', cursive;
+
+	color-scheme: dark;
+}
+
+:root[data-theme='light'] {
+	--wc-bg: #f4f6f8;
+	--wc-paper: #ffffff;
+	--wc-raise: #ffffff;
+	--wc-line: #d5dbe2;
+	--wc-text: #16181c;
+	--wc-muted: #4f5964;
+	--wc-accent: #1565c0;
+	--wc-accent-ink: #ffffff;
+	--wc-accent-text: #0f4c94;
+	--wc-accent-low: #dbe8f7;
+	--wc-ok: #2e7d32;
+	--wc-shadow: 0 24px 50px -28px rgb(22 24 28 / 0.35);
+
+	color-scheme: light;
+}
+
+/* Superfícies do navegador também pertencem à paleta. */
+::selection {
+	background: var(--wc-accent);
+	color: var(--wc-accent-ink);
+}
+
+html {
+	scrollbar-color: var(--wc-line) var(--wc-bg);
+	caret-color: var(--wc-accent);
+}
+
+:focus-visible {
+	outline: 2px solid var(--wc-accent);
+	outline-offset: 3px;
+	border-radius: 4px;
+}

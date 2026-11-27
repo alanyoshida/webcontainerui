@@ -1,0 +1,88 @@
+---
+import ThemeToggle from '../ThemeToggle.astro';
+import Wordmark from '../Wordmark.astro';
+import { href, REPO_URL, type Locale } from '../../lib/paths';
+
+interface Props {
+	locale: Locale;
+	t: Record<string, string>;
+}
+const { locale, t } = Astro.props;
+const other: Locale = locale === 'en' ? 'pt-br' : 'en';
+---
+
+<a class="skip" href="#main">{t.skip}</a>
+<header class="bar">
+	<div class="wrap inner">
+		<Wordmark href={href(locale)} />
+		<nav aria-label="Primary">
+			<a href={href(locale, 'getting-started/introduction')}>{t.docs}</a>
+			<a class="wide" href={href(locale, 'security/trust-surface')}>{t.security}</a>
+			<a class="wide" href={REPO_URL}>{t.github}</a>
+			<a href={href(other)} hreflang={other === 'en' ? 'en' : 'pt-BR'} lang={other === 'en' ? 'en' : 'pt-BR'}>{t.languageSwitch}</a>
+			<ThemeToggle label={t.themeToggle} />
+		</nav>
+	</div>
+</header>
+
+<style>
+	/* A barra em cor de destaque é a mesma da interface do portal. */
+	.bar {
+		background: var(--wc-accent);
+		color: var(--wc-accent-ink);
+	}
+	.inner {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 1rem;
+		min-height: 3.75rem;
+	}
+	nav {
+		display: flex;
+		align-items: center;
+		gap: clamp(0.75rem, 2vw, 1.75rem);
+		font-size: 0.95rem;
+		font-weight: 600;
+	}
+	nav a {
+		color: inherit;
+		text-decoration: none;
+		padding-block: 0.4rem;
+		border-bottom: 1.5px solid transparent;
+		transition: border-color 160ms ease-out;
+	}
+	nav a:hover {
+		border-bottom-color: currentColor;
+	}
+	.bar :global(:focus-visible) {
+		outline-color: var(--wc-accent-ink);
+	}
+	.skip {
+		position: absolute;
+		left: 1rem;
+		top: -4rem;
+		z-index: 10;
+		padding: 0.6rem 1rem;
+		border-radius: 8px;
+		background: var(--wc-text);
+		color: var(--wc-bg);
+		font-weight: 600;
+		text-decoration: none;
+	}
+	.skip:focus {
+		top: 0.5rem;
+	}
+	@media (max-width: 40rem) {
+		.wide {
+			display: none;
+		}
+		nav {
+			gap: 0.6rem;
+			font-size: 0.875rem;
+		}
+		.bar :global(.wordmark) {
+			font-size: 1.4rem;
+		}
+	}
+</style>

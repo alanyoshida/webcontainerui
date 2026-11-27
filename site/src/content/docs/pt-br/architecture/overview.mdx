@@ -1,0 +1,60 @@
+---
+title: Origem única
+description: Como front-end, API e sessões são servidos na mesma origem, com cada instância sob /i/<uuid>/ e containers sem porta publicada.
+sidebar:
+  order: 1
+---
+
+import ArchitectureDiagram from '../../../../components/ArchitectureDiagram.astro';
+
+Tudo é servido na mesma origem: o front-end, a API e o encaminhamento das sessões. Cada instância recebe o caminho `/i/<uuid>/`, e o container é criado com `SUBFOLDER=/i/<uuid>/` para que suas rotas internas coincidam com esse prefixo.
+
+<ArchitectureDiagram locale="pt-br" />
+
+## Componentes
+
+| Componente | Papel |
+|---|---|
+| Caddy | Termina TLS (Let's Encrypt) e transporta o tráfego das sessões em produção |
+| Portal (FastAPI) | Serve o front-end em `/` e a API em `/api/*`, decide a autorização das sessões e cria os containers pelo Docker |
+| PostgreSQL | Persistência em produção, só na rede interna |
+| Containers de instância | Um por instância, na rede interna `wcui_net`, sem porta publicada |
+
+O portal roda com um único worker e fala com o Docker por `aiodocker`, sem chamadas bloqueantes: uma chamada síncrona no caminho de uma requisição travaria o event loop de todas as sessões.
+
+## Containers sem porta publicada
+
+O ponto central da arquitetura é que **os containers de instância não publicam porta no host**. Eles ficam apenas na rede Docker interna, e o único caminho até eles passa pela borda, sob `/i/<uuid>/`.
+
+O isolamento entre usuários é, portanto, topológico: não existe endereço alternativo para alcançar o desktop de outra pessoa. A checagem de dono no encaminhamento e a credencial aleatória de cada instância são camadas adicionais, descritas em [Camadas de isolamento](/security/isolation-layers/).
+
+Em produção, o próprio portal também não publica porta: só o Caddy expõe 80 e 443.
+
+## O caminho de uma sessão
+
+Cada instância nasce com um identificador UUID, um nome de container e uma credencial interna própria (usuário e senha aleatórios). O container recebe essa credencial por variáveis de ambiente, junto com o prefixo `SUBFOLDER` e a porta definida na entrada do catálogo.
+
+Quando o navegador do dono acessa `/i/<uuid>/`:
+
+1. a borda verifica se há sessão autenticada, se a instância pertence ao usuário e se está em execução;
+2. só então a requisição é encaminhada ao container, com a credencial interna injetada no cabeçalho `Authorization`;
+3. uma credencial enviada pelo cliente é descartada, e a credencial interna nunca é devolvida ao navegador.
+
+Em produção, o transporte dos frames **não passa pelo processo do portal**: o Caddy encaminha `/i/{uuid}/*` (HTTP e WebSocket) direto ao container, depois de consultar o portal por `forward_auth`. Em desenvolvimento, sem Caddy, o próprio portal entrega as sessões por um proxy in-process, que continua existindo e é o que a suíte de testes usa. Os dois caminhos estão detalhados em [Plano de dados das sessões](/architecture/session-data-plane/).
+
+## Por que a mesma origem
+
+Servir a sessão sob a origem do portal traz três consequências práticas:
+
+- **Autenticação única**: o cookie de sessão do portal acompanha as requisições a `/i/<uuid>/`, de modo que a mesma sessão que autentica a API autoriza o acesso à instância.
+- **CSP sem relaxamento**: o container envia `frame-ancestors 'self'`, então embutir a sessão num iframe do portal funciona sem afrouxar nenhuma política.
+- **Um único certificado e um único domínio**: não há subdomínio por instância nem DNS curinga a configurar.
+
+A contrapartida é que a sessão compartilha a origem com o portal. Esse ponto foi avaliado na auditoria de segurança e está registrado em [Auditorias](/security/audits/).
+
+## Leitura relacionada
+
+- [Plano de dados das sessões](/architecture/session-data-plane/)
+- [Banco de dados](/architecture/database/)
+- [Alvo de escala](/architecture/scale/)
+- [Superfície de confiança](/security/trust-surface/)

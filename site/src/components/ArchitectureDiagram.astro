@@ -1,0 +1,207 @@
+---
+// Diagrama de origem única (design.md D9): SVG inline, rótulos por idioma,
+// cores pelos tokens do tema — um só componente para claro/escuro e en/pt-br.
+import type { Locale } from '../lib/paths';
+
+interface Props {
+	locale: Locale;
+}
+
+const LABELS = {
+	en: {
+		title: 'Single-origin architecture',
+		desc: 'The browser reaches Caddy over HTTPS. Caddy sends the interface and API to the portal, and forwards each session path straight to its container on the internal Docker network after asking the portal to authorise the request. Containers publish no ports on the host.',
+		browser: 'Browser',
+		browserSub: 'instance owner',
+		caddySub: 'TLS + session data plane',
+		appPaths: '/ and /api/*',
+		sessionPath: '/i/{uuid}/*',
+		sessionSub: 'HTTP + WebSocket',
+		authAsk: 'session? owner? running?',
+		portal: 'Portal (FastAPI)',
+		portalA: '/  interface',
+		portalB: '/api/*  auth, catalog, instances',
+		portalC: '/internal/…  authorisation',
+		docker: 'Docker API',
+		dockerSub: 'creates containers',
+		net: 'wcui_net · internal Docker network · no published ports',
+		desktop: 'Desktop',
+		agent: 'Coding agent',
+		db: 'PostgreSQL',
+	},
+	'pt-br': {
+		title: 'Arquitetura de origem única',
+		desc: 'O navegador chega ao Caddy por HTTPS. O Caddy entrega interface e API ao portal e encaminha cada caminho de sessão direto ao container na rede Docker interna, depois de pedir ao portal a autorização da requisição. Os containers não publicam porta no host.',
+		browser: 'Navegador',
+		browserSub: 'dono da instância',
+		caddySub: 'TLS + plano de dados',
+		appPaths: '/ e /api/*',
+		sessionPath: '/i/{uuid}/*',
+		sessionSub: 'HTTP + WebSocket',
+		authAsk: 'sessão? dono? rodando?',
+		portal: 'Portal (FastAPI)',
+		portalA: '/  interface',
+		portalB: '/api/*  auth, catálogo, instâncias',
+		portalC: '/internal/…  autorização',
+		docker: 'API do Docker',
+		dockerSub: 'cria os containers',
+		net: 'wcui_net · rede Docker interna · sem porta publicada',
+		desktop: 'Desktop',
+		agent: 'Agente de código',
+		db: 'PostgreSQL',
+	},
+} as const;
+
+const t = LABELS[Astro.props.locale];
+const id = `arch-${Astro.props.locale}`;
+---
+
+<figure class="arch not-content">
+	<div class="arch-scroll" tabindex="0" role="group" aria-label={t.title}>
+		<svg viewBox="0 0 880 510" role="img" aria-labelledby={`${id}-t ${id}-d`}>
+			<title id={`${id}-t`}>{t.title}</title>
+			<desc id={`${id}-d`}>{t.desc}</desc>
+			<defs>
+				<marker id={`${id}-arrow`} viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+					<path d="M0 0 10 5 0 10z" class="head"></path>
+				</marker>
+			</defs>
+
+			<!-- navegador -->
+			<rect class="node" x="340" y="12" width="200" height="56" rx="10"></rect>
+			<text class="name" x="440" y="36" text-anchor="middle">{t.browser}</text>
+			<text class="sub" x="440" y="55" text-anchor="middle">{t.browserSub}</text>
+
+			<path class="wire" d="M440 68V112" marker-end={`url(#${id}-arrow)`}></path>
+			<text class="mono" x="452" y="95">HTTPS</text>
+
+			<!-- caddy -->
+			<rect class="node accent" x="300" y="116" width="280" height="62" rx="10"></rect>
+			<text class="name on-accent" x="440" y="142" text-anchor="middle">Caddy</text>
+			<text class="sub on-accent" x="440" y="162" text-anchor="middle">{t.caddySub}</text>
+
+			<!-- interface e API -->
+			<path class="wire" d="M580 147H725V212" marker-end={`url(#${id}-arrow)`}></path>
+			<text class="mono" x="652" y="137" text-anchor="middle">{t.appPaths}</text>
+
+			<!-- portal -->
+			<rect class="node" x="576" y="216" width="284" height="118" rx="10"></rect>
+			<text class="name" x="594" y="242">{t.portal}</text>
+			<text class="mono" x="594" y="268">{t.portalA}</text>
+			<text class="mono" x="594" y="290">{t.portalB}</text>
+			<text class="mono" x="594" y="312">{t.portalC}</text>
+
+			<!-- caminho de sessão -->
+			<path class="wire strong" d="M380 178V374" marker-end={`url(#${id}-arrow)`}></path>
+			<text class="mono strong-text" x="366" y="212" text-anchor="end">{t.sessionPath}</text>
+			<text class="sub" x="366" y="231" text-anchor="end">{t.sessionSub}</text>
+
+			<!-- forward_auth -->
+			<path class="wire dashed" d="M386 286H570" marker-start={`url(#${id}-arrow)`} marker-end={`url(#${id}-arrow)`}></path>
+			<text class="mono" x="478" y="276" text-anchor="middle">forward_auth</text>
+			<text class="sub" x="478" y="305" text-anchor="middle">{t.authAsk}</text>
+
+			<!-- docker -->
+			<path class="wire" d="M725 334V374" marker-end={`url(#${id}-arrow)`}></path>
+			<text class="mono" x="737" y="352">{t.docker}</text>
+			<text class="sub" x="737" y="368">{t.dockerSub}</text>
+
+			<!-- rede interna -->
+			<rect class="net" x="20" y="378" width="840" height="120" rx="12"></rect>
+			<text class="sub net-label" x="40" y="402">{t.net}</text>
+
+			<rect class="node" x="40" y="418" width="180" height="62" rx="10"></rect>
+			<text class="name" x="130" y="444" text-anchor="middle">{t.desktop}</text>
+			<text class="mono" x="130" y="464" text-anchor="middle">:3000</text>
+
+			<rect class="node" x="245" y="418" width="180" height="62" rx="10"></rect>
+			<text class="name" x="335" y="444" text-anchor="middle">{t.agent}</text>
+			<text class="mono" x="335" y="464" text-anchor="middle">:3000</text>
+
+			<rect class="node" x="450" y="418" width="180" height="62" rx="10"></rect>
+			<text class="name" x="540" y="444" text-anchor="middle">{t.desktop}</text>
+			<text class="mono" x="540" y="464" text-anchor="middle">:3000</text>
+
+			<rect class="node quiet" x="660" y="418" width="180" height="62" rx="10"></rect>
+			<text class="name" x="750" y="454" text-anchor="middle">{t.db}</text>
+		</svg>
+	</div>
+</figure>
+
+<style>
+	.arch {
+		margin: 2rem 0;
+	}
+	.arch-scroll {
+		overflow-x: auto;
+		border-radius: 14px;
+		background: var(--wc-paper);
+		border: 1px solid var(--wc-line);
+		padding: 1.25rem;
+	}
+	svg {
+		display: block;
+		width: 100%;
+		min-width: 660px;
+		height: auto;
+		font-family: var(--wc-font);
+	}
+	.node {
+		fill: var(--wc-bg);
+		stroke: var(--wc-line);
+		stroke-width: 1.5;
+	}
+	.node.accent {
+		fill: var(--wc-accent);
+		stroke: var(--wc-accent);
+	}
+	.node.quiet {
+		stroke-dasharray: 2 4;
+	}
+	.net {
+		fill: color-mix(in srgb, var(--wc-accent) 7%, transparent);
+		stroke: var(--wc-accent);
+		stroke-width: 1.5;
+		stroke-dasharray: 6 6;
+	}
+	.wire {
+		fill: none;
+		stroke: var(--wc-muted);
+		stroke-width: 1.5;
+	}
+	.wire.strong {
+		stroke: var(--wc-accent);
+		stroke-width: 2.5;
+	}
+	.wire.dashed {
+		stroke-dasharray: 5 5;
+	}
+	.head {
+		fill: var(--wc-muted);
+	}
+	.name {
+		fill: var(--wc-text);
+		font-size: 15px;
+		font-weight: 600;
+	}
+	.sub {
+		fill: var(--wc-muted);
+		font-size: 12.5px;
+	}
+	.mono {
+		fill: var(--wc-muted);
+		font-family: var(--wc-font-mono);
+		font-size: 12px;
+	}
+	.strong-text {
+		fill: var(--wc-accent-text);
+		font-weight: 600;
+	}
+	.net-label {
+		fill: var(--wc-accent-text);
+		font-weight: 500;
+	}
+	.on-accent {
+		fill: var(--wc-accent-ink);
+	}
+</style>

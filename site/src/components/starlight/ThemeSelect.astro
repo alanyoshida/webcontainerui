@@ -1,0 +1,6 @@
+---
+import ThemeToggle from '../ThemeToggle.astro';
+const label = Astro.locals.starlightRoute.lang === 'pt-BR' ? 'Alternar tema claro/escuro' : 'Toggle light/dark theme';
+---
+
+<ThemeToggle label={label} />

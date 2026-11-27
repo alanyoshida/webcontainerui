@@ -1,0 +1,58 @@
+---
+import ArchitectureDiagram from '../ArchitectureDiagram.astro';
+import { href, type Locale } from '../../lib/paths';
+
+interface Props {
+	locale: Locale;
+	t: { title: string; lead: string; link: string; points: { title: string; body: string }[] };
+}
+const { locale, t } = Astro.props;
+---
+
+<section class="section">
+	<div class="wrap">
+		<h2 class="section-title">{t.title}</h2>
+		<p class="section-lead">{t.lead}</p>
+		<ArchitectureDiagram locale={locale} />
+		<ul class="points">
+			{
+				t.points.map((point) => (
+					<li>
+						<h3>{point.title}</h3>
+						<p>{point.body}</p>
+					</li>
+				))
+			}
+		</ul>
+		<a class="arrow-link" href={href(locale, 'architecture/overview')}>{t.link}</a>
+	</div>
+</section>
+
+<style>
+	.points {
+		display: grid;
+		gap: 2rem clamp(2rem, 4vw, 3.5rem);
+		margin: 2.5rem 0 2.5rem;
+		padding: 0;
+		list-style: none;
+	}
+	@media (min-width: 52rem) {
+		.points {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+	.points li {
+		padding-top: 1.25rem;
+		border-top: 1px solid var(--wc-line);
+	}
+	h3 {
+		font-size: 1.15rem;
+		letter-spacing: -0.01em;
+		line-height: 1.3;
+	}
+	.points p {
+		margin-top: 0.6rem;
+		color: var(--wc-muted);
+		font-size: 1rem;
+	}
+</style>

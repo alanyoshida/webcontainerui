@@ -1,0 +1,61 @@
+---
+title: Single origin
+description: How the front end, the API and the sessions are served from the same origin, with each instance under /i/<uuid>/ and containers with no published port.
+sidebar:
+  order: 1
+sourceHash: aac6ca020462d1ab502a5ba1195c3e3ad0ceb74aa5491db1eee437a758da1874
+---
+
+import ArchitectureDiagram from '../../../components/ArchitectureDiagram.astro';
+
+Everything is served from the same origin: the front end, the API and session forwarding. Each instance gets the path `/i/<uuid>/`, and the container is created with `SUBFOLDER=/i/<uuid>/` so that its internal routes match that prefix.
+
+<ArchitectureDiagram locale="en" />
+
+## Components
+
+| Component | Role |
+|---|---|
+| Caddy | Terminates TLS (Let's Encrypt) and carries session traffic in production |
+| Portal (FastAPI) | Serves the front end at `/` and the API at `/api/*`, decides session authorization and creates the containers through Docker |
+| PostgreSQL | Persistence in production, on the internal network only |
+| Instance containers | One per instance, on the internal network `wcui_net`, with no published port |
+
+The portal runs with a single worker and talks to Docker through `aiodocker`, with no blocking calls: a synchronous call in the path of a request would stall the event loop for every session.
+
+## Containers with no published port
+
+The central point of the architecture is that **instance containers do not publish a port on the host**. They sit only on the internal Docker network, and the only path to them goes through the edge, under `/i/<uuid>/`.
+
+Isolation between users is therefore topological: there is no alternative address for reaching someone else's desktop. The owner check on forwarding and the random credential of each instance are additional layers, described in [Isolation layers](/security/isolation-layers/).
+
+In production, the portal itself does not publish a port either: only Caddy exposes 80 and 443.
+
+## The path of a session
+
+Each instance is created with a UUID identifier, a container name and its own internal credential (random username and password). The container receives this credential through environment variables, along with the `SUBFOLDER` prefix and the port defined in the catalog entry.
+
+When the owner's browser accesses `/i/<uuid>/`:
+
+1. the edge checks whether there is an authenticated session, whether the instance belongs to the user and whether it is running;
+2. only then is the request forwarded to the container, with the internal credential injected into the `Authorization` header;
+3. a credential sent by the client is discarded, and the internal credential is never returned to the browser.
+
+In production, frame transport **does not go through the portal process**: Caddy forwards `/i/{uuid}/*` (HTTP and WebSocket) straight to the container, after consulting the portal through `forward_auth`. In development, without Caddy, the portal itself delivers the sessions through an in-process proxy, which still exists and is what the test suite uses. Both paths are detailed in [Session data plane](/architecture/session-data-plane/).
+
+## Why the same origin
+
+Serving the session under the portal's origin has three practical consequences:
+
+- **Single authentication**: the portal's session cookie accompanies requests to `/i/<uuid>/`, so the same session that authenticates the API authorizes access to the instance.
+- **CSP without relaxation**: the container sends `frame-ancestors 'self'`, so embedding the session in a portal iframe works without loosening any policy.
+- **A single certificate and a single domain**: there is no per-instance subdomain and no wildcard DNS to configure.
+
+The trade-off is that the session shares its origin with the portal. This point was assessed in the security audit and is recorded in [Audits](/security/audits/).
+
+## Related reading
+
+- [Session data plane](/architecture/session-data-plane/)
+- [Database](/architecture/database/)
+- [Scale target](/architecture/scale/)
+- [Trust surface](/security/trust-surface/)

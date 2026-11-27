@@ -4,8 +4,10 @@
 # Verifica os pré-requisitos, coleta a configuração obrigatória (domínio,
 # e-mail/senha do primeiro administrador, chave de cifra das identidades
 # SSH), grava tudo em deploy/.env e sobe a composição de produção
-# (Caddy + portal). Ver deploy/README.md para a ordem de subida manual,
-# variáveis opcionais e o procedimento de reversão.
+# (Caddy + portal). A ordem de subida manual, as variáveis opcionais e o
+# procedimento de reversão estão na documentação:
+# https://alanyoshida.github.io/webcontainerui/pt-br/operations/manual-deployment/
+# (fonte em site/src/content/docs/pt-br/operations/).
 #
 # Uso:
 #   ./install.sh
@@ -166,4 +168,5 @@ echo "Pronto. Assim que o DNS e o certificado propagarem, acesse:"
 echo "  https://$WCUI_DOMAIN"
 echo
 echo "Entre com WCUI_ADMIN_EMAIL/WCUI_ADMIN_PASSWORD, registre as imagens do"
-echo "catálogo e conceda acesso a grupos — ver deploy/README.md."
+echo "catálogo e conceda acesso a grupos. Documentação:"
+echo "  https://alanyoshida.github.io/webcontainerui/pt-br/operations/manual-deployment/"

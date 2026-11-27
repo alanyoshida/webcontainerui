@@ -1,0 +1,137 @@
+---
+import { href, type Locale } from '../../lib/paths';
+
+interface Props {
+	locale: Locale;
+	t: Record<string, string>;
+}
+const { locale, t } = Astro.props;
+
+// Comandos conferidos contra README.md, install.sh e
+// deploy/docker-compose.dev.yml.
+const blocks = [
+	{
+		label: t.productionLabel,
+		note: t.productionNote,
+		code: 'git clone https://github.com/alanyoshida/webcontainerui.git\ncd webcontainerui\n./install.sh',
+	},
+	{
+		label: t.localLabel,
+		note: t.localNote,
+		code: 'cd webcontainerui/deploy\ndocker compose -f docker-compose.dev.yml up --build',
+	},
+];
+---
+
+<section class="section install" id="install">
+	<div class="wrap">
+		<h2 class="section-title">{t.title}</h2>
+		<p class="section-lead">{t.lead}</p>
+		<div class="blocks">
+			{
+				blocks.map((block) => (
+					<div class="block">
+						<h3>{block.label}</h3>
+						<div class="terminal">
+							<pre><code>{block.code}</code></pre>
+							<button type="button" data-copy={block.code} data-label={t.copy} data-done={t.copied}>
+								{t.copy}
+							</button>
+						</div>
+						<p>{block.note}</p>
+					</div>
+				))
+			}
+		</div>
+		<div class="links">
+			<a class="button primary" href={href(locale, 'getting-started/installation')}>{t.guide}</a>
+			<a class="button ghost" href={href(locale, 'operations/manual-deployment')}>{t.manual}</a>
+		</div>
+	</div>
+</section>
+
+<script>
+	for (const button of document.querySelectorAll<HTMLButtonElement>('button[data-copy]')) {
+		button.addEventListener('click', async () => {
+			try {
+				await navigator.clipboard.writeText(button.dataset.copy ?? '');
+				button.textContent = button.dataset.done ?? '';
+				setTimeout(() => (button.textContent = button.dataset.label ?? ''), 1800);
+			} catch {
+				// Sem permissão de área de transferência: o texto segue selecionável.
+			}
+		});
+	}
+</script>
+
+<style>
+	.install {
+		background: var(--wc-paper);
+	}
+	.blocks {
+		display: grid;
+		gap: 2.5rem clamp(2rem, 4vw, 3.5rem);
+		margin-top: 3rem;
+	}
+	@media (min-width: 56rem) {
+		.blocks {
+			grid-template-columns: repeat(2, minmax(0, 1fr));
+		}
+	}
+	.block {
+		min-width: 0;
+	}
+	h3 {
+		font-size: 1.15rem;
+		letter-spacing: -0.01em;
+	}
+	.terminal {
+		position: relative;
+		margin-top: 0.9rem;
+		border-radius: 12px;
+		background: var(--wc-bg);
+		border: 1px solid var(--wc-line);
+	}
+	pre {
+		margin: 0;
+		padding: 1.25rem 1.25rem 3.25rem;
+		overflow-x: auto;
+		font-family: var(--wc-font-mono);
+		font-size: 0.9rem;
+		line-height: 1.75;
+	}
+	pre code {
+		font: inherit;
+	}
+	button {
+		position: absolute;
+		right: 0.75rem;
+		bottom: 0.75rem;
+		min-height: 2rem;
+		padding: 0.25rem 0.85rem;
+		border-radius: 999px;
+		border: 1px solid var(--wc-line);
+		background: var(--wc-paper);
+		color: var(--wc-text);
+		font: inherit;
+		font-size: 0.85rem;
+		font-weight: 600;
+		cursor: pointer;
+		transition: border-color 160ms ease-out;
+	}
+	button:hover {
+		border-color: var(--wc-muted);
+	}
+	.block p {
+		margin-top: 0.9rem;
+		color: var(--wc-muted);
+		font-size: 1rem;
+		max-width: 52ch;
+	}
+	.links {
+		display: flex;
+		flex-wrap: wrap;
+		gap: 0.75rem;
+		margin-top: 3rem;
+	}
+</style>

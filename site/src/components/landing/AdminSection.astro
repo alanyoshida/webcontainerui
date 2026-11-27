@@ -1,0 +1,49 @@
+---
+import { Image } from 'astro:assets';
+import adminShot from '../../assets/screenshots/admin.png';
+
+interface Props {
+	t: { title: string; lead: string; items: string[]; screenshotAlt: string };
+}
+const { t } = Astro.props;
+---
+
+<section class="section">
+	<div class="wrap grid">
+		<div class="shot">
+			<Image src={adminShot} alt={t.screenshotAlt} widths={[480, 800, 1200]} sizes="(min-width: 60rem) 42rem, 94vw" />
+		</div>
+		<div>
+			<h2 class="section-title">{t.title}</h2>
+			<p class="section-lead">{t.lead}</p>
+			<ul>
+				{t.items.map((item) => <li>{item}</li>)}
+			</ul>
+		</div>
+	</div>
+</section>
+
+<style>
+	.grid {
+		display: grid;
+		gap: clamp(2.5rem, 6vw, 4.5rem);
+		align-items: center;
+	}
+	@media (min-width: 60rem) {
+		.grid {
+			grid-template-columns: minmax(0, 7fr) minmax(0, 5fr);
+		}
+	}
+	ul {
+		margin: 1.75rem 0 0;
+		padding: 0;
+		list-style: none;
+	}
+	li {
+		padding: 0.85rem 0;
+		border-top: 1px solid var(--wc-line);
+	}
+	li:last-child {
+		border-bottom: 1px solid var(--wc-line);
+	}
+</style>

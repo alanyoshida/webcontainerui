@@ -1,0 +1,55 @@
+/* Aplica os tokens do portal às variáveis de tema do Starlight. */
+@import './tokens.css';
+
+:root {
+	--sl-font: var(--wc-font);
+	--sl-font-mono: var(--wc-font-mono);
+
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #e6e8eb;
+	--sl-color-gray-2: #c5cad1;
+	--sl-color-gray-3: #8b939d;
+	--sl-color-gray-4: #4a515b;
+	--sl-color-gray-5: #2c3138;
+	--sl-color-gray-6: #1a1d21;
+	--sl-color-black: #121417;
+
+	--sl-color-accent-low: #3d1620;
+	--sl-color-accent: #fb7185;
+	--sl-color-accent-high: #fecdd3;
+}
+
+:root[data-theme='light'] {
+	--sl-color-white: #16181c;
+	--sl-color-gray-1: #22262b;
+	--sl-color-gray-2: #2c3138;
+	--sl-color-gray-3: #4f5964;
+	--sl-color-gray-4: #7b8591;
+	--sl-color-gray-5: #c3cad2;
+	--sl-color-gray-6: #e6eaee;
+	--sl-color-gray-7: #f4f6f8;
+	--sl-color-black: #ffffff;
+
+	--sl-color-accent-low: #dbe8f7;
+	--sl-color-accent: #1565c0;
+	--sl-color-accent-high: #0d3c73;
+}
+
+/* Texto sobre o botão de destaque precisa do par de contraste do token. */
+.sl-link-button.primary,
+starlight-tabs [role='tab'][aria-selected='true'] {
+	--sl-color-text-invert: var(--wc-accent-ink);
+}
+
+.sl-markdown-content :is(h1, h2, h3, h4) {
+	text-wrap: balance;
+	letter-spacing: -0.015em;
+}
+
+.sl-markdown-content a {
+	text-underline-offset: 0.2em;
+}
+
+.sl-markdown-content table {
+	font-variant-numeric: tabular-nums;
+}
